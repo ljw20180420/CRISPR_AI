@@ -1,4 +1,4 @@
 references/
 test_dataset/*
-!test_dataset/*.sh
+!test_dataset/*.md
 !test_dataset/*.py

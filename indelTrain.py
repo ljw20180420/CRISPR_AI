@@ -12,9 +12,13 @@ parser.add_argument("--truncation", default=True, help="truncation for DNABert t
 parser.add_argument("--padding", default=True, help="padding for DNABert tokenizer (https://pic4.zhimg.com/v2-bdfb30d0379a9e85c97821afe6fe983f_r.jpg)")
 args = parser.parse_args()
 
-# 读取数据 （使用batch=True来加速）
+# 读取数据，拆成训练集，检验集，测试集。
 import datasets
-data = datasets.load_dataset("test_dataset/sx_test_dataset.py")
+alg_data = datasets.load_dataset("test_dataset/sx_test_dataset.py")
+alg_data = alg_data[datasets.Split.TRAIN].train_test_split(train_size=0.8, seed=63036)
+_ = alg_data[datasets.Split.TRAIN].train_test_split(train_size=0.8, seed=1989)
+alg_data[datasets.Split.TRAIN] = _.pop(datasets.Split.TRAIN)
+alg_data[datasets.Split.VALIDATION] = _.pop(datasets.Split.TEST)
 
 import torch
 from diffusers import DiffusionPipeline

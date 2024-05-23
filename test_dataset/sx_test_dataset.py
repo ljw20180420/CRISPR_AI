@@ -6,10 +6,8 @@ This is a test data set from sx.
 """
 
 _URLS = {
-    "condition": "all.scaffold",
-    "test": "test.alg",
-    "valid": "valid.alg",
-    "train": "train.alg"
+    "condition": "train.scaffold",
+    "alg": "train.alg"
 }
 
 # TODO: Name of the dataset usually matches the script name with CamelCase instead of snake_case
@@ -43,23 +41,8 @@ class sxTestDataset(datasets.GeneratorBasedBuilder):
 
         return [
             datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={
-                "filepath": {
-                    "alg": downloaded_files["train"],
-                    "condition": downloaded_files["condition"]
-                }
+                "filepath": downloaded_files
             }),
-            datasets.SplitGenerator(name=datasets.Split.VALIDATION, gen_kwargs={
-                "filepath": {
-                    "alg": downloaded_files["valid"],
-                    "condition": downloaded_files["condition"]
-                }
-            }),
-            datasets.SplitGenerator(name=datasets.Split.TEST, gen_kwargs={
-                "filepath": {
-                    "alg": downloaded_files["test"],
-                    "condition": downloaded_files["condition"]
-                }
-            })
         ]
     
     def _generate_examples(self, filepath):
