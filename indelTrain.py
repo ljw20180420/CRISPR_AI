@@ -14,11 +14,21 @@ args = parser.parse_args()
 
 # 读取数据，拆成训练集，检验集，测试集。
 import datasets
-alg_data = datasets.load_dataset("test_dataset/sx_test_dataset.py")
-alg_data = alg_data[datasets.Split.TRAIN].train_test_split(train_size=0.8, seed=63036)
-_ = alg_data[datasets.Split.TRAIN].train_test_split(train_size=0.8, seed=1989)
-alg_data[datasets.Split.TRAIN] = _.pop(datasets.Split.TRAIN)
-alg_data[datasets.Split.VALIDATION] = _.pop(datasets.Split.TEST)
+import random
+# 设置随机种子以便重复
+random.seed(63036)
+our_data_sets = ["test_dataset/sx_test_dataset.py"]
+# 设置streaming=True流读取（https://hf-mirror.com/docs/datasets/v2.19.0/en/stream#stream），可以节约内存。未来版本trust_remote_code默认为False，因此手动设置trust_remote_code=True。
+data_streams = [datasets.load_dataset(our_data_set, streaming=True)["train"] for our_data_set in our_data_sets]
+# 将所有数据库的stream合并
+combined_stream = datasets.interleave_datasets(data_streams)
+# 打乱序列
+combined_stream = combined_stream.shuffle(buffer_size=10_000, seed=random.randint(0, 999_999))
+# 提取测试数据和检验数据，剩下的作为训练数据
+test_size, valid_size = 50, 50
+test_data_stream = combined_stream.take(test_size)
+valid_data_stream = combined_stream.skip(test_size).take(valid_size)
+train_data_stream = combined_stream.skip(test_size + valid_size)
 
 import torch
 from diffusers import DiffusionPipeline
