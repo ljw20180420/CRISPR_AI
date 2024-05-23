@@ -1,6 +1,7 @@
 import datasets
 import re
 import subprocess
+import sys
 
 _DESCRIPTION = """\
 This is a test data set from sx.
@@ -55,7 +56,7 @@ class sxTestDataset(datasets.GeneratorBasedBuilder):
             id_ = 0
             for alg_file in alg_files:
                 with open(alg_file, "r") as alg:
-                    with subprocess.Popen(f'''sed 'N;N;s/\\n/\\t/g' | shuf | awk -F "\t" '{{
+                    with subprocess.Popen(f'''sed 'N;N;s/\\n/\\t/g' | shuf --random-source=<(openssl enc -aes-256-ctr -pass pass:"1989" -nosalt </dev/zero 2>/dev/null) | awk -F "\t" '{{
                             for (i = 1; i < NF - 2; ++i)
                                 printf("%s\\t", $i)
                             for (i = NF - 2; i <= NF; ++i)
