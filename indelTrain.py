@@ -18,7 +18,7 @@ import random
 # 设置随机种子以便重复
 random.seed(63036)
 our_data_sets = ["test_dataset/sx_test_dataset.py"]
-# 设置streaming=True流读取（https://hf-mirror.com/docs/datasets/v2.19.0/en/stream#stream），可以节约内存。未来版本trust_remote_code默认为False，因此手动设置trust_remote_code=True。
+# 设置streaming=True流读取（https://hf-mirror.com/docs/datasets/v2.19.0/en/stream#stream），可以节约内存。
 data_streams = [datasets.load_dataset(our_data_set, streaming=True)["train"] for our_data_set in our_data_sets]
 # 将所有数据库的stream合并
 combined_stream = datasets.interleave_datasets(data_streams)
