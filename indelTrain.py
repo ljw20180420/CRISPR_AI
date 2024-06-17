@@ -1,9 +1,11 @@
 #!/usr/bin/env python
+# DNABert (https://arxiv.org/pdf/2306.15006)
+
 
 # 设置参数
 import argparse
 import pathlib
-parser = argparse.ArgumentParser(description="用DNABert（https://arxiv.org/pdf/2306.15006）和cascaded扩散模型（https://doi.org/10.48550/arXiv.2106.15282）预测CRIPSR/Cas编辑结果。")
+parser = argparse.ArgumentParser(description="use cascaded diffuser (https://doi.org/10.48550/arXiv.2106.15282) to predict CRIPSR/Cas9 editing")
 parser.add_argument("--align_path", nargs='+', default='test/test.alg', type=pathlib.Path, help="file list stores alignments")
 parser.add_argument("--ref_path", nargs='+', default='test/test.ref', type=pathlib.Path, help="file list stores reference plain sequences (one line for each reference)")
 parser.add_argument("--condition_path", nargs='+', default='test/test.scaffold', type=pathlib.Path, help="file list stores condition plain sequences (one line for each condition)")
@@ -37,3 +39,7 @@ from transformers import AutoTokenizer, AutoModel
 # 从huggingface下载DNABERT的模型和Tokenizer
 tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
 model = AutoModel.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
+
+dna = "ACGTAGCATCGGATCTATCTATCGACACTTGGTTATCGATCTACGAGCATCTCGTTAGC"
+inputs = tokenizer(dna, return_tensors = 'pt')["input_ids"]
+hidden_states = model(inputs)[0] # [1, sequence_length, 768]

@@ -1,7 +1,6 @@
 import datasets
 import re
 import subprocess
-import sys
 
 _DESCRIPTION = """\
 This is a test data set from sx.
