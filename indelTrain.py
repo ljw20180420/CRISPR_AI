@@ -1,23 +1,16 @@
 #!/usr/bin/env python
 # DNABert (https://arxiv.org/pdf/2306.15006)
 
-
 # 设置参数
 import argparse
 import pathlib
 parser = argparse.ArgumentParser(description="use cascaded diffuser (https://doi.org/10.48550/arXiv.2106.15282) to predict CRIPSR/Cas9 editing")
-parser.add_argument("--align_path", nargs='+', default='test/test.alg', type=pathlib.Path, help="file list stores alignments")
-parser.add_argument("--ref_path", nargs='+', default='test/test.ref', type=pathlib.Path, help="file list stores reference plain sequences (one line for each reference)")
-parser.add_argument("--condition_path", nargs='+', default='test/test.scaffold', type=pathlib.Path, help="file list stores condition plain sequences (one line for each condition)")
-parser.add_argument("--max_length", default=None, help="maximal number of tokens for DNABert tokenizer (https://pic4.zhimg.com/v2-bdfb30d0379a9e85c97821afe6fe983f_r.jpg)")
-parser.add_argument("--truncation", default=True, help="truncation for DNABert tokenizer (https://pic4.zhimg.com/v2-bdfb30d0379a9e85c97821afe6fe983f_r.jpg)")
-parser.add_argument("--padding", default=True, help="padding for DNABert tokenizer (https://pic4.zhimg.com/v2-bdfb30d0379a9e85c97821afe6fe983f_r.jpg)")
+parser.add_argument("--data_files", nargs='+', type=pathlib.Path, help="files after preprocess")
 args = parser.parse_args()
 
 # read data
 from datasets import load_dataset, Features, Value
 alg_features = Features({
-    'index': Value('uint64'),
     'count': Value('uint64'),
     'score': Value('float32'),
     'ref_id': Value('uint32'),
