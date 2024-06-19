@@ -14,23 +14,28 @@ parser.add_argument("--truncation", default=True, help="truncation for DNABert t
 parser.add_argument("--padding", default=True, help="padding for DNABert tokenizer (https://pic4.zhimg.com/v2-bdfb30d0379a9e85c97821afe6fe983f_r.jpg)")
 args = parser.parse_args()
 
-# 读取数据，拆成训练集，检验集，测试集。
-import datasets
-import random
-# 设置随机种子以便重复
-random.seed(63036)
-our_data_sets = ["test_dataset/sx_test_dataset.py"]
-# 设置streaming=True流读取（https://hf-mirror.com/docs/datasets/v2.19.0/en/stream#stream），可以节约内存。
-data_streams = [datasets.load_dataset(our_data_set, streaming=True)["train"] for our_data_set in our_data_sets]
-# 将所有数据库的stream合并
-combined_stream = datasets.interleave_datasets(data_streams)
-# 打乱序列
-combined_stream = combined_stream.shuffle(buffer_size=10_000, seed=random.randint(0, 999_999))
-# 提取测试数据和检验数据，剩下的作为训练数据
-test_size, valid_size = 50, 50
-test_data_stream = combined_stream.take(test_size)
-valid_data_stream = combined_stream.skip(test_size).take(valid_size)
-train_data_stream = combined_stream.skip(test_size + valid_size)
+# read data
+from datasets import load_dataset, Features, Value
+alg_features = Features({
+    'index': Value('uint64'),
+    'count': Value('uint64'),
+    'score': Value('float32'),
+    'ref_id': Value('uint32'),
+    'up_dangle': Value('string'),
+    'ref1_start': Value('int32'),
+    'query1_start': Value('int32'),
+    'ref1_end': Value('int32'),
+    'query1_end': Value('int32'),
+    'random_insert': Value('string'),
+    'ref2_start': Value('int32'),
+    'query2_start': Value('int32'),
+    'ref2_end': Value('int32'),
+    'query2_end': Value('int32'),
+    'down_dangle': Value('string'),
+    'cut1': Value('int32'),
+    'cut2': Value('int32')
+})
+sx_data = load_dataset("csv", data_files="/home/ljw/sdc1/SX/algs/*", num_proc=12, delimiter="\t", column_names=['index', 'count', 'score', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'ref1_end', 'query1_end', 'random_insert', 'ref2_start', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'cut1', 'cut2', 'ref', 'query'], features=alg_features, keep_default_na=False, with_file_names=True)
 
 import torch
 from diffusers import DiffusionPipeline
