@@ -6,7 +6,9 @@ import re
 import numpy as np
 import polars as pl
 import tempfile
-import io
+import os
+
+# command line inputs
 parser = argparse.ArgumentParser(description="preprocess alignments")
 parser.add_argument("--data_dir", type=pathlib.Path, help="directory containing alignment files")
 parser.add_argument("--score_quantile", type=float, default=0.05, help="alignment score quantile to filter score")
@@ -21,21 +23,23 @@ alg_features = Features({
     'score': Value('float32'),
     'ref_id': Value('uint32'),
     'up_dangle': Value('string'),
-    'ref1_start': Value('int32'),
-    'query1_start': Value('int32'),
-    'ref1_end': Value('int32'),
-    'query1_end': Value('int32'),
+    'ref1_start': Value('int16'),
+    'query1_start': Value('int16'),
+    'ref1_end': Value('int16'),
+    'query1_end': Value('int16'),
     'random_insert': Value('string'),
-    'ref2_start': Value('int32'),
-    'query2_start': Value('int32'),
-    'ref2_end': Value('int32'),
-    'query2_end': Value('int32'),
+    'ref2_start': Value('int16'),
+    'query2_start': Value('int16'),
+    'ref2_end': Value('int16'),
+    'query2_end': Value('int16'),
     'down_dangle': Value('string'),
-    'cut1': Value('int32'),
-    'cut2': Value('int32'),
+    'cut1': Value('int16'),
+    'cut2': Value('int16'),
     'ref': Value('string'),
     'query': Value('string')
 })
+
+# ref1 and ref2 are splited by a lower case acgtn
 acgtn_pattern = re.compile('[acgtn]')
 def get_ref1_len(examples):
     refs = [ref.replace("-", "") for ref in examples['ref']]
@@ -52,12 +56,17 @@ def get_ref1_len(examples):
         "ref1": ref1s,
         "ref2": ref2s
     }
+
+# keep only count, score, ref1_end, ref2_start, cut1, cut2, ref1, ref2 
 alg_ds = (
     load_dataset("csv", data_files=(args.data_dir / "*").as_posix(), num_proc=12, delimiter="\t", column_names=['index', 'count', 'score', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'ref1_end', 'query1_end', 'random_insert', 'ref2_start', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'cut1', 'cut2', 'ref', 'query'], features=alg_features, keep_default_na=False)
+    # load_dataset("csv", data_files=(args.data_dir / "A-CtIPb-2.fq.alg.gz").as_posix(), num_proc=12, delimiter="\t", column_names=['index', 'count', 'score', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'ref1_end', 'query1_end', 'random_insert', 'ref2_start', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'cut1', 'cut2', 'ref', 'query'], features=alg_features, keep_default_na=False)
     .remove_columns(['index', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'query1_end', 'random_insert', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'query'])
     .map(get_ref1_len, batched=True)
     .remove_columns(["ref", "ref1_len"])
 )
+
+# filter records by alignment score
 score_thres = max(
     args.min_score,
     np.quantile(alg_ds['train']['score'], args.score_quantile)
@@ -66,15 +75,22 @@ alg_ds = (
     alg_ds.filter(lambda examples: [score >= score_thres for score in examples["score"]], batched=True)
     .remove_columns(["score"])['train']
 )
-parquet_io = io.BytesIO()
-alg_ds.to_parquet(parquet_io)
+
+# save results to a temperary parquet file
+temp_file = tempfile.mkstemp(dir = "/home/ljw/sdc1/tmp")[1]
+alg_ds.to_parquet(temp_file)
 del alg_ds
-parquet_io.seek(0)
+
+# load parquet file into polars data frame and group by ...
+# write the result to newline delimited JSON representation (parquet containing large_list item is not supported by huggingface datasets at this time)
 (
-    pl.scan_parquet(parquet_io)
+    pl.scan_parquet(temp_file)
     .group_by(["ref1_end", "ref2_start", "cut1", "cut2", "ref1", "ref2"])
     .agg(pl.col("count").sum())
-    .sink_parquet((args.data_dir.parent / "dataset.parquet").as_posix())
+    .group_by(["cut1", "cut2", "ref1", "ref2"])
+    .agg(pl.col("ref1_end"), pl.col("ref2_start"), pl.col("count"))
+    .collect(streaming=True)
+    .write_ndjson((args.data_dir.parent / "dataset.json").as_posix())
+    # .write_parquet((args.data_dir.parent / "dataset.parquet").as_posix())
 )
-
-pds = load_dataset("parquet", data_files="/home/ljw/sdc1/SJLJH/dataset.parquet", num_proc=12)
+os.remove(temp_file)
