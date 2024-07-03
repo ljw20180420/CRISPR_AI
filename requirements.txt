@@ -1,4 +1,5 @@
 transformers
 diffusers
+accelerate
 datasets
 polars

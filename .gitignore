@@ -1,4 +1,3 @@
 references/
-test_dataset/*
-!test_dataset/*.md
-!test_dataset/*.py
+inDelphi-model
+.vscode
