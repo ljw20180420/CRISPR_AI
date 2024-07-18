@@ -1,3 +1,4 @@
-references/
+references
 inDelphi-model
 .vscode
+**/__pycache__

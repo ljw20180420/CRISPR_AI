@@ -84,11 +84,13 @@ del alg_ds
 # load parquet file into polars data frame and group by ...
 # write the result to newline delimited JSON representation (parquet containing large_list item is not supported by huggingface datasets at this time)
 (
-    pl.scan_parquet(temp_file)
+    pl.scan_parquet(temp_file, low_memory=True)
     .group_by(["ref1_end", "ref2_start", "cut1", "cut2", "ref1", "ref2"])
     .agg(pl.col("count").sum())
     .group_by(["cut1", "cut2", "ref1", "ref2"])
     .agg(pl.col("ref1_end"), pl.col("ref2_start"), pl.col("count"))
+    .group_by(["ref1", "ref2"])
+    .agg(pl.col("cut1"), pl.col("cut2"), pl.col("ref1_end"), pl.col("ref2_start"), pl.col("count"))
     .collect(streaming=True)
     .write_ndjson((args.data_dir.parent / "dataset.json").as_posix())
     # .write_parquet((args.data_dir.parent / "dataset.parquet").as_posix())

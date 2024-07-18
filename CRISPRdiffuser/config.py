@@ -5,12 +5,6 @@ from logging import getLogger
 import os
 import json
 
-def list_huggingface_diffuser_models():
-    return ['UNet2DConditionModel']
-
-def list_all_diffuser_models():
-    return list_huggingface_diffuser_models()
-
 def list_huggingface_diffuser_schedulers():
     return ['DPMSolverMultistepSchedule']
 
@@ -31,19 +25,18 @@ def list_all_optimizers():
     return list_torch_optimizers()
 
 def get_diagonal_indices():
-    # given offset in range(-reflen, reflen + 1)
+    # given offset in range(-ref2len, ref1len + 1)
     # row_idx_start = max(-offset, 0)
-    # row_idx_end = min(reflen-offset, reflen)
+    # row_idx_end = min(ref1len-offset, ref2len)
     # col_idx_start = max(offset, 0)
-    # col_idx_end = min(offset+reflen, reflen)
+    # col_idx_end = min(offset+ref2len, ref1len)
     # OUTPUT: (
-    #   tensor((reflen+1)*(reflen+1),),
-    #   tensor((reflen+1)*(reflen+1),)
+    #   tensor((ref2len+1)*(ref1len+1),),
+    #   tensor((ref2len+1)*(ref1len+1),)
     # )
-    global reflen
     return (
-        torch.cat([torch.arange(max(-offset, 0), min(reflen-offset, reflen)+1) for offset in range(-reflen, reflen+1)]),
-        torch.cat([torch.arange(max(offset, 0), min(offset+reflen, reflen)+1) for offset in range(-reflen, reflen+1)])
+        torch.cat([torch.arange(max(-offset, 0), min(ref1len-offset, ref2len)+1) for offset in range(-ref2len, ref1len+1)]),
+        torch.cat([torch.arange(max(offset, 0), min(offset+ref2len, ref1len)+1) for offset in range(-ref2len, ref1len+1)])
     )
 
 logger = getLogger(__name__)
@@ -57,13 +50,16 @@ parser_dataset.add_argument("--alphabet", type=str, default="ACGTN", help="alpha
 parser_dataset.add_argument("--lr_warmup_steps", type=int, default=500, help="warm up steps for learning scheduler")
 parser_dataset.add_argument("--seed", type=int, default=63036, help="random seed")
 parser_dataset.add_argument("--test_valid_ratio", type=float, default=0.1, help="proportion for test and valid samples")
+parser_dataset.add_argument("--batch_size", type=int, default=10, help="batch size for DataLoader")
+parser_dataset.add_argument("--cross_reference", type=bool, default=False, help="use kmer from both reference to compose cross factors")
+parser_dataset.add_argument("--max_micro_homology", type=int, default=7, help="Clip micro-homology strength to (0, max_micro_homology).")
 
-parser_diffuser_model = parser.add_argument_group(title="diffuser model", description="parameters for diffuser model")
-parser_diffuser_model.add_argument("--diffuser_model", type=str, default="UNet2DConditionModel", choices=list_all_diffuser_models(), help="name of diffuser model")
+parser_model = parser.add_argument_group(title="model", description="parameters for model")
+parser_model.add_argument("--model", type=str, default="UNet2DModel", choices=["UNet2DModel"], help="name of the model")
 
-parser_diffuser_scheduler = parser.add_argument_group(title="diffuser scheduler", description="parameters for diffuser scheduler")
-parser_diffuser_scheduler.add_argument("--diffuser_scheduler", type=str, default="DPMSolverMultistepSchedule", choices=list_huggingface_diffuser_schedulers(), help="scheduler used for diffuser model")
-parser_diffuser_scheduler.add_argument("--num_train_timesteps", type=int, default=1000, help="number of diffuser scheduler time steps")
+parser_train_scheduler = parser.add_argument_group(title="diffuser scheduler", description="parameters for diffuser scheduler")
+parser_train_scheduler.add_argument("--diffuser_scheduler", type=str, default="DDPMScheduler", choices=["DDPMScheduler"], help="scheduler used for diffuser model")
+parser_train_scheduler.add_argument("--num_train_timesteps", type=int, default=1000, help="number of diffuser scheduler time steps")
 
 parser_learn_scheduler = parser.add_argument_group(title="learn_scheduler", description="parameters for learn scheduler")
 parser_learn_scheduler.add_argument("--learn_scheduler", type=str, default="cosine", choices=list_all_learn_schedulers(), help="name of learn scheduler")
@@ -86,20 +82,15 @@ parser_accelerator.add_argument("--mixed_precision", type=str, default="fp16", c
 parser_accelerator.add_argument("--gradient_accumulation_steps", type=int, default=1, help="The number of steps that should pass before gradients are accumulated. A number > 1 should be combined with Accelerator.accumulate. If not passed, will default to the value in the environment variable ACCELERATE_GRADIENT_ACCUMULATION_STEPS. Can also be configured through a GradientAccumulationPlugin.")
 parser_accelerator.add_argument("--max_norm", type=float, default=1.0, help="Max norm of gradients. Prevent gradient from exploding.")
 
-parser_logging = parser.add_argument_group(title="logging", description="Parameters for logging.")
-parser_logging.add_argument("--push_to_hub", type=bool, default=False, help="Push output to huggingface hub.")
-parser_logging.add_argument("--save_image_epochs", type=int, default=1000, help="Generate sample images every this epoch.")
-parser_logging.add_argument("--save_model_epochs", type=int, default=1000, help="Save model every this epoch.")
+parser_save = parser.add_argument_group(title="save", description="Parameters for saving.")
+parser_save.add_argument("--push_to_hub", type=bool, default=False, help="Push output to huggingface hub.")
+parser_save.add_argument("--save_model_epochs", type=int, default=1000, help="Save model every this epoch.")
 
 args = parser.parse_args()
 
 
 alphacode = torch.frombuffer(args.alphabet.encode(), dtype=torch.uint8)
 json_line1 = json.loads(args.data_file.open("r").readline())
-reflen = len(json_line1['ref1'])
-try:
-    assert reflen == len(json_line1['ref2']), "reference 1 and reference 2 have different lengths"
-except Exception as err:
-    logger.exception(str(err))
-    raise
+ref1len, ref2len = len(json_line1['ref1']), len(json_line1['ref2'])
 diag_indices = get_diagonal_indices()
+output_dir = args.data_file.parent / "output"

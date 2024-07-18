@@ -5,7 +5,7 @@ from .config import args
 
 def show_mh_matrix(mh_maxtrix):
     # display mh_maxtrix
-    plt.imshow(mh_maxtrix, cmap="Oranges", vmin=0, vmax=5, extent=(0, mh_maxtrix.shape[1], mh_maxtrix.shape[0], 0))
+    plt.imshow(mh_maxtrix, cmap="Oranges", vmin=0, extent=(0, mh_maxtrix.shape[1], mh_maxtrix.shape[0], 0))
     plt.colorbar()
     plt.show()
 
