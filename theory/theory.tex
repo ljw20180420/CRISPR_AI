@@ -31,8 +31,8 @@
 \newtheorem{assumption}{Assumption}
 \newtheorem{problem}{Problem}
 \newtheorem{example}{Example}
-\renewcommand{\algorithmicrequire}{\textbf{input:}}
-\renewcommand{\algorithmicensure}{\textbf{initialization:}}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{MCMC Input:}}
 \usepackage{color,xcolor}
 \usepackage{cancel}
 \DeclareMathOperator*{\argmax}{arg\,max}
@@ -51,7 +51,7 @@
 \begin{document}
 
 \title{
-  \bf Notes of diffusion model.
+  \bf Discrete diffuser for CRISPR.
 }
 
 \author[1]{Jingwei Li}
@@ -67,139 +67,18 @@
 \maketitle
 
 \begin{abstract}
-Notes of discrete diffusion model.
+Discrete diffuser for CRISPR.
 \end{abstract}
 
-\section{Unweighted DDPM loss function is clearer than ELBO}
-https://arxiv.org/pdf/2402.04384
-\begin{eqnarray*}
-  &&\mathbb{E}_{q_0(x_0)}\qty[\log p_0^{\theta}(x_0)]=\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log p_0^{\theta}(x_0)]=\mathbb{E}_{q_0(x_0)}\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log p_0^{\theta}(x_0)]\\
-  &&=\mathbb{E}_{q_0(x_0)}\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{p_{0:T}^{\theta}(x_{0:T})q_{1:T|0}(x_{1:T}|x_0)}{p_{1:T|0}^{\theta}(x_{1:T}|x_0)q_{1:T|0}(x_{1:T}|x_0)}]\\
-  &&=\mathbb{E}_{q_0(x_0)}\underbrace{\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{p_{0:T}^{\theta}(x_{0:T})}{q_{1:T|0}(x_{1:T}|x_0)}]}_\text{ELBO} + \mathbb{E}_{q_0(x_0)}\underbrace{\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{q_{1:T|0}(x_{1:T}|x_0)}{p_{1:T|0}^{\theta}(x_{1:T}|x_0)}]}_{\text{KL}\qty(q_{1:T|0}(x_{1:T}|x_0)||p_{1:T|0}^{\theta}(x_{1:T}|x_0))\ge 0}\\
-  &&\ge \mathbb{E}_{q_0(x_0)}\underbrace{\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{p_{0:T}^{\theta}(x_{0:T})}{q_{1:T|0}(x_{1:T}|x_0)}]}_\text{ELBO}\\
-  &&=\underbrace{\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log p_{0:T}^{\theta}(x_{0:T})]}_\text{unweighted DDPM loss function} - \underbrace{\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log q_{1:T|0}(x_{1:T}|x_0)]}_\text{constant independent of $\theta$}\\
-  &&=\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log \qty(p_T(x_T)\prod_{t=1}^{T} p_{t-1|t}^{\theta}(x_{t-1}|x_t))] + C\\
-  &&=\sum_{t=1}^T\mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) + \underbrace{\mathbb{E}_{q_T(x_T)} \log p_T(x_T)}_\text{constant independent of $\theta$} + C\\
-  &&=T\sum_{t=1}^T \frac{1}{T}\mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) + C\\
-  &&=T\mathbb{E}_{\mathcal{U}(t;1,T)}\mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) + C
-\end{eqnarray*}
-
-\section{Sampling}
-
-Notice that one does not know the ground true target distrituion $q_0(x_0)$. Thus, one usually approximates $q_0$ by large data. That is
-\begin{eqnarray*}
-  \mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t),
-\end{eqnarray*}
-which implies a naive sampling of $x_0$, $x_{t-1}$ and $x_t$. However, sampling so much is unstable (larger variance).
-
-What about only sample $x_0$?
-\begin{eqnarray*}
-  \mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_0(x_0)}\iint q_{t-1,t|0}(x_{t-1},x_t|x_0)\log p_{t-1|t}^\theta(x_{t-1}|x_t) dx_{t-1}dx_t.
-\end{eqnarray*}
-It is feasible as long as the double integration (or summation for discrete space) can be efficiently calculated.
-
-The middle way is to sample $x_0$ and $x_t$.
-\begin{eqnarray*}
-  &&\mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log p_{t-1|t}^\theta(x_{t-1}|x_t) dx_{t-1}\\
-  &&= \mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) p_{0|t}^\theta(x'_0|x_t) dx'_0) dx_{t-1}.
-\end{eqnarray*}
-For continuous space, the network predicts $x'_0$ but not its distribution. Thus,
-\begin{eqnarray*}
-  &&\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) p_{0|t}^\theta(x'_0|x_t) dx'_0) dx_{t-1}\\
-  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) \delta(x_0^\theta) dx'_0) dx_{t-1}\\
-  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log q_{t-1|0,t}(x_{t-1}|x^\theta_0,x_t) dx_{t-1}.
-\end{eqnarray*}
-For discrete space,
-\begin{eqnarray}\label{EqDisSpaTarget}
-  &&\mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_{0,t}(x_0,x_t)}\sum_{x_{t-1}} q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log p_{t-1|t}^\theta(x_{t-1}|x_t)\\
-  &&= \mathbb{E}_{q_{0,t}(x_0,x_t)}\sum_{x_{t-1}} q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\sum_{x'_0} q_{t-1|0,t}(x_{t-1}|x'_0,x_t) p_{0|t}^\theta(x'_0|x_t)).
-\end{eqnarray}
-
-\section{Parameterization of $p_{t-1|t}^\theta(x_{t-1}|x_t)$}
-
-Continuous space diffusion models use $x_0$-parameterisation or $\epsilon$-parameterisation (https://arxiv.org/pdf/2402.04384). Remind that if
-\begin{eqnarray*}
-  q(x_t|x_{t-1})=\mathcal{N}\qty(x_t;\sqrt{\beta_t}x_{t-1}, 1-\beta_t),
-\end{eqnarray*}
-then
-\begin{eqnarray*}
-  &&q(x_t|x_0)=\mathcal{N}\qty(x_t;\sqrt{\beta_{t|0}}x_0, 1-\beta_{t|0}),\\
-  &&q(x_{t-1}|x_t,x_0)=\mathcal{N}\qty(x_{t-1};\frac{\sqrt{\beta_{t-1|0}}(1-\beta_t)}{1-\beta_{t|0}}x_0 + \frac{(1-\beta_{t-1|0})\sqrt{\beta_t}}{1-\beta_{t|0}}x_t, \frac{(1-\beta_{t-1|0})(1-\beta_t)}{1-\beta_{t|0}}).
-\end{eqnarray*}
-For $x_0$-parameterisation, the network predicts $x_0^\theta(x_t,t)$, and
-\begin{eqnarray*}
-  p_{t-1|t}^\theta(x_{t-1}|x_t) \coloneq q\qty(x_{t-1}|x_t, x_0^\theta(x_t,t)).
-\end{eqnarray*}
-For $\epsilon$-parameterisation, the network predicts $\epsilon^\theta(x_t,t)$ such that
-\begin{eqnarray*}
-  x_t\approx \sqrt{\beta_{t|0}} x_0 + \qty(1-\beta_{t|0}) \epsilon^\theta(x_t,t),
-\end{eqnarray*}
-or
-\begin{eqnarray*}
-  x_0 \approx \frac{x_t - \qty(1-\beta_{t|0}) \epsilon^\theta(x_t,t)}{\sqrt{\beta_{t|0}}}.
-\end{eqnarray*}
-Then
-\begin{eqnarray*}
-  p_{t-1|t}^\theta(x_{t-1}|x_t) \coloneq q\qty(x_{t-1} \middle| x_t, \frac{x_t - \qty(1-\beta_{t|0}) \epsilon^\theta(x_t,t)}{\sqrt{\beta_{t|0}}}).
-\end{eqnarray*}
-
-For discrete space diffusion models, thera are three parameterization method of $p_{t-1|t}^\theta(x_{t-1}|x_t)$ (https://arxiv.org/pdf/2402.03701).
-\begin{enumerate}
-  \item Parameterize $p_{t-1|t}^\theta(x_{t-1}|x_t)$ directly does not reuse any known distribution from the forward process, and hence is less effective in practice.
-  \item Train a network $f^\theta(x_t,t)$ to predict the categorical distribution of $x_0$. Then resembling the case of continuouse diffusion model,
-  \begin{eqnarray*}
-    p_{t-1|t}^\theta(x_{t-1}|x_t)\coloneq q\qty(x_{t-1}|x_t,f^\theta(x_t,t)).
-  \end{eqnarray*}
-  However for discrete diffusion, $q(x_{t−1}|x_t,x_0)$ cannot be determined without the true $x_0$. Some heuristics have been proposed in https://arxiv.org/pdf/2402.03701, however those can have a large gap to the true $q(x_{t−1}|x_t)$, leading to an inaccurate sampling process.
-  \item Train a network $f^\theta(x_t,t)$ to predict $p_{0|t}^\theta(x_0|x_t)$. Then
-  \begin{eqnarray*}
-    p_{t-1|t}^\theta(x_{t-1}|x_t)\coloneq \sum_{x_0}q\qty(x_{t-1}|x_t,x_0)p_{0|t}^\theta(x_0|x_t).
-  \end{eqnarray*}
-  In the setting of $P_t=\beta_t I + (1-\beta_t)\mathbf{1q}^\top$, the marginalization can be calculated efficiently.
-\end{enumerate}
-
-\section{Continuous-time discrete diffusion}
-In https://arxiv.org/pdf/2205.14987, the derivation of continuous-time ELBO treat $\mathbb{E}_{q_{k+1|k}(x_{k+1}|x_k)}\qty[\log p_{k|k+1}^\theta(x_k|x_{k+1})]$ for $k>0$ and $k=0$ differently. This is not necessary. Actually,
-\begin{eqnarray*}
-  \mathcal{L}_\text{DT}(\theta) = -\Delta t\sum_{k=0}^{K-1}\mathbb{E}_{q_k{x_k}r_k(x_{k+1|x_k})}\qty[\hat{R}_k^\theta(x_k|x_k) + \mathcal{Z}_k(x_k)\log\hat{R}_k^\theta(x_k|x_{k+1})] + o(\Delta t) + C.
-\end{eqnarray*}
-Then
-\begin{eqnarray*}
-  &&\mathcal{L}_\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}_\text{DT}(\theta) = - \int_0^T \mathbb{E}_{q_t(x)r_t(\tilde{x}|x)}\qty[\hat{R}_t^\theta(x|x) + \mathcal{Z}_t(x)\log\hat{R}_t^\theta(x|\tilde{x})]dt + C\\
-  &&=\int_0^T \mathbb{E}_{q_t(x)r_t(\tilde{x}|x)}\qty[\sum_{x'\neq x}\hat{R}_t^\theta(x'|x) - \mathcal{Z}_t(x)\log\hat{R}_t^\theta(x|\tilde{x})]dt + C\\
-  &&=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t(x)r_t(\tilde{x}|x)}\qty[\sum_{x'\neq x}\hat{R}_t^\theta(x'|x) - \mathcal{Z}_t(x)\log\hat{R}_t^\theta(x|\tilde{x})] + C.
-\end{eqnarray*}
-
-\section{Relate the process for $R^a_t=\beta_t R_b$ and $R^b_u=R_b$}
-\begin{eqnarray*}
-  &&q^b_u(x) = \sum_{x'} q_0(x')e^{R_bu}(x|x'),\\
-  &&q^a_t(x) = \sum_{x'} q_0(x')e^{R_b\int_0^t \beta_s ds}(x|x')=q^b_{\int_0^t\beta_s ds}(x),\\
-  &&\hat{R}^a_t(\tilde{x}|x)=\beta_t R_b(x|\tilde{x})\frac{q_t(\tilde{x})}{q_t(x)}=\beta_t R_b(x|\tilde{x})\frac{q^b_{\int_0^t\beta_s ds}(\tilde{x})}{q^b_{\int_0^t\beta_s ds}(x)} = \beta_t \hat{R}^b_{\int_0^t\beta_s ds}(\tilde{x}|x),\\
-  &&\mathcal{L}^a_\text{CT}(\theta)=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q^a_t(x)r_b(\tilde{x}|x)}\qty[\sum_{x'\neq x}\hat{R}^{a,\theta}_t(x'|x) - \beta_t\mathcal{Z}_b(x)\log\hat{R}^{a,\theta}_t(x|\tilde{x})]\\
-  &&=\int_0^T \mathbb{E}_{q_t(x)r_b(\tilde{x}|x)}\qty[\sum_{x'\neq x}\hat{R}^{a,\theta}_t(x'|x) - \beta_t\mathcal{Z}_b(x)\log\hat{R}^{a,\theta}_t(x|\tilde{x})]dt + C\\
-  &&=\int_0^T \mathbb{E}_{q^b_{\int_0^t \beta_s ds}(x)r_b(\tilde{x}|x)}\qty[\sum_{x'\neq x}\beta_t\hat{R}^{b,\theta}_{\int_0^t\beta_s ds}(x'|x) - \beta_t\mathcal{Z}_b(x)\log\beta_t\hat{R}^{b,\theta}_{\int_0^t\beta_s ds}(x|\tilde{x})]dt + C\\
-  &&=\int_0^T \mathbb{E}_{q^b_{\int_0^t \beta_s ds}(x)r_b(\tilde{x}|x)}\qty[\sum_{x'\neq x}\hat{R}^{b,\theta}_{\int_0^t\beta_s ds}(x'|x) - \mathcal{Z}_b(x)\log\hat{R}^{b,\theta}_{\int_0^t\beta_s ds}(x|\tilde{x}) - \underbrace{\mathcal{Z}_b(x)\log\beta_t}_\text{constant independent of $\theta$}]d\qty(\int_0^t\beta_s ds) + C\\
-  &&=\int_0^{\int_0^T\beta_s ds} \mathbb{E}_{q^b_u(x)r_b(\tilde{x}|x)}\qty[\sum_{x'\neq x}\hat{R}^{b,\theta}_u(x'|x) - \mathcal{Z}_b(x)\log\hat{R}^{b,\theta}_u(x|\tilde{x})]du + C\\
-  &&=\qty(\int_0^T\beta_s ds)\mathbb{E}_{\mathcal{U}\qty(u;0,\int_0^T\beta_s ds)}\mathbb{E}_{q^b_u(x)r_b(\tilde{x}|x)}\qty[\sum_{x'\neq x}\hat{R}^{b,\theta}_u(x'|x) - \mathcal{Z}_b(x)\log\hat{R}^{b,\theta}_u(x|\tilde{x})]=\mathcal{L}^b_\text{CT}(\theta).
-\end{eqnarray*}
-Thus, $R^a_t$ and $R^b_u$ are related by time rescale $u=\int_0^t\beta_s ds$.
-
-However, their time sampling will be different. For a time sample $t'$, the probability of $t\le t'< t+\Delta$ (thereby $\int_0^{t}\beta_s ds \le \int_0^{t'}\beta_s ds < \int_0^{t+\Delta}\beta_s ds$) is $\Delta t/T$. On the other hand, for a time sample $u'$, the probability of $\int_0^{t}\beta_s ds \le u' < \int_0^{t+\Delta}\beta_s ds$ is $\qty(\int_t^{t+\Delta t}\beta_s ds)/\qty(\int_0^T\beta_s ds)$. Thus, $R^b_{\int_0^t\beta_s ds}$ attaches samples to time $t$ with chance proportional to $\beta_t$. $R^a_t$, on the other hand, scale gradients at time $t$ with $\beta_t$ through scaled $\hat{R}^{a,\theta}_t=\beta_t\hat{R}^{b,\theta}_{\int_0^t\beta_s ds}$ transition rates
-
-The network $f^\theta$ approximates $q^a_{0|t}=q^b_{0|\int_0^t\beta_s ds}$ has different time embeddings for $R^a_t$ and $R^b_{\int_0^t\beta_s ds}$. For $R^a_t$, $f^\theta$ takes $(x^a_t, t)$, while for $R^b_{\int_0^t\beta_s ds}$, it takes $(x^b_{\int_0^t\beta_s ds}, {\int_0^t\beta_s ds})$. Even though $x^a_t$ and $x^b_{\int_0^t\beta_s ds}$ are the same, $t$ and $\int_0^t\beta_s ds$ would have different embeddings.
-
-The sampling process of $R^a_t$ and $R^b_{\int_0^t\beta_s ds}$ are also different if using appromiating methods such as tau-Leaping. Actually, $\hat{R}^{a,\theta}_t=\beta_t\hat{R}^{b,\theta}_{\int_0^t\beta_s ds}$ makes the accuracy of the sampling process of $R^a_t$ sensitive to the fluctuation of $\beta_t$.
-
-\section{$q_{0|t}\qty(x_0^{1:D}|x_t^{1:D})$ is not decomposable for discrete-time diffusion}
-Because $q_0(x_0^{1:D})$ is not decomposable, $q_{0|t}\qty(x_0^{1:D}|x_t^{1:D})$ is not decomposable as well. However, the parameterization
+\section{$q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)$ is not decomposable for discrete-time discrete-space diffusion}
+Because $q_0(x^{(1:D)}_0)$ is not decomposable, $q_{0|t}\qty(x^{(1:D)}_0|x^{(1:D)}_t)$ is not decomposable as well. However, the parameterization
 \begin{eqnarray}\label{Eqp0tCompose}
-  p^\theta_{0|t}(x_0^{1:D}|x_t^{1:D}) = \prod_{d=1}^D p^\theta_{0|t}(x_0^d|x_t^{1:D})
+  p^\theta_{0|t}\qty(x_0^{(1:D)}|x_t^{(1:D)}) = \prod_{d=1}^D p^{\theta,(d)}_{0|t}\qty(x_0^{(d)}|x_t^{(1:D)})
 \end{eqnarray}
-is widely used such that $\forall 1\le d\le D$,
+is widely used to efficiently calculate (especially for large $D$)
 \begin{eqnarray*}
-  p^\theta_{s|t}(x_s^d|x_t^{1:D})\coloneq \sum_{x_0^d}q_{s|0,t}(x_s^d|x_0^d,x_t^d)p^\theta_{0|t}(x_0^d|x_t^{1:D})
+  p^{\theta,(d)}_{s|t}\qty(x^{(d)}_s|x^{(1:D)}_t)\coloneq \sum_{x^{(d)}_0}q^{(d)}_{s|0,t}\qty(x^{(d)}_s|x^{(d)}_0,x^{(d)}_t)p^{\theta,(d)}_{0|t}\qty(x^{(d)}_0|x^{(1:D)}_t).
 \end{eqnarray*}
-can be calculated efficiently (especially for large $D$).
 
 In https://arxiv.org/pdf/2402.03701, the authors propose a special first-order (i.e. markov) process that the transition probability matrix is
 \begin{eqnarray}\label{EqInterpolarQ}
@@ -207,10 +86,10 @@ In https://arxiv.org/pdf/2402.03701, the authors propose a special first-order (
 \end{eqnarray}
 where $\mathbf{m}_d\ge 0$ and $\langle\mathbf{1}, \mathbf{m}_d\rangle=1$. Then
 \begin{eqnarray*}
-  &&\alpha^{(d)}_{t|s}\coloneq \prod_{i=s+1}^t \alpha_i,\\
-  &&Q_{t|s}^{(d)}\coloneq Q^{(d)}_{s+1}Q^{(d)}_{s+2}Q^{(d)}_{s+3}\cdots Q^{(d)}_t = \alpha^{(d)}_{t|s} I + \qty(1-\alpha^{(d)}_{t|s})\mathbf{1m}_d^\top.
+  &&\alpha^{(d)}_{t|s}\coloneq \prod_{i=s+1}^t \alpha^{(d)}_i,\\
+  &&Q^{(d)}_{t|s}\coloneq Q^{(d)}_{s+1}Q^{(d)}_{s+2}Q^{(d)}_{s+3}\cdots Q^{(d)}_t = \alpha^{(d)}_{t|s} I + \qty(1-\alpha^{(d)}_{t|s})\mathbf{1m}_d^\top.
 \end{eqnarray*} 
-It is usually assumed that $\lim_{t\to \infty}\alpha_{t|0}=0$, so the first-order process gradually becomes a zero-order process that $x_t$ are approximately independent of $x_{t-1}$. Also,
+It is usually assumed that $\lim_{t\to \infty}\alpha^{(d)}_{t|0}=0$, so the first-order process gradually becomes a zero-order process that $x^{(d)}_t$ are approximately independent of $x^{(d)}_{t-1}$. Also,
 \begin{eqnarray}\label{EqsOn0tq}
   &&q^{(d)}_{s|0,t}\qty(\cdot|x^{(d)}_0,x^{(d)}_t) = \frac{\qty(Q^{(d)}_{s|0})^\top \mathbf{x}^{(d)}_0\circ Q^{(d)}_{t|s}\mathbf{x}^{(d)}_t}{\qty(\mathbf{x}^{(d)}_0)^\top Q^{(d)}_{t|0}\mathbf{x}^{(d)}_t}\\
   &&=\left\{\begin{array}{ll}
@@ -220,11 +99,11 @@ It is usually assumed that $\lim_{t\to \infty}\alpha_{t|0}=0$, so the first-orde
 \end{eqnarray}
 where
 \begin{eqnarray*}
-  &&\lambda^{(d)}_{t|s}\coloneq\frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})\langle \mathbf{m}_d,\mathbf{x}^{(d)}_t\rangle}{\alpha^{(d)}_{t|0} + \qty(1-\alpha^{(d)}_{t|0})\langle \mathbf{m}_d,\mathbf{x}^{(d)}_t\rangle},\\
+  &&\lambda^{(d)}_{t|s}\coloneq\frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})\left\langle \mathbf{m}_d,\mathbf{x}^{(d)}_t\right\rangle}{\alpha^{(d)}_{t|0} + \qty(1-\alpha^{(d)}_{t|0})\left\langle \mathbf{m}_d,\mathbf{x}^{(d)}_t\right\rangle},\\
   &&\mu^{(d)}_{t|s}=\frac{1-\alpha^{(d)}_{s|0}}{1-\alpha^{(d)}_{t|0}}.
 \end{eqnarray*}
 
-Becaue
+Because
 \begin{eqnarray*}
   &&p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)}) = \sum_{x_0^{(1:D)}}\prod_{d=1}^D q_{s|0,t}^{(d)}\qty(x_s^{(d)}\middle|x_0^{(d)}, x_t^{(d)})p^\theta_{0|t}\qty(x_0^{(1:D)}\middle|x_t^{(1:D)})\\
   &&=\sum_{x_0^{(D)}}q_{s|0,t}^{(D)}\qty(x_s^{(D)}\middle|x_0^{(D)}, x_t^{(D)})\sum_{x_0^{(D-1)}}q_{s|0,t}^{(D-1)}\qty(x_s^{(D-1)}\middle|x_0^{(D-1)}, x_t^{(D-1)})\cdots\sum_{x_0^{(1)}}q_{s|0,t}^{(1)}\qty(x_s^{(1)}\middle|x_0^{(1)}, x_t^{(1)})p^\theta_{0|t}\qty(x_0^{(1:D)}\middle|x_t^{(1:D)}).
@@ -244,12 +123,12 @@ for all $x_s^{(1:2)}$ and $x_0^{3:D}$ has complexity $O\qty(S_2\prod_{d=1}^D S_d
 
 In this paper, we show that by the assumption of Eq. \eqref{EqInterpolarQ}, $p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)})$ can be calculated by just $O\qty(D\prod_{d=1}^D S_d)$. This will be a big difference in our $D=2$ case. Rewrite Eq. \eqref{EqsOn0tq} to matrix form.
 \begin{eqnarray*}
-  &&q^{(d)}_{s|0,t}\qty(\cdot|\cdot,x^{(d)}_t)=\qty(1-\mu^{(d)}_{t|s})\qty(I - \mathbf{x}^{(d)}_t\qty(\mathbf{x}^{(d)}_t)^\top) + \qty(\mu^{(d)}_{t|s}\alpha^{(d)}_{t|s}\mathbf{x}^{(d)}_t + \mu^{(d)}_{t|s}\qty(1-\alpha^{(d)}_{t|s})\mathbf{m}_d)\qty(\mathbf{1}-\mathbf{x}^{(d)}_t)^\top\\
+  &&q^{(d)}_{s|0,t}\qty(\cdot\middle|\cdot,x^{(d)}_t)=\qty(1-\mu^{(d)}_{t|s})\qty(I - \mathbf{x}^{(d)}_t\qty(\mathbf{x}^{(d)}_t)^\top) + \qty(\mu^{(d)}_{t|s}\alpha^{(d)}_{t|s}\mathbf{x}^{(d)}_t + \mu^{(d)}_{t|s}\qty(1-\alpha^{(d)}_{t|s})\mathbf{m}_d)\qty(\mathbf{1}-\mathbf{x}^{(d)}_t)^\top\\
   &&+ \qty(\qty(1-\lambda^{(d)}_{t|s})\mathbf{x}^{(d)}_t + \lambda^{(d)}_{t|s}\mathbf{m}_d)\qty(\mathbf{x}^{(d)}_t)^\top\\
   &&=\qty(1-\mu^{(d)}_{t|s}) I - \qty(1-\mu^{(d)}_{t|s})\mathbf{x}^{(d)}_t\qty(\mathbf{x}^{(d)}_t)^\top + \mu^{(d)}_{t|s}\alpha^{(d)}_{t|s}\mathbf{x}^{(d)}_t\mathbf{1}^\top + \mu^{(d)}_{t|s}\qty(1-\alpha^{(d)}_{t|s})\mathbf{m}_d\mathbf{1}^\top - \mu^{(d)}_{t|s}\alpha^{(d)}_{t|s}\mathbf{x}^{(d)}_t\qty(\mathbf{x}^{(d)}_t)^\top\\
   && - \mu^{(d)}_{t|s}\qty(1-\alpha^{(d)}_{t|s})\mathbf{m}_d\qty(\mathbf{x}^{(d)}_t)^\top + \qty(1-\lambda^{(d)}_{t|s})\mathbf{x}^{(d)}_t\qty(\mathbf{x}^{(d)}_t)^\top + \lambda^{(d)}_{t|s}\mathbf{m}_d\qty(\mathbf{x}^{(d)}_t)^\top\\
   &&=\qty(1-\mu^{(d)}_{t|s}) I + \qty(\mu^{(d)}_{t|s} - \lambda^{(d)}_{t|s} - \mu^{(d)}_{t|s}\alpha^{(d)}_{t|s})\qty(\mathbf{x}^{(d)}_t - \mathbf{m}_d)\qty(\mathbf{x}^{(d)}_t)^\top + \mu^{(d)}_{t|s}\alpha^{(d)}_{t|s}\mathbf{x}^{(d)}_t\mathbf{1}^\top + \mu^{(d)}_{t|s}\qty(1-\alpha^{(d)}_{t|s})\mathbf{m}_d\mathbf{1}^\top\\
-  &&=\frac{\alpha^{(d)}_{s|0}-\alpha^{(d)}_{t|0}}{1-\alpha^{(d)}_{t|0}} I + \frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})\alpha^{(d)}_{t|0}}{\qty(1-\alpha^{(d)}_{t|0})\qty(\alpha^{(d)}_{t|0}+\qty(1-\alpha^{(d)}_{t|0})\langle\mathbf{m}_d, \mathbf{x}^{(d)}_t\rangle)}\qty(\mathbf{x}^{(d)}_t - \mathbf{m}_d)\qty(\mathbf{x}^{(d)}_t)^\top\\
+  &&=\frac{\alpha^{(d)}_{s|0}-\alpha^{(d)}_{t|0}}{1-\alpha^{(d)}_{t|0}} I + \frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})\alpha^{(d)}_{t|0}}{\qty(1-\alpha^{(d)}_{t|0})\qty(\alpha^{(d)}_{t|0}+\qty(1-\alpha^{(d)}_{t|0})\left\langle\mathbf{m}_d, \mathbf{x}^{(d)}_t\right\rangle)}\qty(\mathbf{x}^{(d)}_t - \mathbf{m}_d)\qty(\mathbf{x}^{(d)}_t)^\top\\
   && + \qty(\frac{\alpha^{(d)}_{t|s}-\alpha^{(d)}_{t|0}}{1-\alpha^{(d)}_{t|0}}\mathbf{x}^{(d)}_t + \frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})}{1-\alpha^{(d)}_{t|0}}\mathbf{m}_d)\mathbf{1}^\top.
 \end{eqnarray*}
 For all $x_s^{(1:d-1)}$ and $x_0^{(d+1:D)}$, write
@@ -260,7 +139,7 @@ into matrix form
 \begin{eqnarray*}
   &&\mathcal{Z}_d\qty(x^{(1:d-1)}_s, \cdot, x^{(d+1:D)}_0) = q_{s|0,t}^{(d)}\qty(\cdot\middle|\cdot, x_t^{(d)})\mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)})\\
   &&=\frac{\alpha^{(d)}_{s|0}-\alpha^{(d)}_{t|0}}{1-\alpha^{(d)}_{t|0}} \mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)})\\
-  && + \frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})\alpha^{(d)}_{t|0}}{\qty(1-\alpha^{(d)}_{t|0})\qty(\alpha^{(d)}_{t|0}+\qty(1-\alpha^{(d)}_{t|0})\langle\mathbf{m}_d, \mathbf{x}^{(d)}_t\rangle)}\qty(\mathbf{x}^{(d)}_t - \mathbf{m}_d)\qty(\mathbf{x}^{(d)}_t)^\top\mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)})\\
+  && + \frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})\alpha^{(d)}_{t|0}}{\qty(1-\alpha^{(d)}_{t|0})\qty(\alpha^{(d)}_{t|0}+\qty(1-\alpha^{(d)}_{t|0})\left\langle\mathbf{m}_d, \mathbf{x}^{(d)}_t\right\rangle)}\qty(\mathbf{x}^{(d)}_t - \mathbf{m}_d)\qty(\mathbf{x}^{(d)}_t)^\top\mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)})\\
   && + \qty(\frac{\alpha^{(d)}_{t|s}-\alpha^{(d)}_{t|0}}{1-\alpha^{(d)}_{t|0}}\mathbf{x}^{(d)}_t + \frac{\qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})}{1-\alpha^{(d)}_{t|0}}\mathbf{m}_d)\mathbf{1}^\top\mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)}),
 \end{eqnarray*}
 where
@@ -269,55 +148,306 @@ where
 \end{eqnarray*}
 Note that the complexity is only $O(S_d)$ compared to $O(S_d^2)$ for general case. Since we must do the calculation for all $x_s^{(1:d-1)}$ and $x_0^{(d+1:D)}$, the complexity to get $\mathcal{Z}_d$ is $O\qty(\prod_{d=1}^D S_d)$. Then the total $D$ steps has complexity $O\qty(D\prod_{d=1}^D S_d)$. 
 
-Giving $x_0$, and sampling $t\sim\mathcal{U}(1,T)$ and $x^{(d)}_t\sim \qty(\mathbf{x}^{(d)}_0)^\top Q^{(d)}_{t|0}$, the optimizing target is (see Eq. \eqref{EqDisSpaTarget})
+Giving $x^{(d)}_0$, and sampling $t\sim\mathcal{U}(1,T)$ and $x^{(d)}_t\sim \qty(\mathbf{x}^{(d)}_0)^\top Q^{(d)}_{t|0}$, the optimizing target is (see Eq. \eqref{EqDisSpaTarget})
 \begin{eqnarray*}
-  &&\mathbb{E}_{q^{(1:D)}_{s|0,t}\qty(x^{(1:D)}_s|x^{(1:D)}_0, x^{(1:D)}_t)}\log p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)})=\sum_{x^{(1:D)}_s}\qty[\prod_{d=1}^D q^{(d)}_{s|0,t}\qty(x_s^{(d)}\middle|x_0^{(d)}, x_t^{(d)})]\log p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)})\\
-  &&=\sum_{x_s^{(D)}}q^{(D)}_{s|0,t}\qty(x_s^{(D)}\middle|x_0^{(D)}, x_t^{(D)})\sum_{x_s^{(D-1)}}q^{(D-1)}_{s|0,t}\qty(x_s^{(D-1)}\middle|x_0^{(D-1)}, x_t^{(D-1)})\cdots\sum_{x_s^{(1)}} q^{(1)}_{s|0,t}\qty(x_s^{(1)}\middle|x_0^{(1)}, x_t^{(1)})\log p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)}).
+  &&\mathcal{L}^\text{DT}_t(\theta)\coloneq - \mathbb{E}_{q^{(1:D)}_{s|0,t}\qty(x^{(1:D)}_s|x^{(1:D)}_0, x^{(1:D)}_t)}\log p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)})= - \sum_{x^{(1:D)}_s}\qty[\prod_{d=1}^D q^{(d)}_{s|0,t}\qty(x_s^{(d)}\middle|x_0^{(d)}, x_t^{(d)})]\log p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)})\\
+  &&= - \sum_{x_s^{(D)}}q^{(D)}_{s|0,t}\qty(x_s^{(D)}\middle|x_0^{(D)}, x_t^{(D)})\sum_{x_s^{(D-1)}}q^{(D-1)}_{s|0,t}\qty(x_s^{(D-1)}\middle|x_0^{(D-1)}, x_t^{(D-1)})\cdots\sum_{x_s^{(1)}} q^{(1)}_{s|0,t}\qty(x_s^{(1)}\middle|x_0^{(1)}, x_t^{(1)})\log p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)}).
 \end{eqnarray*}
 The complexity is $O\qty(\prod_{d=1}^D S_d)$.
 
-In summary, the total complexity is $DO\qty(\prod_{d=1}^D S_d)$. In our case, $D=2$, so the complexity is $O(S_1S_2)$. Because our network outputs $p^\theta_{0|t}\qty(x^{(1,2)}_0|x^{(1,2)}_t)$, marginalize it to $p^\theta_{0|t}\qty(x^{(1)}_0|x^{(1,2)}_t)$ and $p^\theta_{0|t}\qty(x^{(2)}_0|x^{(1,2)}_t)$ has complexity $O(S_1S_2)$. Therefore, the independent appromiation in Eq. \eqref{Eqp0tCompose} is not necessary in our case.
+In summary, the total complexity is $O\qty(D\prod_{d=1}^D S_d)$. In our case, $D=2$, so the complexity is $O(S_1S_2)$. Because our network outputs $p^\theta_{0|t}\qty(x^{(1,2)}_0|x^{(1,2)}_t)$, marginalize it to $p^\theta_{0|t}\qty(x^{(1)}_0|x^{(1,2)}_t)$ and $p^\theta_{0|t}\qty(x^{(2)}_0|x^{(1,2)}_t)$ has complexity $O(S_1S_2)$. Therefore, the independent appromiation in Eq. \eqref{Eqp0tCompose} is not necessary in our case.
 
-\section{Others}
+\section{Reverse sampling}
 
-\begin{eqnarray}
-  p_0^{\theta}(x)
-\end{eqnarray}
-
-
+In https://arxiv.org/pdf/2402.03701, the author derive an explicit expression for $p^\theta_{s|t}\qty(x_s|x_t)$.
 \begin{eqnarray*}
-  P_n=\beta_n A_n + \qty(1-\beta_n)B_n,
+  &&\gamma^\theta_{t|s}\coloneqq (\mu_{t|s} - \lambda_{t|s} - \mu_{t|s}\alpha_{t|s})\left\langle \mathbf{x}_t, p^\theta_{0|t}(\cdot|x_t)\right\rangle,\\
+  &&p^\theta_{s|t}\qty(\cdot|x_t)=(1-\mu_{t|s})p^\theta_{0|t}(\cdot|x_t) + \qty(\mu_{t|s}\alpha_{t|s} + \gamma^\theta_{t|s})\mathbf{x}_t + \qty(\mu_{t|s}(1-\alpha_{t|s})-\gamma^\theta_{r|s})\mathbf{m}.
+\end{eqnarray*}
+Then they generalize the result to multiple dimension $D>1$.
+\begin{eqnarray*}
+  p^{\theta,(d)}_{s|t}\qty(\cdot\middle|x^{(1:D)}_t)=\qty(1-\mu^{(d)}_{t|s})p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t) + \qty(\mu^{(d)}_{t|s}\alpha^{(d)}_{t|s} + \gamma^{\theta,(d)}_{t|s})\mathbf{x}^{(d)}_t + \qty(\mu^{(d)}_{t|s}\qty(1-\alpha^{(d)}_{t|s})-\gamma^{\theta,(d)}_{r|s})\mathbf{m}_d.
+\end{eqnarray*}
+However, this generalization depends on the independent approximation Eq. \eqref{Eqp0tCompose}.
+
+$p^{\theta,(d)}_{s|t}$ is used to efficiently sample $x^{(d)}_s$ in the reverse diffusion process. We choose a sampling method not requiring $p^{\theta,(d)}_{s|t}$. That is, sampling $x^{(1:D)}_0$ from $p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)$, and then for each $1\le d\le D$, sampling $x^{(d)}_s$ from $q^{(d)}_{s|0,t}\qty(x^{(d)}_s\middle|x^{(d)}_0,x^{(d)}_t)$. Our method is exact but still efficient. In our case, $D=2$, so sampling $x^{(1:D)}_0$ from $p^\theta_{0|t}$ is of complexity $O(S_1S_2)$, thereby feasible. For large $D$, one may use the independent approximation Eq. \eqref{Eqp0tCompose} to sample $x^{(d)}_0$ from $p^{\theta,(d)}\qty(x^{(d)}_0\middle|x^{(1:D)}_t)$, and then sample $x^{(d)}_s$ from $q^{(d)}_{s|0,t}\qty(x^{(d)}_s\middle|x^{(d)}_0,x^{(d)}_t)$. Note that this requires one additional sampling compared with sampling $x^{(d)}_s$ from $p^{\theta,(d)}_{s|t}\qty(x^{(d)}_s\middle|x^{(1:D)}_t)$. However, this is negligible compared with the network generation of $p^\theta_{0|t}$.
+
+\section{Reparameterize ELBO of continuous-time discrete-space diffusion model}
+
+Assume that all dimensions are independent in the forward process. Then by https://arxiv.org/pdf/2402.03701,
+\begin{eqnarray}\label{EqDivParaHatR}
+  &&g^{(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}q^{(d)}_{0|t}\qty(x^{(d)}_0\middle| y^{(1:D)}),\\
+  &&\hat{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})=\sum_{d=1}^D R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}} g^{(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})=\sum_{d=1}^D \frac{R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}}}{g^{(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}.
+\end{eqnarray}
+In https://arxiv.org/pdf/2402.03701, the author suggests to parameterize the negative ELBO by
+\begin{eqnarray*}
+  \mathcal{L}^\text{CT}(\theta)\coloneq T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\qty[\sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) - \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\hat{R}_t^\theta\qty(x^{(1:D)}|y^{(1:D)})] + C,
 \end{eqnarray*}
 where
 \begin{eqnarray*}
-  \qty(A-B)^2 = A^2-B^2.
+  &&\hat{R}^\theta_t\qty(x^{(1:D)}\middle|y^{(1:D)})\coloneqq\sum_{d=1}^D R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}} g^{\theta,(d)}_t\qty(x^{(d)}\middle|y^{(1:D)}),\\
+  &&g^{\theta,(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}p^{\theta,(d)}_{0|t}\qty(x^{(d)}_0\middle| y^{(1:D)}).
 \end{eqnarray*}
-An example is $B=\mathbf{1q}^\top$ and $\mathbf{q}^\top A=\mathbf{q}^\top$.
+However, this parameterization needs an expensive network inference to get $p^{\theta,(d)}_{0|t}\qty(\cdot\middle|y^{(1:D)})$ for each $y^{(1:D)}$. Both https://arxiv.org/pdf/2205.14987 and https://arxiv.org/pdf/2402.03701 avoid the multiple passes by changing the expectation variable
+through importance sampling. We propose a simpler method as follows.
 
+By Eq. \eqref{EqDivParaHatR}, define
+\begin{eqnarray}
+  \tilde{R}^\theta_t\qty(x^{(1:D)}\middle|y^{(1:D)})\coloneq\sum_{d=1}^D \frac{R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}}}{g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}.
+\end{eqnarray}
+Replace $\hat{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})$ by $\tilde{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})$ in $\mathcal{L}^\text{CT}(\theta)$.
+\begin{eqnarray}\label{EqBetterNgELBO}
+  \tilde{\mathcal{L}}^\text{CT}(\theta)\coloneq T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\qty[\sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) - \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\tilde{R}_t^\theta\qty(x^{(1:D)}|y^{(1:D)})] + C.
+\end{eqnarray}
+Then all one needs is to calculate $g^\theta_t(y|x)$, which only needs a single pass for $p^\theta_{0|t}(\cdot|x)$. Even though https://arxiv.org/pdf/2402.03701 derives Eq. \eqref{EqDivParaHatR}, they do not use it to get Eq. \eqref{EqBetterNgELBO}.
+
+By https://arxiv.org/pdf/2402.03701,
 \begin{eqnarray*}
-  \alpha_{n|m} \coloneq \prod_{l=m+1}^n \beta_l.
+  \sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)})=\sum_{d=1}^D\left\langle\mathbf{x}^{(d)},\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + C.
+\end{eqnarray*}
+We now simplify the second term.
+\begin{eqnarray*}
+  &&- \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\tilde{R}_t^\theta\qty(x^{(1:D)}\middle|y^{(1:D)})\\
+  &&=-\sum_{d=1}^D\sum_{y^{(d)}\neq x^{(d)}}R^{(d)}_t\qty(y^{(d)}\middle|x^{(d)})\log\frac{R_t^{(d)}\qty(x^{(d)}|y^{(d)})}{g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}\\
+  &&=\sum_{d=1}^D\sum_{y^{(d)}\neq x^{(d)}}R^{(d)}_t\qty(y^{(d)}\middle|x^{(d)})\log g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)}) + C\\
+  &&=\sum_{d=1}^D \left\langle R^{(d)}_t\qty(\cdot\middle|x^{(d)}),\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + C\\
+  &&=\sum_{d=1}^D \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + C.
+\end{eqnarray*}
+Thus,
+\begin{eqnarray*}
+  \tilde{\mathcal{L}}^\text{CT}(\theta)=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)},\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle] + C.
 \end{eqnarray*}
 
+\section{Sampling}
+CRISPR data have lots of duplicate for some reads. All duplicates of a read form a class. In training, treat each duplicate as a sample will be extremely inefficient. On the other hand, treat total class as one sample and weight the gradient by duplicate number will lead to a large variance of training process. A middle way is to use importance sampling that choose a biased distribution over each class. Suppose there are N classes with duplicate numbers $\qty{c_i}_{i=1}^N$. One can choose the unnormalized distribution by $c_i^\sigma$ for $0\le \sigma \le 1$. To make the sampling unbiased, scale the loss function by $c_i^{1-\sigma}$.
+
+\section{Noise scheduler}
+
+https://arxiv.org/pdf/2402.03701 collects three noise scheduler in previous works. However, these noise scheduler is given with non-time-homogeneous diffusion. In this section, we derive their time-homogeneous counterpart. We use
 \begin{eqnarray*}
-  \prod_{l=m+1}^n P_l=\alpha_{n|m}A^{n-m} + \qty(1-\alpha_{n|m})B^{n-m}
-\end{eqnarray*}
-Prove by induction,
-\begin{eqnarray*}
-  &&\prod_{l=m+1}^{n+1} P_l=\qty[\alpha_{n|m}A^{n-m} + \qty(1-\alpha_{n|m})B^{n-m}]\qty[\beta_{n+1} A + \qty(1-\beta_{n+1})B]\\
-  &&=\alpha_{n+1|m}A^{n+1-m} + \cancel{\alpha_{n|m}A^{n-m}B} - \cancel{\alpha_{n+1|m}A^{n-m}B} + \cancel{\beta_{n+1}B^{n-m}A} - \alpha_{n+1|m}B^{n-m}A\\
-  &&+ B^{n+1-m} - \cancel{\alpha_{n|m}B^{n+1-m}} - \cancel{\beta_{n+1}B^{n+1-m}} + \cancel{\alpha_{n+1|m}B^{n+1-m}}\\
-  &&=\alpha_{n+1|m}A^{n+1-m} + \qty(1-\alpha_{n+1|m})B^{n+1-m}.
+  \alpha_{t|0}= e^{-\int_0^t \beta_s ds} = e^{-u}.
 \end{eqnarray*}
 
+\subsection{The linear noise scheduler}
+The linear noise scheduler is in https://arxiv.org/pdf/2006.11239.
 \begin{eqnarray*}
-  &&e^{Qt}=e^{-\qty(I-\mathbf{1q}^\top)\lambda t}=\sum_{n=0}^\infty\frac{1}{n!}\qty(I-\mathbf{1q}^\top)^n\qty(-\lambda t)^n=\mathbf{1q}^\top+\sum_{n=0}^\infty\frac{1}{n!}\qty(I - \mathbf{1q}^\top)\qty(-\lambda t)^n\\
-  &&=e^{-\lambda t} I + \qty(1-e^{-\lambda t})\mathbf{1q}^\top.
+  &&e^{-u} = 1 - \frac{t}{N},\\
+  &&u = \log\frac{T}{T-t}.
+\end{eqnarray*}
+Because $\lim_{t\to T^-}u = +\infty$, we set $u=+\infty$ for $t=T$.
+
+\subsection{The cosine noise scheduler}
+The cosine noise scheduler is in https://arxiv.org/pdf/2102.05379.
+\begin{eqnarray*}
+  &&e^{-u} = \frac{\cos\qty(\frac{t/T+a}{1+a}\frac{\pi}{2})}{\cos\qty(\frac{a}{1+a}\frac{\pi}{2})},\\
+  &&u = \log \frac{\cos\qty(\frac{a}{1+a}\frac{\pi}{2})}{\cos\qty(\frac{t/T+a}{1+a}\frac{\pi}{2})},
+\end{eqnarray*}
+where $a=0.008$ by defaults. Because $\lim_{t\to T^-}u = +\infty$, we set $u=+\infty$ for $t=T$.
+
+\subsection{The exponential noise scheduler}
+The exponential noise scheduler is in https://arxiv.org/pdf/2205.14987.
+\begin{eqnarray*}
+  &&e^{-u} = e^{a\qty(1-b^{t/T})},\\
+  &&u = a\qty(b^{t/T} - 1),
+\end{eqnarray*}
+where $a=b=5$ by defaults.
+
+\section{Algorithms}
+
+\begin{algorithm}
+  \caption{Training: {\color{red} red: discrete-time step}; {\color{blue} blue: continuous-time step}.}
+  \label{TrainAlg}
+  \begin{algorithmic}
+    \Require $\mathbf{m}$, $q_0\qty(x^{(1:D)})$, $\lambda$, $T$, $0<t_1<t_2<t_3<\cdots<t_n=T$.
+    \Repeat
+    \State Draw $x^{(1:D)}_0\sim q_0\qty(x^{(1:D)})$.
+    \State Draw {\color{red} $t\sim\mathcal{U}\qty(\qty{t_i}_{i=1}^n)$} or {\color{blue} $t\sim\mathcal{U}(t;0,T)$}.
+    \State $\alpha_{t|s}\gets e^{-(t-s)}$.
+    \For{$d$ in $[1,D]$}
+    \State Draw $y\sim \mathbf{m}_d$.
+    \State Draw $b\sim \text{Bernoulli}\qty(\alpha_{t|0})$.
+    \State $x^{(d)}_t \gets bx^{(d)}_0 + (1-b)y$.
+    \EndFor
+    \State Use network to predict $p^\theta_{0|t}\qty(\cdot\middle|x^{(1:D)}_t)$.
+    \For{$d$ in $[1,D]$}
+    \State \State $a^{(d)}_3\gets 1+\qty(\qty(\alpha^{(d)}_{t|0})^{-1}-1)\left\langle\mathbf{m}_d, \mathbf{x}^{(d)}_t\right\rangle$.
+    \EndFor
+    \State {\color{red} $s\gets t-1$.}
+    \State {\color{red} $\mathcal{Z}_0\qty(x_0^{(1:D)})\gets p^\theta_{0|t}\qty(x_0^{(1:D)}\middle|x_t^{(1:D)})$.}
+    \For{$d$ in $[1,D]$}
+    \State {\color{red} $a_0\gets \alpha^{(d)}_{s|0}\qty(1-\alpha^{(d)}_{t|s})$.}
+    \State {\color{red} $a_1\gets \qty(1-\alpha^{(d)}_{s|0})\qty(1-\alpha^{(d)}_{t|s})$.}
+    \State {\color{red} $a_2\gets \qty(1-\alpha^{(d)}_{s|0})\alpha^{(d)}_{t|s}$.}
+    \State {\color{red} $b_1\qty(x_s^{(1:d-1)},x^{(d)}_t,x_0^{(d+1:D)})\gets \frac{a_1}{a^{(d)}_3}\mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},x^{(d)}_t,x_0^{(d+1:D)})$.}
+    \State {\color{red} $b_2\qty(x_s^{(1:d-1)},x_0^{(d+1:D)})\gets \mathbf{1}^\top\mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)})$.}
+    \State {\color{red} $\mathcal{Z}_d\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)})\gets \frac{a_0 \mathcal{Z}_{d-1}\qty(x_s^{(1:d-1)},\cdot,x_0^{(d+1:D)}) + b_1\qty(x_s^{(1:d-1)},x^{(d)}_t,x_0^{(d+1:D)}) \qty(\mathbf{x}^{(d)}_t - \mathbf{m}_d) + b_2\qty(x_s^{(1:d-1)},x_0^{(d+1:D)})\qty(a_2\mathbf{x}^{(d)}_t + a_1\mathbf{m}_d)}{1-\alpha^{(d)}_{t|0}}$.}
+    \EndFor
+    \State {\color{red} $p^\theta_{s|t}\qty(x^{(1:D)}_s\middle|x^{(1:D)}_t)=\mathcal{Z}_D\qty(x^{(1:D)}_s)$.}
+    \State {\color{red} $q^{(d)}_{s|0,t}\qty(\cdot\middle|x^{(d)}_0,x^{(d)}_t)\gets \frac{\qty(\alpha_{t|s}\mathbf{x}^{(b)}_t + \qty(1-\alpha_{t|s})\left\langle\mathbf{m}_b,\mathbf{x}^{(b)}_t\right\rangle\mathbf{1})\circ\qty(\alpha_{s|0}\mathbf{x}^{(b)}_0+\qty(1-\alpha_{s|0})\mathbf{m}_b)}{\alpha_{t|0}\left\langle\mathbf{x}^{(b)}_t, \mathbf{x}^{(b)}_0\right\rangle + (1-\alpha_{t|0})\left\langle\mathbf{m}_b, \mathbf{x}^{(b)}_t\right\rangle}$.}
+    \State
+    {\color{red}
+    \begin{eqnarray*}
+      \mathcal{L}^\text{DT}_t(\theta)\gets - \sum_{x_s^{(D)}}q^{(D)}_{s|0,t}\qty(x_s^{(D)}\middle|x_0^{(D)}, x_t^{(D)})\sum_{x_s^{(D-1)}}q^{(D-1)}_{s|0,t}\qty(x_s^{(D-1)}\middle|x_0^{(D-1)}, x_t^{(D-1)})\cdots\sum_{x_s^{(1)}} q^{(1)}_{s|0,t}\qty(x_s^{(1)}\middle|x_0^{(1)}, x_t^{(1)})\log p^\theta_{s|t}\qty(x_s^{(1:D)}\middle|x_t^{(1:D)}).
+    \end{eqnarray*}
+    }
+    \State
+    {\color{blue}
+    \begin{eqnarray*}
+      g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\gets \frac{1}{\left\langle \mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle}\qty[\qty(1-\frac{\left\langle p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t),x^{(d)}_t\right\rangle}{a^{(d)}_3})\mathbf{m}_d + \frac{\alpha_{t|0}}{1-\alpha_{t|0}}p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t)]\circ \qty(\mathbf{1}-\mathbf{x}^{(d)}_t) + \mathbf{x}^{(d)}_t.
+    \end{eqnarray*}
+    }
+    \State {\color{blue} $\tilde{\mathcal{L}}^\text{CT}_t(\theta)\gets \sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle + \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle]$.}
+    \State $\mathcal{L}^\text{CE}_t(\theta)\gets -\log p^\theta_{0|t}\qty(x^{(1:D)}_0|x^{(1:D)}_t)$.
+    \State {\color{red} $\nabla_\theta\qty[\mathcal{L}^\text{DT}_t(\theta) + \lambda \mathcal{L}^\text{CE}_t(\theta)]$} or {\color{blue} $\nabla_\theta\qty[\mathcal{L}^\text{CT}_t(\theta) + \lambda \mathcal{L}^\text{CE}_t(\theta)]$}.
+    \Until{convergence}
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+  \caption{Sampling.}
+  \label{SampleAlg}
+  \begin{algorithmic}
+    \Require $\mathbf{m}$. $0<t_1<t_2<t_3<\cdots<t_n=T$.
+    \Ensure use\_MCMC. Step size $\Delta t$. Total step $N$.
+    \State Draw $x^{(1:D)}_{t_n}\sim \mathbf{m}$.
+    \For{$i\in\set{n,\cdots,1}$}
+    \State Get $p^\theta_{0|t_i}\qty(\cdot\middle|x^{(1:D)}_{t_i})$ by network.
+    \State Draw $x^{(1:D)}_0\sim p^\theta_{0|t}\qty(\cdot\middle|x^{(1:D)}_{t_i})$.
+    \State $q^{(d)}_{t_{i-1}|0,t_i}\qty(\cdot\middle|x^{(d)}_0,x^{(d)}_{t_i})\gets \frac{\qty(\alpha_{t_i|t_{i-1}}\mathbf{x}^{(b)}_{t_i} + \qty(1-\alpha_{t_i|t_{i-1}})\left\langle\mathbf{m}_b,\mathbf{x}^{(b)}_{t_i}\right\rangle\mathbf{1})\circ\qty(\alpha_{t_{i-1}|0}\mathbf{x}^{(b)}_0+\qty(1-\alpha_{t_{i-1}|0})\mathbf{m}_b)}{\alpha_{t_i|0}\left\langle\mathbf{x}^{(b)}_{t_i}, \mathbf{x}^{(b)}_0\right\rangle + (1-\alpha_{t_i|0})\left\langle\mathbf{m}_b, \mathbf{x}^{(b)}_{t_i}\right\rangle}$.
+    \State Draw $x^{(1:D)}_{t_{i-1}}\sim q^{(1:D)}_{t_{i-1}|0,t_i}\qty(\cdot\middle|x^{(1:D)}_0,x^{(1:D)}_{t_i})=\prod_{d=1}^D q^{(d)}_{t_{i-1}|0,t_i}\qty(\cdot\middle|x^{(d)}_0,x^{(d)}_{t_i})$.
+    \If{use\_MCMC}:
+    \For{$m$ from $1$ to $N$}
+    \State Get $p^\theta_{0|t_{i-1}}\qty(\cdot\middle|x^{(1:D)}_{t_{i-1}})$ by network.
+    \State $\bar{p}^{\theta,(d)}_{\Delta t}\qty(\cdot|x^{(1:D)}_{t_{i-1}})\gets \Delta t\qty[\qty(2-\frac{\left\langle p^{\theta,(d)}_{0|t_{i-1}}\qty(\cdot\middle|x^{(1:D)}_{t_{i-1}}),\mathbf{x}^{(d)}_{t_{i-1}}\right\rangle}{1+\qty(\qty(\alpha_{t|0})^{-1}-1)\left\langle \mathbf{x}^{(d)}_{t_{i-1}},\mathbf{m}_d\right\rangle})\mathbf{m}_d + \frac{\alpha_{t|0}}{1-\alpha_{t|0}}p^{\theta,(d)}_{0|t_{i-1}}\qty(\cdot\middle|x^{(1:D)}_{t_{i-1}})]\circ\qty(\mathbf{1}-\mathbf{x}^{(d)}_{t_{i-1}})$.
+    \State Draw $x^{(d)}_{t_{i-1}}\sim \bar{p}^{\theta,(d)}_{\Delta t}\qty(\cdot|x^{(1:D)}_{t_i}) + \qty(1-\sum_{y}\bar{p}^{\theta,(d)}_{\Delta t}\qty(y|x^{(1:D)}_{t_{i-1}}))\mathbf{x}^{(d)}_{t_{i-1}}$.
+    \EndFor
+    \EndIf
+    \EndFor
+  \end{algorithmic}
+\end{algorithm}
+
+\appendix
+
+\section{Maximize ELBO is equivalent to maximize enhanced data}
+By https://arxiv.org/pdf/2402.04384,
+\begin{eqnarray*}
+  &&\mathbb{E}_{q_0(x_0)}\qty[\log p_0^\theta(x_0)]=\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log p_0^{\theta}(x_0)]=\mathbb{E}_{q_0(x_0)}\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log p_0^{\theta}(x_0)]\\
+  &&=\mathbb{E}_{q_0(x_0)}\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{p_{0:T}^{\theta}(x_{0:T})q_{1:T|0}(x_{1:T}|x_0)}{p_{1:T|0}^{\theta}(x_{1:T}|x_0)q_{1:T|0}(x_{1:T}|x_0)}]\\
+  &&=\mathbb{E}_{q_0(x_0)}\underbrace{\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{p_{0:T}^{\theta}(x_{0:T})}{q_{1:T|0}(x_{1:T}|x_0)}]}_\text{ELBO} + \mathbb{E}_{q_0(x_0)}\underbrace{\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{q_{1:T|0}(x_{1:T}|x_0)}{p_{1:T|0}^{\theta}(x_{1:T}|x_0)}]}_{\text{KL}\qty(q_{1:T|0}(x_{1:T}|x_0)||p_{1:T|0}^{\theta}(x_{1:T}|x_0))\ge 0}\\
+  &&\ge \mathbb{E}_{q_0(x_0)}\underbrace{\mathbb{E}_{q_{1:T|0}(x_{1:T}|x_0)}\qty[\log \frac{p_{0:T}^{\theta}(x_{0:T})}{q_{1:T|0}(x_{1:T}|x_0)}]}_\text{ELBO}\\
+  &&=\underbrace{\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log p_{0:T}^{\theta}(x_{0:T})]}_\text{unweighted DDPM loss function} - \underbrace{\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log q_{1:T|0}(x_{1:T}|x_0)]}_\text{constant independent of $\theta$}\\
+  &&=\mathbb{E}_{q_{0:T}(x_{0:T})}\qty[\log \qty(p_T(x_T)\prod_{t=1}^{T} p_{t-1|t}^{\theta}(x_{t-1}|x_t))] + C\\
+  &&=\sum_{t=1}^T\mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) + \underbrace{\mathbb{E}_{q_T(x_T)} \log p_T(x_T)}_\text{constant independent of $\theta$} + C\\
+  &&=T\sum_{t=1}^T \frac{1}{T}\mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) + C\\
+  &&=T\mathbb{E}_{\mathcal{U}(t;1,T)}\mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) + C
 \end{eqnarray*}
 
+\section{Evaluation of ELBO}
+
+The ground truth of $q_0(x_0)$ is unknow, but can be approximated by selecting $x_0$ from data.
 \begin{eqnarray*}
-  &&e^{Qt}=e^{-\qty(A-B)\lambda t}=\sum_{n=0}^\infty\frac{1}{n!}\qty(A-B)^n\qty(-\lambda t)^n=I-A+B+\sum_{n=0}^\infty\frac{1}{n!}\qty(A-B)\qty(-\lambda t)^n\\
-  &&=I-(1-e^{-\lambda t})A + (1-e^{-\lambda t})B
+  \mathbb{E}_{q_{t-1,t}(x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t)
 \end{eqnarray*}
+implies a naive sampling of $x_{t-1}$ and $x_t$ given $x_0$, which is easy but unstable (larger variance).
+
+What about sampling nothing?
+\begin{eqnarray*}
+  \mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_0(x_0)}\iint q_{t-1,t|0}(x_{t-1},x_t|x_0)\log p_{t-1|t}^\theta(x_{t-1}|x_t) dx_{t-1}dx_t.
+\end{eqnarray*}
+It is feasible as long as the double integration (or summation for discrete space) can be efficiently calculated.
+
+The middle way is to only sample $x_t$.
+\begin{eqnarray*}
+  &&\mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log p_{t-1|t}^\theta(x_{t-1}|x_t) dx_{t-1}\\
+  &&= \mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) p_{0|t}^\theta(x'_0|x_t) dx'_0) dx_{t-1}.
+\end{eqnarray*}
+For continuous space, the network predicts $x'_0$ but not its distribution. Thus,
+\begin{eqnarray*}
+  &&\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) p_{0|t}^\theta(x'_0|x_t) dx'_0) dx_{t-1}\\
+  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) \delta(x_0^\theta) dx'_0) dx_{t-1}\\
+  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log q_{t-1|0,t}(x_{t-1}|x^\theta_0,x_t) dx_{t-1}.
+\end{eqnarray*}
+For discrete space,
+\begin{eqnarray}\label{EqDisSpaTarget}
+  &&\mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_{0,t}(x_0,x_t)}\sum_{x_{t-1}} q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log p_{t-1|t}^\theta(x_{t-1}|x_t)\nonumber\\
+  &&= \mathbb{E}_{q_{0,t}(x_0,x_t)}\sum_{x_{t-1}} q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\sum_{x'_0} q_{t-1|0,t}(x_{t-1}|x'_0,x_t) p_{0|t}^\theta(x'_0|x_t)).
+\end{eqnarray}
+
+\section{Parameterization of $p^\theta_{t-1|t}(x_{t-1}|x_t)$}
+
+Continuous-space discrete-time diffusion models has
+\begin{eqnarray*}
+  &&q_{t|t-1}(x_t|x_{t-1})\coloneq\mathcal{N}\qty(x_t;\sqrt{\alpha_t}x_{t-1}, 1-\alpha_t),\\
+  &&\alpha_{t|s}\coloneq\prod_{i=s+1}^t \alpha_i,\\
+  &&q_{t|0}(x_t|x_0)=\mathcal{N}\qty(x_t;\sqrt{\alpha_{t|0}}x_0, 1-\alpha_{t|0}),\\
+  &&q_{t-1|0,t}(x_{t-1}|x_0,x_t)=\mathcal{N}\qty(x_{t-1};\frac{\sqrt{\alpha_{t-1|0}}(1-\alpha_t)}{1-\alpha_{t|0}}x_0 + \frac{(1-\alpha_{t-1|0})\sqrt{\alpha_t}}{1-\alpha_{t|0}}x_t, \frac{(1-\alpha_{t-1|0})(1-\alpha_t)}{1-\alpha_{t|0}}).
+\end{eqnarray*}
+$p_{t-1|t}^\theta(x_{t-1}|x_t)$ is parameterized by
+\begin{eqnarray*}
+  p_{t-1|t}^\theta(x_{t-1}|x_t) \coloneq q\qty(x_{t-1}|x_t, x^\theta_0).
+\end{eqnarray*}
+There are two ways to parameterize $x^\theta_0$ (https://arxiv.org/pdf/2402.04384). 
+
+For $0$-parameterization, $x_0^\theta=x_0^\theta(x_t,t)$. That means the network predict $x_0^\theta$ from $x_t$ and $t$ directly.
+
+For $\epsilon$-parameterisation, the network predicts $\epsilon^\theta(x_t,t)$ such that
+\begin{eqnarray*}
+  x_t\approx \sqrt{\alpha_{t|0}} x_0 + \qty(1-\alpha_{t|0}) \epsilon^\theta(x_t,t).
+\end{eqnarray*}
+Then $x_0^\theta$ can be parameterized as
+\begin{eqnarray*}
+  x^\theta_0 = \frac{x_t - \qty(1-\alpha_{t|0}) \epsilon^\theta(x_t,t)}{\sqrt{\alpha_{t|0}}}.
+\end{eqnarray*}
+
+For discrete-space discrete-time diffusion models, thera are three parameterizations of $p^\theta_{t-1|t}(x_{t-1}|x_t)$ (https://arxiv.org/pdf/2402.03701).
+\begin{enumerate}
+  \item The network predicts $p^\theta_{t-1|t}(\cdot|x_t)$ directly, which does not reuse any known distribution from the forward process, and hence is less effective in practice.
+  \item The network predicts $p^\theta_{0|t}(\cdot|x_t)$.
+  \begin{enumerate}
+    \item Parameterize $p^\theta_{t-1|t}(x_{t-1}|x_t)$ as
+    \begin{eqnarray*}
+      p^\theta_{t-1|t}(x_{t-1}|x_t)\coloneq q_{t-1|0,t}\qty(\mathbf{x}_{t-1}\middle|p^\theta_{0|t}(\cdot|x_t),\mathbf{x}_t),
+    \end{eqnarray*}
+    where $\mathbf{x}_t$ is the one-hot vector of $x_t$. Some heuristics have been proposed in https://arxiv.org/pdf/2402.03701. However, those can have a large gap to the true $q_{t-1|t}(x_{t−1}|x_t)$, leading to an inaccurate sampling process.
+    \item Parameterize $p^\theta_{t-1|t}(x_{t-1}|x_t)$ as
+    \begin{eqnarray*}
+      p^\theta_{t-1|t}(x_{t-1}|x_t)\coloneq \sum_{x_0}q_{t-1|0,t}\qty(x_{t-1}|x_0,x_t)p^\theta_{0|t}(x_0|x_t).
+    \end{eqnarray*}
+  \end{enumerate}
+\end{enumerate}
+
+\section{Continuous-time discrete diffusion}
+In https://arxiv.org/pdf/2205.14987, the derivation of continuous-time ELBO treat $\mathbb{E}_{q_{k+1|k}(x_{k+1}|x_k)}\qty[\log p_{k|k+1}^\theta(x_k|x_{k+1})]$ for $k>0$ and $k=0$ differently. This is not necessary. Actually, the negative ELBO (or VLB)
+\begin{eqnarray*}
+  \mathcal{L}^\text{DT}(\theta) = -\Delta t\sum_{k=0}^{K-1}\mathbb{E}_{q_k(x_k)}\qty[\hat{R}_k^\theta(x_k|x_k) + \sum_{x_{k+1}\neq x_k}R_k(x_{k+1}|x_k)\log\hat{R}_k^\theta(x_k|x_{k+1})] + o(\Delta t) + C.
+\end{eqnarray*}
+Then
+\begin{eqnarray*}
+  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = - \int_0^T \mathbb{E}_{q_t(x)}\qty[\hat{R}_t^\theta(x|x) + \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)]dt + C\\
+  &&=\int_0^T \mathbb{E}_{q_t(x)}\qty[\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)]dt + C\\
+  &&=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t(x)}\qty[\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)] + C.
+\end{eqnarray*}
+
+\section{Relate the time for $R_t=\beta_t R_b$}
+
+The continuous-time discrete markov process $\frac{d q_t}{dt}=q_t R_t$ has a closed form solution $q_t = q_0 e^{\int_0^t R_s ds}$ if for all $s$ and $t$, $R_s$ and $R_t$ commute. In https://arxiv.org/pdf/2205.14987, the authors suggest to use $R_t\coloneqq \beta_t R_b$, where $R_b$ is a base transition rate, and $\beta_t$ is a time-dependent scalar. They also claim that $R_t$ can be transformed to time-homogeneous process by rescale time but do not give more details. Here is more details.
+
+Define the time scale $u=F(t)\coloneqq\int_0^t\beta_s ds$. Assume that $\beta_s > 0$ for all $s$. Then $F^{-1}(u)$ is well-defined. By variable substitution $s=F^{-1}(v)$, the rescaled process $q_{F^{-1}(u)}$ satisfies
+\begin{eqnarray*}
+  &&q_{F^{-1}(u)}\coloneq q_0 e^{R_b \int_0^{F^{-1}(u)}\beta_s ds} = q_0 e^{R_b \int_0^{F\circ F^{-1}(u)}\beta_{F^{-1}(v)} dF^{-1}(v)}=q_0 e^{R_b \int_0^{F\circ F^{-1}(u)}\beta_{F^{-1}(v)} dF^{-1}(v)}=q_0 e^{R_b \int_0^u\beta_{F^{-1}(v)} \partial_v F^{-1}(v)dv}\\
+  &&q_0 e^{R_b \int_0^u\beta_{F^{-1}(v)} \partial^{-1}_{F^{-1}(v)} F\qty(F^{-1}(v))dv}=q_0 e^{R_b \int_0^u\beta_{F^{-1}(v)}\beta^{-1}_{F^{-1}(v)}dv} =q_0 e^{R_b u}. 
+\end{eqnarray*}
+Thus, the rescaled process has constant transition rate $R_b$. Three parts in the rescaled diffusion model need attentions to make it equivalent to the original model.
+\begin{enumerate}
+  \item The time embedding $E_r$ for rescaled process should be $E_r=E_o\circ F^{-1}$, where $E_o$ is the original time embedding.
+  \item For training, the rescaled model usually sample time $u$ from $\mathcal{U}(u;0,F(T))$. On the other hand, the orginal model sample $t$ from $\mathcal{U}(t;0,T)$. Then for $u=F(t)$, by the variable substitution $s=F^{-1}(v)$,
+  \begin{eqnarray*}
+    \mathbb{P}(v\le u)=\int_0^t\frac{1}{T} ds=\int_0^u\frac{\partial_v F^{-1}(v)}{T}dv=\int_0^u\frac{\beta^{-1}_{F^{-1}(v)}}{T}dv.
+  \end{eqnarray*}  
+  Thus, the probability density function of $u$ is $\frac{1}{T\beta_{F^{-1}(u)}}$ but not $\frac{1}{F(T)}$. Since $R_t = \beta_t R_b$, the negative ELBO $\mathcal{L}^\text{CT}(\theta)$ is weighted by $\beta_t$, thereby its gradients over $\theta$ is also weighted by $\beta_t$. In summary, the time sampling of the original model is actually an importance sampling of the rescaled model. Generally, if the original model sample $t$ from density function $\phi(t)$ over $[0,T]$, then the rescale model sample $u$ from density function $\frac{\phi\circ F^{-1}(u)}{\beta_{F^{-1}(u)}}$ with weight $\beta_{F^{-1}(u)}$ for gradients.
+  \item For generating, the exact Gillespie's algorithm in https://arxiv.org/pdf/2205.14987 does not change. The tau-leaping algorithm in https://arxiv.org/pdf/2205.14987, the unified discrete-time scheduler in https://arxiv.org/pdf/2402.03701, and the MCMC predictor-corrector should be rescaled accordingly.
+\end{enumerate}
+With out loss of generality, we always assume time-homogeneous process $\beta_t=1$ in this paper.
 
 %\centerline{\bf \bfseries  ---------------------------------------------------------}
 

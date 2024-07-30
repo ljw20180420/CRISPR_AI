@@ -17,3 +17,19 @@ Direct Denoising Model Supervision
 Continuous Time ELBO with Factorization
 
 partial time steps
+
+Unet learn distribution instead of point value
+
+migrate from argparse to ConfigArgParse
+
+use latent diffuser
+
+TODO
+```list
+Generating process
+AI explaining
+Tensorboard
+Network structure
+upload huggingface
+UI
+```

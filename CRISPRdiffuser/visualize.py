@@ -3,11 +3,18 @@ from diffusers.utils import make_image_grid
 import os
 from .config import args
 
-def show_mh_matrix(mh_maxtrix):
+def show_matrix(mh_maxtrix, vmin=None, vmax=None):
     # display mh_maxtrix
-    plt.imshow(mh_maxtrix, cmap="Oranges", vmin=0, extent=(0, mh_maxtrix.shape[1], mh_maxtrix.shape[0], 0))
+    plt.imshow(mh_maxtrix, cmap="gray", vmin=vmin, vmax=vmax, extent=(0, mh_maxtrix.shape[1], mh_maxtrix.shape[0], 0))
     plt.colorbar()
     plt.show()
+
+def save_matrix_as_png(mh_maxtrix, vmin=None, vmax=None, fname="temp.png"):
+    # display mh_maxtrix
+    fig, ax = plt.subplots()
+    ax.imshow(mh_maxtrix, cmap="gray", vmin=vmin, vmax=vmax, extent=(0, mh_maxtrix.shape[1], mh_maxtrix.shape[0], 0))
+    ax.colorbar()
+    fig.savefig(fname)
 
 def sample_images(images, epoch):
     # Make a grid out of the images
