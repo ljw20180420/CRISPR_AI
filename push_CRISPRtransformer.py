@@ -1,0 +1,11 @@
+#!/usr/bin/env python
+from CRISPRtransformer.configuration_CRISPRtransformer import CRISPRtransformerConfig
+from CRISPRtransformer.modeling_CRISPRtransformer import CRISPRtransformerModel
+
+CRISPRtransformerConfig.register_for_auto_class()
+CRISPRtransformerModel.register_for_auto_class("AutoModel")
+
+crispr_transformer_config = CRISPRtransformerConfig.from_pretrained("CRISPRtransformer")
+crispr_transformer_model = CRISPRtransformerModel(crispr_transformer_config)
+crispr_transformer_model = CRISPRtransformerModel.from_pretrained("CRISPRtransformer")
+crispr_transformer_model.push_to_hub("CRISPRtransformer")

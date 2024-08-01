@@ -36,8 +36,8 @@ def kmer2one_hot1D(kmer1, kmer2):
     base_kmer = len(alphacode)**args.kmer_size
     return(
         torch.cat((
-            F.one_hot(kmer1, num_classes=base_kmer).T.unsqueeze(1).tile(dims=(1, len(kmer2), 1)),
-            F.one_hot(kmer2, num_classes=base_kmer).T.unsqueeze(2).tile(dims=(1, 1, len(kmer1)))
+            F.one_hot(kmer1, num_classes=base_kmer).T[:, None, :].tile(dims=(1, len(kmer2), 1)),
+            F.one_hot(kmer2, num_classes=base_kmer).T[:, :, None].tile(dims=(1, 1, len(kmer1)))
         ))
     )
 
@@ -79,35 +79,14 @@ def split_train_valid_test(ds):
     ds['test'] = ds_valid_test.pop('test')
     return ds
 
-def collect_train_data(examples):
-    ref1nums = [DNA2num(example['ref1']) for example in examples]
-    ref2nums = [DNA2num(example['ref2']) for example in examples]
-    return {
-        "ref1_end": torch.tensor([example['ref1_end'] for example in examples], device=device),
-        "ref2_start": torch.tensor([example['ref2_start'] for example in examples], device=device),
-        "condition": torch.stack([
-            torch.cat((
-                num2micro_homology(ref1nums[i], ref2nums[i], examples[i]['cut1'], examples[i]['cut2']).unsqueeze(0).clamp(0, args.max_micro_homology) / args.max_micro_homology,
-                cut2one_hot(examples[i]['cut1'], examples[i]['cut2']).unsqueeze(0),
-                kmer2one_hot1D(num2kmer(ref1nums[i]), num2kmer(ref2nums[i])) if not args.cross_reference else kmer2one_hot2D(num2kmer(ref1nums[i]), num2kmer(ref2nums[i]))
-            ))
-            for i in range(len(examples))
-        ]).to(device),
-        # this is the gradient weight
-        "weight": torch.tensor([
-            example['count'] ** (1 - args.importance_sampling_factor)
-            for example in examples
-        ], device=device)
-    }
-
-def collect_valid_data(examples):
+def collect_data(examples):
     ref1nums = [DNA2num(example['ref1']) for example in examples]
     ref2nums = [DNA2num(example['ref2']) for example in examples]
     return {
         "condition": torch.stack([
             torch.cat((
-                num2micro_homology(ref1nums[i], ref2nums[i], examples[i]['cut1'], examples[i]['cut2']).unsqueeze(0).clamp(0, args.max_micro_homology) / args.max_micro_homology,
-                cut2one_hot(examples[i]['cut1'], examples[i]['cut2']).unsqueeze(0),
+                num2micro_homology(ref1nums[i], ref2nums[i], examples[i]['cut1'], examples[i]['cut2'])[None, :, :].clamp(0, args.max_micro_homology) / args.max_micro_homology,
+                cut2one_hot(examples[i]['cut1'], examples[i]['cut2'])[None, :, :],
                 kmer2one_hot1D(num2kmer(ref1nums[i]), num2kmer(ref2nums[i])) if not args.cross_reference else kmer2one_hot2D(num2kmer(ref1nums[i]), num2kmer(ref2nums[i]))
             ))
             for i in range(len(examples))
@@ -151,17 +130,6 @@ def unlist_cuts(examples):
         'count': list(itertools.chain.from_iterable(examples['count']))
     }
 
-def unlist_ref1_end_ref2_start_count(examples):
-    return {
-        'ref1': [ref1 for i, ref1 in enumerate(examples['ref1']) for _ in examples['ref1_end'][i]],
-        'ref2': [ref2 for i, ref2 in enumerate(examples['ref2']) for _ in examples['ref2_start'][i]],
-        'cut1': [cut1 for i, cut1 in enumerate(examples['cut1']) for _ in examples['ref1_end'][i]],
-        'cut2': [cut2 for i, cut2 in enumerate(examples['cut2']) for _ in examples['ref2_start'][i]],
-        'ref1_end': list(itertools.chain.from_iterable(examples['ref1_end'])),
-        'ref2_start': list(itertools.chain.from_iterable(examples['ref2_start'])),
-        'count': list(itertools.chain.from_iterable(examples['count']))
-    }
-
 from datasets import load_dataset, Features, Value, Sequence
 alg_features = Features({
     'ref1': Value('string'),
@@ -181,12 +149,8 @@ ds = load_dataset("json", data_files=args.data_file.as_posix(), num_proc=12, fea
 #         logger.exception(str(err))
 #         raise
 ds = ds.map(unlist_cuts, batched=True, desc="unlist cuts in dataset")
-# Split after unlist_cuts but before unlist_ref1_end_ref2_start_count, so that for samples in valid and test sets, at least one of ref1/2 and cut1/2 is new.
 ds = split_train_valid_test(ds)
-ds['train'] = ds['train'].map(unlist_ref1_end_ref2_start_count, batched=True, desc="unlist ref1_end, ref2_start and count in dataset")
 
-train_dataloader = DataLoader(ds["train"], batch_sampler=sampler_with_put_back(
-        np.array(ds["train"]["count"]) ** args.importance_sampling_factor
-    ), collate_fn=collect_train_data)
-valid_dataloader = DataLoader(ds["valid"], collate_fn=collect_valid_data)
+train_dataloader = DataLoader(dataset=ds["train"], batch_size=args.batch_size, shuffle=True, collate_fn=collect_data)
+valid_dataloader = DataLoader(dataset=ds["valid"], batch_size=args.valid_batch_size, collate_fn=collect_data)
 

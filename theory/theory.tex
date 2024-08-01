@@ -218,8 +218,36 @@ Thus,
   \tilde{\mathcal{L}}^\text{CT}(\theta)=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)},\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle] + C.
 \end{eqnarray*}
 
+\section{MCMC correction}
+In both https://arxiv.org/pdf/2205.14987 and https://arxiv.org/pdf/2402.03701, the author suggest to use MCMC correction. In their case, $D$ is large (high dimensional case). Thus, it is expensive to express the $D$-dimensional $q_0\qty(\cdot)$. They choose to sample $x^{(1:D)}_0$ and $x^{(1:D)}_t$ from $q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t)$, and use
+\begin{eqnarray*}
+  \mathcal{L}^\text{CE}_t(\theta)\gets -\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t).
+\end{eqnarray*}
+as a correction to the loss function.
+
+Note that
+\begin{eqnarray*}
+  &&q_{t|0}\qty(x^{(1:D)}_t\middle|x^{(1:D)}_0) = \prod_{d=1}^D q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|x^{(d)}_0),\\
+  &&q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|\cdot) = \alpha^{(d)}_t \mathbf{x}^{(d)}_t + \qty(1 - \alpha^{(d)}_t)\left\langle\mathbf{x}^{(d)}_t, \mathbf{m}_d\right\rangle\mathbf{1}.
+\end{eqnarray*}
+In our case, $D = 2$. Then
+\begin{eqnarray*}
+  q_{0, t}\qty(\cdot, x^{(1:2)}_t) = q^{(1)}_{t|0}\qty(x^{(1)}_t\middle|\cdot) \circ q_0\qty(\cdot) \circ \qty(q^{(2)}_{t|0}\qty(x^{(2)}_t\middle|\cdot))^\top.
+\end{eqnarray*}
+Normalize $q_{0, t}\qty(\cdot, x^{(1:2)}_t)$ to $q_{0|t}\qty(\cdot\middle|x^{(1:2)}_t)$. Then a better MCMC correction is
+\begin{eqnarray*}
+  \tilde{\mathcal{L}}^\text{CE}_t(\theta)\gets -\mathbb{E}_{q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)}\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t).
+\end{eqnarray*}
+
 \section{Sampling}
-CRISPR data have lots of duplicate for some reads. All duplicates of a read form a class. In training, treat each duplicate as a sample will be extremely inefficient. On the other hand, treat total class as one sample and weight the gradient by duplicate number will lead to a large variance of training process. A middle way is to use importance sampling that choose a biased distribution over each class. Suppose there are N classes with duplicate numbers $\qty{c_i}_{i=1}^N$. One can choose the unnormalized distribution by $c_i^\sigma$ for $0\le \sigma \le 1$. To make the sampling unbiased, scale the loss function by $c_i^{1-\sigma}$.
+CRISPR data have lots of duplicate for some reads. Suppose there are $N$ read types with duplicates $\qty{c_i}_{i=1}^N$. Generally, the wildtype $c_1$ dominates the total population. Thus, the rare case cannot be trained efficiently. One goodness of diffusion model is that it diffuse the wildtype mass to non-wildtype case, which mitigates the unbalance of training data.
+
+\section{Validation}
+To validate the accuracy of diffuser model, one must sample lots of data from the diffuser, which is quite inefficient, especially when there are lots of time steps. Since each step of the reverse process generates an estimation of $p^\theta_0\qty(\cdot\middle|x^{(1:D)}_t)$, we use the approximation
+\begin{eqnarray*}
+  p^\theta_0\qty(x^{(1:D)}_0) \approx \frac{\sum_{t=1}^T p^\theta_0\qty(\cdot\middle|x^{(1:D)}_t)}{T}.
+\end{eqnarray*}
+The valid loss is defined as the negative cross entropy $\mathbb{E}_{q_0\qty(x^{(1:D)}_0)}\qty[\log p_0^\theta\qty(x^{(1:D)}_0)]$.
 
 \section{Noise scheduler}
 
@@ -297,7 +325,14 @@ where $a=b=5$ by defaults.
     \end{eqnarray*}
     }
     \State {\color{blue} $\tilde{\mathcal{L}}^\text{CT}_t(\theta)\gets \sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle + \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle]$.}
-    \State $\mathcal{L}^\text{CE}_t(\theta)\gets -\log p^\theta_{0|t}\qty(x^{(1:D)}_0|x^{(1:D)}_t)$.
+    \State
+    \begin{eqnarray*}
+      &&q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|\cdot) \gets \alpha^{(d)}_t \mathbf{x}^{(d)}_t + \qty(1 - \alpha^{(d)}_t)\left\langle\mathbf{x}^{(d)}_t, \mathbf{m}_d\right\rangle\mathbf{1},\\
+      &&q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t) \gets q_0\qty(x^{(1:D)}_0)\prod_{d=1}^D q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|x^{(d)}_0),\\
+      &&q_t\qty(x^{(1:D)}_t) \gets \sum_{x^{(1:D)}_0}q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t),\\
+      &&q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t) \gets q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t) / q_t\qty(x^{(1:D)}_t).
+    \end{eqnarray*}
+    \State $\tilde{\mathcal{L}}^\text{CE}_t(\theta)\gets -\mathbb{E}_{q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)}\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)$.
     \State {\color{red} $\nabla_\theta\qty[\mathcal{L}^\text{DT}_t(\theta) + \lambda \mathcal{L}^\text{CE}_t(\theta)]$} or {\color{blue} $\nabla_\theta\qty[\mathcal{L}^\text{CT}_t(\theta) + \lambda \mathcal{L}^\text{CE}_t(\theta)]$}.
     \Until{convergence}
   \end{algorithmic}

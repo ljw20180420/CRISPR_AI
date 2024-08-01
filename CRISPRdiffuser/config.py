@@ -49,10 +49,9 @@ parser_dataset.add_argument("--max_micro_homology", type=int, default=7, help="C
 parser_dataset.add_argument("--importance_sampling_factor", type=float, default=1., help="Factor for importance sampling from data.")
 
 parser_train = parser.add_argument_group(title="train", description="parameters for training")
-parser_train.add_argument("--epoch_num", type=int, default=10, help="number of epochs")
-parser_train.add_argument("--batch_num", type=int, default=10000, help="batch number for each epoch")
+parser_train.add_argument("--epoch_num", type=int, default=50, help="number of epochs")
+parser_train.add_argument("--batch_num", type=int, default=1e100, help="upbound for the number of batch in each epoch, mainly used in test")
 parser_train.add_argument("--MCMC_corrector_factor", type=float, default=0.001, help="weight of the MCMC corrector term")
-parser_train.add_argument("--is_test", default=False, action='store_true', help="activate test mode")
 
 parser_model = parser.add_argument_group(title="model", description="parameters for model")
 parser_model.add_argument("--forward_stationary_distribution", type=str, default="uniform", choices=["uniform"], help="stationary distribution of the forward diffusion process")
@@ -66,9 +65,9 @@ parser_noise_scheduler.add_argument("--exp_scale", type=float, default=5., help=
 parser_noise_scheduler.add_argument("--exp_base", type=float, default=5., help="base parameter of exponential noise scheduler")
 
 parser_learn_scheduler = parser.add_argument_group(title="learn_scheduler", description="parameters for learn scheduler")
-parser_learn_scheduler.add_argument("--learn_scheduler", type=str, default="constant", choices=list_all_learn_schedulers(), help="name of learn scheduler")
+parser_learn_scheduler.add_argument("--learn_scheduler", type=str, default="cosine", choices=list_all_learn_schedulers(), help="name of learn scheduler")
 parser_learn_scheduler.add_argument("--step_rules", type=str, default="1:10,0.1:20,0.01:30,0.005", help='The rules for the learning rate. Only used for piecewise_constant scheduler, ex: rule_steps="1:10,0.1:20,0.01:30,0.005" it means that the learning rate multiple 1 for the first 10 steps, mutiple 0.1 for the next 20 steps, multiple 0.01 for the next 30 steps and multiple 0.005 for the other steps.')
-parser_learn_scheduler.add_argument("--num_warmup_steps", type=int, default=3, help="The number of warmup steps to do. This is not required by all schedulers")
+parser_learn_scheduler.add_argument("--num_warmup_steps", type=int, default=100, help="The number of warmup steps to do. This is not required by all schedulers")
 parser_learn_scheduler.add_argument("--num_cycles", type=int, default=1, help="The number of hard restarts used in cosine_with_restarts scheduler")
 parser_learn_scheduler.add_argument("--power", type=int, default=1, help="Power factor used in polynomial scheduler")
 
@@ -87,12 +86,15 @@ parser_accelerator.add_argument("--max_norm", type=float, default=1, help="Max n
 
 parser_save = parser.add_argument_group(title="save", description="Parameters for saving.")
 parser_save.add_argument("--push_to_hub", type=bool, default=False, help="Push output to huggingface hub.")
+parser_save.add_argument("--valid_epoch_num", type=int, default=10, help="Epoch number to estimate q0 in validation")
+parser_save.add_argument("--valid_batch_num", type=int, default=1e100, help="upbound for the number of batch in each validation epoch, mainly used in test")
+parser_save.add_argument("--valid_batch_size", type=int, default=80, help="batch size for validation")
 parser_save.add_argument("--save_model_epochs", type=int, default=1, help="Save model every this epoch.")
 parser_save.add_argument("--save_image_epochs", type=int, default=1, help="Save image every this epoch.")
-parser_save.add_argument("--valid_pass", type=int, default=1, help="Pass number to estimate q0 in validation")
-parser_save.add_argument("--valid_batch_size", type=int, default=1, help="batch size for validation")
+parser_save.add_argument("--save_image_valid_epochs", type=int, default=1, help="Save image every this validation epoch.")
+parser_save.add_argument("--save_image_valid_batchs", type=int, default=1, help="Save image every this validation batchs.")
+parser_save.add_argument("--save_image_valid_in_batchs", type=int, default=80, help="Save image every this record in a validation batch.")
 parser_save.add_argument("--display_scale_facter", type=float, default=0.1, help="scale factor for probability display")
-parser_save.add_argument("--save_image_batchs", type=int, default=100, help="Save image every this valid batchs.")
 
 args = parser.parse_args()
 

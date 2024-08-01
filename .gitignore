@@ -2,3 +2,9 @@ references
 inDelphi-model
 .vscode
 **/__pycache__
+*.safetensors
+theory/*
+!theory/theory.tex
+dataset.json
+model.gv*
+gifs

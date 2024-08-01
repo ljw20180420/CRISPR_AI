@@ -24,6 +24,20 @@ migrate from argparse to ConfigArgParse
 
 use latent diffuser
 
+use unet from timm
+
+use mamba
+
+use TCN
+
+use transformer-TCN
+
+use transformer-encoder-decoder to predict DNA
+
+predict from both sides to the middle
+
+add figures to tensorboard
+
 TODO
 ```list
 Generating process
