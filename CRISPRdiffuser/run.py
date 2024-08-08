@@ -10,6 +10,6 @@
 # We strongly suggest always running your pipelines in float16, and so far, we’ve rarely seen any degradation in output quality (https://huggingface.co/docs/diffusers/stable_diffusion).
 
 from accelerate import notebook_launcher
-from CRISPRdiffuser.train import train_loop
+from train import train_loop
 
 notebook_launcher(train_loop, num_processes=1)

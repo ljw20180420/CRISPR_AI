@@ -1,11 +1,11 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
-from .config import args, ref1len, ref2len, device
-from .model import stationary_sampler1, stationary_sampler2
-from .noise_scheduler import noise_scheduler
+from config import args, ref1len, ref2len, device
+from model import stationary_sampler1, stationary_sampler2
+from noise_scheduler import noise_scheduler
 from datetime import datetime
-from .save import save_heatmap
+from save import save_heatmap
 
 @torch.no_grad()
 def inference_function(model, valid_step, batch, valid_epoch, epoch, ymd=f"{datetime.now():%Y-%m-%d}", save_dir=None):

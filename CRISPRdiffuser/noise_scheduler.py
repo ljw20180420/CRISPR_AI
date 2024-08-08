@@ -1,4 +1,4 @@
-from .config import args, device
+from config import args, device
 import torch
 
 def linear_noise_scheduler(t: torch.Tensor):

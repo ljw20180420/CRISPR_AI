@@ -4,14 +4,14 @@ from huggingface_hub import create_repo, upload_folder
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from .config import args
+from config import args
 import matplotlib
 
 matplotlib.use('Agg')
 
 def save_model(model, ymd, hms, epoch):
-    os.makedirs(args.data_file.parent / "output" / "models" / ymd, exist_ok=True)
-    torch.save(model.state_dict(), args.data_file.parent / "output" / "models" / ymd / f"{hms}_epoch{epoch}.pth")
+    os.makedirs(args.data_file.parent / "CRISPRdiffuser" / "output" / "models" / ymd, exist_ok=True)
+    torch.save(model.state_dict(), args.data_file.parent / "CRISPRdiffuser" / "output" / "models" / ymd / f"{hms}_epoch{epoch}.pth")
 
 def push_model(ymd, hms, epoch):
     repo_id = create_repo(
@@ -19,7 +19,7 @@ def push_model(ymd, hms, epoch):
     ).repo_id
     upload_folder(
         repo_id=repo_id,
-        folder_path=(args.dafa_file.parent / "output" / "models"),
+        folder_path=(args.dafa_file.parent / "CRISPRdiffuser" / "output" / "models"),
         commit_message=f"{ymd} {hms} epoch{epoch}",
         ignore_patterns=["step_*", "epoch_*"],
     )

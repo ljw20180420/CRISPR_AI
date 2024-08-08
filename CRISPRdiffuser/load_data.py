@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from .config import args, alphacode, ref1len, ref2len, diag_indices, logger, device
+from config import args, alphacode, ref1len, ref2len, diag_indices, logger, device
 from torch.utils.data import DataLoader
 import itertools
 import random
@@ -127,6 +127,7 @@ def unlist_cuts(examples):
         'cut2': list(itertools.chain.from_iterable(examples['cut2'])),
         'ref1_end': list(itertools.chain.from_iterable(examples['ref1_end'])),
         'ref2_start': list(itertools.chain.from_iterable(examples['ref2_start'])),
+        'random_insert': list(itertools.chain.from_iterable(examples['random_insert'])),
         'count': list(itertools.chain.from_iterable(examples['count']))
     }
 
@@ -138,6 +139,7 @@ alg_features = Features({
     'cut2': Sequence(Value('int16')),
     'ref1_end': Sequence(Sequence(Value('int16'))),
     'ref2_start': Sequence(Sequence(Value('int16'))),
+    'random_insert': Sequence(Sequence(Value('string'))),
     'count': Sequence(Sequence(Value('uint64')))
 })
 
@@ -152,5 +154,5 @@ ds = ds.map(unlist_cuts, batched=True, desc="unlist cuts in dataset")
 ds = split_train_valid_test(ds)
 
 train_dataloader = DataLoader(dataset=ds["train"], batch_size=args.batch_size, shuffle=True, collate_fn=collect_data)
-valid_dataloader = DataLoader(dataset=ds["valid"], batch_size=args.valid_batch_size, collate_fn=collect_data)
+valid_dataloader = DataLoader(dataset=ds["valid"], batch_size=args.batch_size, collate_fn=collect_data)
 

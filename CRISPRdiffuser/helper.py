@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from diffusers.utils import make_image_grid
 import os
-from .config import args
+from config import args
 
 def show_matrix(mh_maxtrix, vmin=None, vmax=None):
     # display mh_maxtrix

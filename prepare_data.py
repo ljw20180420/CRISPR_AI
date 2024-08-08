@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser(description="preprocess alignments")
 parser.add_argument("--data_dir", type=pathlib.Path, help="directory containing alignment files")
 parser.add_argument("--score_quantile", type=float, default=0.05, help="alignment score quantile to filter score")
 parser.add_argument("--min_score", type=float, default=-np.inf, help="min alignment score threshold")
+parser.add_argument("--name", type=str, default="dataset.json", help="output name")
 args = parser.parse_args()
 
 # read data
@@ -49,21 +50,19 @@ def get_ref1_len(examples):
     ref1s = [ref[:ref1_len].upper() for ref1_len, ref in zip(ref1_lens, refs)]
     ref2s = [ref[ref1_len:].upper() for ref1_len, ref in zip(ref1_lens, refs)]
     return {
-        "ref": refs,
-        "ref1_len": ref1_lens,
         "ref2_start": ref2_starts,
         "cut2": cut2s,
         "ref1": ref1s,
         "ref2": ref2s
     }
 
-# keep only count, score, ref1_end, ref2_start, cut1, cut2, ref1, ref2 
+# keep only count, score, ref1_end, ref2_start, cut1, cut2, ref1, ref2, random_insert
 alg_ds = (
     load_dataset("csv", data_files=(args.data_dir / "*").as_posix(), num_proc=12, delimiter="\t", column_names=['index', 'count', 'score', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'ref1_end', 'query1_end', 'random_insert', 'ref2_start', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'cut1', 'cut2', 'ref', 'query'], features=alg_features, keep_default_na=False)
     # load_dataset("csv", data_files=(args.data_dir / "A-CtIPb-2.fq.alg.gz").as_posix(), num_proc=12, delimiter="\t", column_names=['index', 'count', 'score', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'ref1_end', 'query1_end', 'random_insert', 'ref2_start', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'cut1', 'cut2', 'ref', 'query'], features=alg_features, keep_default_na=False)
-    .remove_columns(['index', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'query1_end', 'random_insert', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'query'])
+    .remove_columns(['index', 'ref_id', 'up_dangle', 'ref1_start', 'query1_start', 'query1_end', 'query2_start', 'ref2_end', 'query2_end', 'down_dangle', 'query'])
     .map(get_ref1_len, batched=True)
-    .remove_columns(["ref", "ref1_len"])
+    .remove_columns(["ref"])
 )
 
 # filter records by alignment score
@@ -85,14 +84,14 @@ del alg_ds
 # write the result to newline delimited JSON representation (parquet containing large_list item is not supported by huggingface datasets at this time)
 (
     pl.scan_parquet(temp_file, low_memory=True)
-    .group_by(["ref1_end", "ref2_start", "cut1", "cut2", "ref1", "ref2"])
+    .group_by(["ref1_end", "ref2_start", "random_insert", "cut1", "cut2", "ref1", "ref2"])
     .agg(pl.col("count").sum())
     .group_by(["cut1", "cut2", "ref1", "ref2"])
-    .agg(pl.col("ref1_end"), pl.col("ref2_start"), pl.col("count"))
+    .agg(pl.col("ref1_end"), pl.col("ref2_start"), pl.col("random_insert"), pl.col("count"))
     .group_by(["ref1", "ref2"])
-    .agg(pl.col("cut1"), pl.col("cut2"), pl.col("ref1_end"), pl.col("ref2_start"), pl.col("count"))
+    .agg(pl.col("cut1"), pl.col("cut2"), pl.col("ref1_end"), pl.col("ref2_start"), pl.col("random_insert"), pl.col("count"))
     .collect(streaming=True)
-    .write_ndjson((args.data_dir.parent / "dataset.json").as_posix())
+    .write_ndjson((args.data_dir.parent / args.name).as_posix())
     # .write_parquet((args.data_dir.parent / "dataset.parquet").as_posix())
 )
 os.remove(temp_file)

@@ -1,7 +1,7 @@
 import torch
-from .model import stationary_sampler1, stationary_sampler2
+from model import stationary_sampler1, stationary_sampler2
 import torch.nn.functional as F
-from .config import args, ref1len, ref2len
+from config import args, ref1len, ref2len
 
 def continuous_time_loss_function(alpha_t, x1t, x2t, p_theta_0, batch):
     def get_g_theta_d_and_q_rkm(stationary_sampler, xt, dim, reflen):

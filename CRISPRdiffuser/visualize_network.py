@@ -27,4 +27,4 @@ p_theta_0_logit = model(
     t
 )
 dot = make_dot(p_theta_0_logit.mean(), params=dict(model.named_parameters()))
-dot.render(filename="model.gv", format="svg")
+dot.render(filename="CRISPRdoffuser/model.gv", format="svg")

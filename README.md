@@ -38,6 +38,8 @@ predict from both sides to the middle
 
 add figures to tensorboard
 
+use torch.nn.functional.normalize to normalize observations
+
 TODO
 ```list
 Generating process

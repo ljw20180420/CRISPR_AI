@@ -2,8 +2,8 @@ from diffusers.models.embeddings import get_timestep_embedding
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
-from .config import args, ref1len, ref2len, device
-from .load_data import train_dataloader
+from config import args, ref1len, ref2len, device
+from load_data import train_dataloader
 
 if args.forward_stationary_distribution == "uniform":
     # Categorical normalize probs automatically
