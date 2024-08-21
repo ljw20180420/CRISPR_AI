@@ -23,6 +23,7 @@ def get_diagonal_indices():
 logger = getLogger("CRISPRdiffuser")
 
 parser = argparse.ArgumentParser(description="improved discrete-space diffuser (https://arxiv.org/abs/2402.03701) to predict CRIPSR/Cas9 editing")
+parser.add_argument("--model_name", type=str, default="CRISPRdiffuser", help="the name of model")
 
 parser_dataset = parser.add_argument_group(title="dataset", description="parameters for loading and split dataset")
 parser_dataset.add_argument("--data_file", type=pathlib.Path, default=pathlib.Path(os.environ["HOME"]) / "sdc1" / "SX" / "spcas9" / "spcas9.json", help="file after preprocess in json format")

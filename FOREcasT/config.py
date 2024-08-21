@@ -9,6 +9,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logger = getLogger("FOREcasT")
 
 parser = argparse.ArgumentParser(description="arguments for forecast https://www.nature.com/articles/nbt.4317")
+parser.add_argument("--model_name", type=str, default="FOREcasT", help="the name of model")
 
 parser_dataset = parser.add_argument_group(title="dataset", description="parameters for loading and split dataset")
 parser_dataset.add_argument("--data_file", type=pathlib.Path, default=pathlib.Path(os.environ['HOME']) / "sdc1/SX/spcas9/spcas9.json", help="data file in json format")
