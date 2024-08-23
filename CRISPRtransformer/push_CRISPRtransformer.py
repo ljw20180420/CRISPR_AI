@@ -3,7 +3,7 @@ from CRISPRtransformer.configuration_CRISPRtransformer import CRISPRtransformerC
 from CRISPRtransformer.modeling_CRISPRtransformer import CRISPRtransformerModel
 
 CRISPRtransformerConfig.register_for_auto_class()
-CRISPRtransformerModel.register_for_auto_class("AutoModel")
+CRISPRtransformerModel.register_for_auto_class()
 
 crispr_transformer_config = CRISPRtransformerConfig.from_pretrained("CRISPRtransformer")
 crispr_transformer_model = CRISPRtransformerModel(crispr_transformer_config)
