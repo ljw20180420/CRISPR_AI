@@ -2,6 +2,8 @@ import argparse
 import pathlib
 import os
 import torch
+import logging
+import sys
 
 parser = argparse.ArgumentParser(description="arguments for CRISPR DL models")
 parser.add_argument("--output_dir", type=pathlib.Path, default=f'''{os.environ["HOME"]}/sdc1/CRISPRresults''', help="output directory")
@@ -28,3 +30,6 @@ parser_scheduler.add_argument("--num_epochs", type=float, default=30.0, help="To
 parser_scheduler.add_argument("--warmup_ratio", type=float, default=0.05, help="Ratio of total training steps used for a linear warmup from 0 to learning_rate")
 
 args = parser.parse_args()
+
+logger = logging.getLogger("logger")
+logger.addHandler(logging.StreamHandler(stream=sys.stdout).setLevel(args.log))
