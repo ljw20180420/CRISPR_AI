@@ -29,6 +29,20 @@ parser_scheduler.add_argument("--scheduler", type=str, default="linear", choices
 parser_scheduler.add_argument("--num_epochs", type=float, default=30.0, help="Total number of training epochs to perform (if not an integer, will perform the decimal part percents of the last epoch before stopping training).")
 parser_scheduler.add_argument("--warmup_ratio", type=float, default=0.05, help="Ratio of total training steps used for a linear warmup from 0 to learning_rate")
 
+parser_CRISPR_diffuser = parser.add_argument_group(title="CRISPR diffuser", description="parameters for CRISPR diffuser")
+parser_CRISPR_diffuser.add_argument("--max_micro_homology", type=int, default=7, help="Clip micro-homology strength to (0, max_micro_homology).")
+parser_CRISPR_diffuser.add_argument("--MCMC_corrector_factor", type=float, default=0.001, help="weight of the MCMC corrector term")
+parser_CRISPR_diffuser.add_argument("--unet_channels", nargs='+', type=int, default=[32, 64, 96, 64, 32], help="the output channels of Unet")
+parser_CRISPR_diffuser.add_argument("--noise_scheduler", type=str, default="exp", choices=["linear", "cosine", "exp", "uniform"], help="noise scheduler used for diffuser model")
+parser_CRISPR_diffuser.add_argument("--noise_timesteps", type=int, default=20, help="number of noise scheduler time steps")
+parser_CRISPR_diffuser.add_argument("--cosine_factor", type=float, default=0.008, help="parameter control cosine noise scheduler")
+parser_CRISPR_diffuser.add_argument("--exp_scale", type=float, default=5., help="scale factor of exponential noise scheduler")
+parser_CRISPR_diffuser.add_argument("--exp_base", type=float, default=5., help="base parameter of exponential noise scheduler")
+parser_CRISPR_diffuser.add_argument("--uniform_scale", type=float, default=1., help="scale parameter for uniform scheduler")
+
+parser_inDelphi = parser.add_argument_group(title="inDelphi", description="parameters for inDelphi")
+parser_inDelphi.add_argument("--DELLEN_LIMIT", type=int, default=60, help="deletion length upper limit of inDelphi model")
+
 args = parser.parse_args()
 
 logger = logging.getLogger("logger")

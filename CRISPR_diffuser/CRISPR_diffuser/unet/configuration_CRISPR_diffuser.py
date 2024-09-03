@@ -1,3 +1,4 @@
+from typing import List
 from transformers import PretrainedConfig
 
 class CRISPRDiffuserConfig(PretrainedConfig):
@@ -6,11 +7,11 @@ class CRISPRDiffuserConfig(PretrainedConfig):
 
     def __init__(
         self,
-        channels = [13, 32, 64, 96, 64, 32, 1],
-        MCMC_corrector_factor = 0.001,
-        ref1len = 127,
-        ref2len = 127,
-        seed = 63036, # random seed for intialization
+        channels: List = [13, 32, 64, 96, 64, 32, 1],
+        MCMC_corrector_factor: float = 0.001,
+        ref1len: int = 127,
+        ref2len: int = 127,
+        seed: int = 63036, # random seed for intialization
         **kwargs,
     ):
         self.channels = channels
