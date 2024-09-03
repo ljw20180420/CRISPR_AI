@@ -41,12 +41,6 @@ def kmer2one_hot1D(kmer1, kmer2):
         ))
     )
 
-def kmer2one_hot2D(kmer1, kmer2):
-    # INPUT: tensor dtype=int64 shape=1D
-    # OUTPUT: one hot tensor dtype=int64 shape=(base^2kmer_size, len(kmer2), len(kmer1))
-    base_kmer = len(alphacode)**args.kmer_size
-    return F.one_hot(kmer1.view(1, -1) + kmer2.view(-1, 1) * base_kmer, num_classes=base_kmer**2).transpose(2, 0, 1)
-
 def cut2one_hot(cut1, cut2):
     # OUTPUT: one hot tensor dtype=int64 shape=(ref2len+1, ref1len+1)
     # The layer representing 2D cut point
