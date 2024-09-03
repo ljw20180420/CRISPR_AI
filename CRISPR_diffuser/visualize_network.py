@@ -2,10 +2,10 @@
 
 import torch
 from torchviz import make_dot
-from CRISPRdiffuser.model import model, stationary_sampler1, stationary_sampler2
-from CRISPRdiffuser.load_data import valid_dataloader
-from CRISPRdiffuser.noise_scheduler import noise_scheduler
-from CRISPRdiffuser.config import args, ref1len, ref2len, device
+from CRISPR_diffuser.model import model, stationary_sampler1, stationary_sampler2
+from CRISPR_diffuser.load_data import valid_dataloader
+from CRISPR_diffuser.noise_scheduler import noise_scheduler
+from CRISPR_diffuser.config import args, ref1len, ref2len, device
 import torch.nn.functional as F
 
 for batch in valid_dataloader:

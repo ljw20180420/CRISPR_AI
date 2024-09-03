@@ -4,10 +4,10 @@ import torch.nn.functional as F
 import os
 import pathlib
 import matplotlib.pyplot as plt
-from CRISPRdiffuser.config import args, device, ref1len, ref2len
-from CRISPRdiffuser.load_data import valid_dataloader
-from CRISPRdiffuser.model import model, stationary_sampler1, stationary_sampler2
-from CRISPRdiffuser.noise_scheduler import noise_scheduler
+from CRISPR_diffuser.config import args, device, ref1len, ref2len
+from CRISPR_diffuser.load_data import valid_dataloader
+from CRISPR_diffuser.model import model, stationary_sampler1, stationary_sampler2
+from CRISPR_diffuser.noise_scheduler import noise_scheduler
 
 date = "2024-07-26"
 name = "11:33:16_epoch4.pth"

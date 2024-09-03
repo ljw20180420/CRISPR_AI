@@ -44,11 +44,12 @@ parser_model.add_argument("--forward_stationary_distribution", type=str, default
 parser_model.add_argument("--unet_channels", nargs='+', type=int, default=[32, 64, 96, 64, 32], help="the output channels of Unet")
 
 parser_noise_scheduler = parser.add_argument_group(title="noise scheduler", description="parameters for noise scheduler")
-parser_noise_scheduler.add_argument("--noise_scheduler", type=str, default="exp", choices=["linear", "cosine", "exp"], help="noise scheduler used for diffuser model")
+parser_noise_scheduler.add_argument("--noise_scheduler", type=str, default="exp", choices=["linear", "cosine", "exp", "uniform"], help="noise scheduler used for diffuser model")
 parser_noise_scheduler.add_argument("--noise_timesteps", type=int, default=20, help="number of noise scheduler time steps")
 parser_noise_scheduler.add_argument("--cosine_factor", type=float, default=0.008, help="parameter control cosine noise scheduler")
 parser_noise_scheduler.add_argument("--exp_scale", type=float, default=5., help="scale factor of exponential noise scheduler")
 parser_noise_scheduler.add_argument("--exp_base", type=float, default=5., help="base parameter of exponential noise scheduler")
+parser_noise_scheduler.add_argument("--uniform_scale", type=float, default=1., help="scale parameter for uniform scheduler")
 
 parser_learn_scheduler = parser.add_argument_group(title="learn_scheduler", description="parameters for learn scheduler")
 parser_learn_scheduler.add_argument("--learn_scheduler", type=str, default="cosine", choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup", "piecewise_constant"], help="name of learn scheduler")

@@ -22,5 +22,5 @@ def uniform_noise_scheduler(t: torch.Tensor):
     t = t.to(device)
     return args.uniform_scale * t / args.noise_timesteps
 
-noise_scheduler = linear_noise_scheduler if args.noise_scheduler == "linear" else cosine_noise_scheduler if args.noise_scheduler == "cosine" else exp_noise_scheduler
+noise_scheduler = linear_noise_scheduler if args.noise_scheduler == "linear" else cosine_noise_scheduler if args.noise_scheduler == "cosine" else exp_noise_scheduler if args.noise_scheduler == "uniform" else uniform_noise_scheduler
     

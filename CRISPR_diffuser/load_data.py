@@ -54,23 +54,6 @@ def cut2one_hot(cut1, cut2):
     cut_layer[cut2, cut1] = 1
     return cut_layer
 
-def num2micro_homology(ref1num, ref2num, cut1, cut2):
-    # OUTPUT: micro-homology matrix shape=(ref2len+1, ref1len+1) dtype=int64
-    indices_num = len(diag_indices[0])
-    mh_matrix = F.pad((ref1num[:cut1].view(1, -1) == ref2num[cut2:].view(-1, 1)).to(torch.int64), pad=(0,ref1len-cut1+1,cut2,1), value=0)
-    rep_num = torch.cat((
-        torch.tensor([-1]),
-        torch.where(mh_matrix[diag_indices].diff())[0],
-        torch.tensor([indices_num-1])
-    )).diff()
-    rep_val = rep_num.clone()
-    rep_val[0::2] = 0
-    rep_num[1::2] = rep_num[1::2] + 1
-    rep_num[2::2] = rep_num[2::2] - 1
-    rep_val = rep_val.repeat_interleave(rep_num)
-    mh_matrix[diag_indices] = rep_val
-    return mh_matrix
-
 def split_train_valid_test(ds):
     # Divide ds's train split to valid and test splits. Both has proportion test_valid_ratio.
     ds = ds['train'].train_test_split(2*args.test_valid_ratio, shuffle=True, seed=args.seed) 
