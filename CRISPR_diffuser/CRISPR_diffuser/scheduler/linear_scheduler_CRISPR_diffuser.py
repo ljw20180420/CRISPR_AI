@@ -18,7 +18,11 @@ class CRISPRDiffuserLinearScheduler(CRISPRDiffuserBaseScheduler):
     ):
         if num_inference_steps is None:
             num_inference_steps = self.config.num_train_timesteps
-        t = torch.arange(num_inference_steps, -1, -1, device=self.config.device)
-        self.timesteps = (
-            num_inference_steps / (num_inference_steps - t).maximum(torch.tensor(torch.finfo(torch.float32).tiny, device=self.config.device))
+        assert num_inference_steps <= self.config.num_train_timesteps, "inference steps exceed train steps"
+        steps = torch.arange(num_inference_steps, -1, -1, device=self.config.device)
+        self.timesteps = self.step_to_time(steps)
+
+    def step_to_time(self, steps: torch.Tensor):
+        (
+            self.config.num_train_timesteps / (self.config.num_train_timesteps - steps).maximum(torch.tensor(torch.finfo(torch.float32).tiny, device=self.config.device))
         ).log()

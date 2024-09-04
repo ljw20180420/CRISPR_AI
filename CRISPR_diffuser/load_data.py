@@ -1,12 +1,12 @@
 import torch
 import torch.nn.functional as F
+from torch.distributions import Categorical
 import sys
 import os
 sys.path.append(os.getcwd())
 from config import args
 
-
-def data_collector(examples):
+def data_collector(examples, noise_scheduler, stationary_sampler1, stationary_sampler2):
     def get_condition(example):
         mh_matrix = torch.zeros(ref2len + 1, ref1len + 1)
         mh_matrix[example['mh_ref2'], example['mh_ref1']] = example['mh_val']
@@ -28,28 +28,30 @@ def data_collector(examples):
             one_hot_ref2
         ])
 
-    observation = 
+    def get_observation(example):
+        observation = torch.tensor(ref2len + 1, ref1len + 1)
+        observation[example['ob_ref2'], example['ob_ref1']] = example['ob_val']
+        return observation
 
     batch_size, ref1len, ref2len = len(examples), len(examples[0]['ref1']), len(examples[0]['ref2'])
     base = len("ACGTN")
-    conditions = torch.tensor(batch_size, 12, ref2len + 1, ref1len + 1)
-    observations = torch.tensor(batch_size, ref2len + 1, ref1len + 1)
-    
-
-    ref1nums = [DNA2num(example['ref1']) for example in examples]
-    ref2nums = [DNA2num(example['ref2']) for example in examples]
+    conditions = torch.stack([
+        get_condition(example)
+        for example in examples
+    ])
+    observations = torch.stack([
+        get_observation(example)
+        for example in examples
+    ])
+    x_cross0 = Categorical(probs=observations.view(batch_size, -1)).sample()
+    x20 = x_cross0 // (ref1len + 1)
+    x10 = x_cross0 % (ref1len + 1)
+    t = noise_scheduler.step_to_time(torch.rand(batch_size, device=device) * args.noise_timesteps)
+    x1t, x2t = noise_scheduler.add_noise(x10, x20, t, stationary_sampler1, stationary_sampler2)
     return {
-        "condition": torch.stack([
-            torch.cat((
-                num2micro_homology(ref1nums[i], ref2nums[i], examples[i]['cut1'], examples[i]['cut2'])[None, :, :].clamp(0, args.max_micro_homology) / args.max_micro_homology,
-                cut2one_hot(examples[i]['cut1'], examples[i]['cut2'])[None, :, :],
-                kmer2one_hot1D(num2kmer(ref1nums[i]), num2kmer(ref2nums[i])) if not args.cross_reference else kmer2one_hot2D(num2kmer(ref1nums[i]), num2kmer(ref2nums[i]))
-            ))
-            for i in range(len(examples))
-        ]).to(device),
-        "observation": torch.stack([
-            torch.sparse_coo_tensor([example['ref2_start'], example['ref1_end']], example['count'], (ref2len + 1, ref1len + 1)).to_dense()
-            for example in examples
-        ]).to(device)
+        "x1t": x1t,
+        "x2t": x2t,
+        "t": t,
+        "condition": conditions,
+        "observation": observations
     }
-

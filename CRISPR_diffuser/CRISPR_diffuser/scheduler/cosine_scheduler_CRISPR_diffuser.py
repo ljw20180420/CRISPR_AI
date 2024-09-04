@@ -19,8 +19,12 @@ class CRISPRDiffuserCosineScheduler(CRISPRDiffuserBaseScheduler):
     ):
         if num_inference_steps is None:
             num_inference_steps = self.config.num_train_timesteps
-        t = torch.arange(num_inference_steps, -1, -1, device=self.config.device)
-        self.timesteps = (
+        assert num_inference_steps <= self.config.num_train_timesteps, "inference steps exceed train steps"
+        steps = torch.arange(num_inference_steps, -1, -1, device=self.config.device)
+        self.timesteps = self.step_to_time(steps)
+
+    def step_to_time(self, steps: torch.Tensor):
+        return (
             torch.cos(torch.tensor(self.config.cosine_factor / (1 + self.config.cosine_factor) * torch.pi / 2, device=self.config.device)) /
-            torch.cos((t / num_inference_steps + self.config.cosine_factor) / (1 + self.config.cosine_factor) * torch.pi / 2).maximum(torch.tensor(torch.finfo(torch.float32).tiny, device=self.config.device))
+            torch.cos((steps / self.config.num_train_timesteps + self.config.cosine_factor) / (1 + self.config.cosine_factor) * torch.pi / 2).maximum(torch.tensor(torch.finfo(torch.float32).tiny, device=self.config.device))
         ).log()

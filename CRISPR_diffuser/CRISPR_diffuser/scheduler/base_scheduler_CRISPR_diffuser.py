@@ -16,9 +16,9 @@ class CRISPRDiffuserBaseScheduler(SchedulerMixin, ConfigMixin):
     def step(
         self,
         model_output: torch.Tensor,
-        t: torch.Tensor,
         x1t: torch.Tensor,
         x2t: torch.Tensor,
+        t: torch.Tensor,
         stationary_sampler1: Categorical,
         stationary_sampler2: Categorical
     ) -> Tuple:
@@ -26,14 +26,17 @@ class CRISPRDiffuserBaseScheduler(SchedulerMixin, ConfigMixin):
             x0_one_hot = F.one_hot(x0, num_classes=stationary_sampler._num_events)
             xt_one_hot = F.one_hot(xt, num_classes=stationary_sampler._num_events)
             return (
-                torch.e ** (s - t)[:, None] * xt_one_hot + ((1 - torch.e ** (s - t)) * stationary_sampler.probs[xt])[:, None]
+                alpha_ts[:, None] * xt_one_hot + ((1 - alpha_ts) * stationary_sampler.probs[xt])[:, None]
             ) * (
-                torch.e ** (-s)[:, None] * x0_one_hot + (1 - torch.e ** (-s))[:, None] * stationary_sampler.probs
+                alpha_s[:, None] * x0_one_hot + (1 - alpha_s)[:, None] * stationary_sampler.probs
             ) / (
-                torch.e ** (-t) * (xt == x0) + (1 - torch.e ** (-t)) * stationary_sampler.probs[xt]
+                alpha_t * (xt == x0) + (1 - alpha_t) * stationary_sampler.probs[xt]
             )[:, None]
 
         s = self.previous_timestep(t)
+        alpha_ts = torch.e ** (s - t)
+        alpha_s = torch.e ** (-s)
+        alpha_t = torch.e ** (-t)
         p_theta_0_logit = model_output
         batch_size = model_output.shape[0]
         x_cross0 = Categorical(logits=p_theta_0_logit.view(batch_size, -1)).sample()
@@ -49,15 +52,16 @@ class CRISPRDiffuserBaseScheduler(SchedulerMixin, ConfigMixin):
         self,
         x10: torch.Tensor,
         x20: torch.Tensor,
+        t: torch.Tensor,
         stationary_sampler1: Categorical,
         stationary_sampler2: Categorical,
-        t: torch.Tensor
     ) -> Tuple:
         # sample time and forward diffusion
         batch_size = t.shape[0]
-        mask = torch.rand(batch_size, device=self.config.device) < torch.e ** (-t)
+        alpha_t = torch.e ** (-t)
+        mask = torch.rand(batch_size, device=self.config.device) < alpha_t
         x1t = x10 * mask + stationary_sampler1.sample(torch.Size([batch_size])) * ~mask
-        mask = torch.rand(batch_size, device=self.config.device) < torch.e ** (-t)
+        mask = torch.rand(batch_size, device=self.config.device) < alpha_t
         x2t = x20 * mask + stationary_sampler2.sample(torch.Size([batch_size])) * ~mask
         return x1t, x2t
 
