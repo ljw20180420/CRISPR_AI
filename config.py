@@ -36,9 +36,10 @@ parser_CRISPR_diffuser.add_argument("--unet_channels", nargs='+', type=int, defa
 parser_CRISPR_diffuser.add_argument("--noise_scheduler", type=str, default="exp", choices=["linear", "cosine", "exp", "uniform"], help="noise scheduler used for diffuser model")
 parser_CRISPR_diffuser.add_argument("--noise_timesteps", type=int, default=20, help="number of noise scheduler time steps")
 parser_CRISPR_diffuser.add_argument("--cosine_factor", type=float, default=0.008, help="parameter control cosine noise scheduler")
-parser_CRISPR_diffuser.add_argument("--exp_scale", type=float, default=5., help="scale factor of exponential noise scheduler")
-parser_CRISPR_diffuser.add_argument("--exp_base", type=float, default=5., help="base parameter of exponential noise scheduler")
-parser_CRISPR_diffuser.add_argument("--uniform_scale", type=float, default=1., help="scale parameter for uniform scheduler")
+parser_CRISPR_diffuser.add_argument("--exp_scale", type=float, default=5.0, help="scale factor of exponential noise scheduler")
+parser_CRISPR_diffuser.add_argument("--exp_base", type=float, default=5.0, help="base parameter of exponential noise scheduler")
+parser_CRISPR_diffuser.add_argument("--uniform_scale", type=float, default=1.0, help="scale parameter for uniform scheduler")
+parser_CRISPR_diffuser.add_argument("--display_scale_factor", type=float, default=0.1, help="exponential scale of the distribution image")
 
 parser_inDelphi = parser.add_argument_group(title="inDelphi", description="parameters for inDelphi")
 parser_inDelphi.add_argument("--DELLEN_LIMIT", type=int, default=60, help="deletion length upper limit of inDelphi model")

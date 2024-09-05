@@ -52,6 +52,8 @@ def inference_function(model, valid_step, batch, valid_epoch, epoch, ymd=f"{date
         x2t = Categorical(probs=q_2_s_0_t).sample()
 
     return (
-        ((cumsum_p_theta_0 / args.noise_timesteps).log() * batch['observation'].view(valid_batch_size, -1)).sum(dim=1) /
+        (
+            (cumsum_p_theta_0 / args.noise_timesteps).log() * batch['observation'].view(valid_batch_size, -1)
+        ).sum(dim=1) /
         batch['observation'].view(valid_batch_size, -1).sum(dim=1)
     ).sum()

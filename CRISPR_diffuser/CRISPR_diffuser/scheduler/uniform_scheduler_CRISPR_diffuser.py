@@ -8,8 +8,7 @@ class CRISPRDiffuserUniformScheduler(CRISPRDiffuserBaseScheduler):
     def __init__(
         self,
         num_train_timesteps: int = 20,
-        uniform_scale: float = 1.0,
-        device: Union[str, torch.device] = None
+        uniform_scale: float = 1.0
     ):
         self.set_timesteps()
 
@@ -20,7 +19,7 @@ class CRISPRDiffuserUniformScheduler(CRISPRDiffuserBaseScheduler):
         if num_inference_steps is None:
             num_inference_steps = self.config.num_train_timesteps
         assert num_inference_steps <= self.config.num_train_timesteps, "inference steps exceed train steps"
-        steps = torch.arange(num_inference_steps, -1, -1, device=self.config.device)
+        steps = torch.arange(num_inference_steps, -1, -1)
         self.timesteps = self.step_to_time(steps)
 
     def step_to_time(self, steps: torch.Tensor):

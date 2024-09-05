@@ -8,8 +8,7 @@ from torch.distributions import Categorical
 class CRISPRDiffuserBaseScheduler(SchedulerMixin, ConfigMixin):
     @register_to_config
     def __init__(
-        self,
-        device: Union[str, torch.device] = None
+        self
     ):
         pass
 
@@ -59,9 +58,9 @@ class CRISPRDiffuserBaseScheduler(SchedulerMixin, ConfigMixin):
         # sample time and forward diffusion
         batch_size = t.shape[0]
         alpha_t = torch.e ** (-t)
-        mask = torch.rand(batch_size, device=self.config.device) < alpha_t
+        mask = torch.rand(batch_size) < alpha_t
         x1t = x10 * mask + stationary_sampler1.sample(torch.Size([batch_size])) * ~mask
-        mask = torch.rand(batch_size, device=self.config.device) < alpha_t
+        mask = torch.rand(batch_size) < alpha_t
         x2t = x20 * mask + stationary_sampler2.sample(torch.Size([batch_size])) * ~mask
         return x1t, x2t
 

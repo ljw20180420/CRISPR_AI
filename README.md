@@ -42,10 +42,11 @@ use torch.nn.functional.normalize to normalize observations
 
 TODO
 ```list
-Generating process
+Validation evaluation
+Generating Pipline
+Add a scatter converge diagram like that in http://yang-song.net/blog/2021/score
 AI explaining
 Tensorboard
-Network structure
 upload huggingface
 UI
 ```

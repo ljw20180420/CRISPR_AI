@@ -4,6 +4,7 @@ from transformers import PretrainedConfig
 class CRISPRDiffuserConfig(PretrainedConfig):
     model_type = "CRISPRdiffuser"
     label_names = ["observation"]
+    main_input_name = "x1t_x2t_t"
 
     def __init__(
         self,
