@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 from config import args, logger
-from transformers import Trainer, TrainingArguments
+from transformers import Trainer, TrainingArguments, TrainerCallback, TrainerState, TrainerControl
 from torch.distributions import Categorical
 import torch
 import torch.nn.functional as F
@@ -15,6 +15,12 @@ from transformers.trainer_utils import EvalPrediction
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from load_data import data_collector
+
+class CRISPRDiffuserTrainerCallback(TrainerCallback):
+    def on_optimizer_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, model, **kwargs):
+        assert not model.loss or not torch.isnan(model.loss) and not torch.isinf(model.loss), "loss is nan or inf"
+        for p in model.parameters():
+            assert not p.grad.isnan().any() and not p.grad.isinf().any(), "gradient is nan or inf"
 
 logger.info("load scheduler")
 if args.noise_scheduler == "linear":
@@ -92,7 +98,8 @@ def compute_metrics(eval_prediction: EvalPrediction, rng: np.random.Generator, t
     tb_writer.add_image(
         "p_theta_0",
         F.softmax(
-            torch.from_numpy(eval_prediction.predictions[random_idx]).flatten()
+            torch.from_numpy(eval_prediction.predictions[random_idx]).flatten(),
+            dim = 0
         ).view(1, ref2len + 1, -1) ** args.display_scale_factor,
         global_step = compute_metrics.global_step
     )
@@ -129,11 +136,22 @@ trainer = Trainer(
         int(np.ceil(len(ds["train"]) / args.batch_size)),
         len(CRISPR_diffuser_model.stationary_sampler2_probs) - 1
     ),
+    callbacks=[CRISPRDiffuserTrainerCallback]
 )
+
 try:
     trainer.train(resume_from_checkpoint = True)
+    logger.info("push model")
+    trainer.push_to_hub()
+except AssertionError:
+    logger.info("push model")
+    trainer.push_to_hub()
 except ValueError:
-    trainer.train()
-
-logger.info("push model")
-trainer.push_to_hub()
+    try:
+        trainer.train()
+        logger.info("push model")
+        trainer.push_to_hub()
+    except AssertionError:
+        logger.info("push model")
+        trainer.push_to_hub()
+    

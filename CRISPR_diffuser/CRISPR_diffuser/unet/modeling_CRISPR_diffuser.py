@@ -13,6 +13,8 @@ class CRISPRDiffuserModel(PreTrainedModel):
         super().__init__(config)
         # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
         self.main_input_name = config.main_input_name
+        # record loss inside model to stop training in callbacks
+        self.loss = None
         self.generator = torch.Generator().manual_seed(config.seed)
         self.channels = config.channels
         self.MCMC_corrector_factor = config.MCMC_corrector_factor
@@ -125,10 +127,11 @@ class CRISPRDiffuserModel(PreTrainedModel):
         for i in range(len(self.up_first_convs)):
             x = self.up_second_convs[i](self.up_first_convs[i](torch.cat((down_xs.pop(), self.up_samples[i](x)), dim=1)) + self.up_time_embs[i](t_emb)[:, :, None, None])
         p_theta_0_logit = self.out_cov(x)
+        self.loss = self.continuous_time_loss_function(x1t, x2t, t, p_theta_0_logit, observation)
         if observation is not None:
             return {
                 "p_theta_0_logit": p_theta_0_logit,
-                "loss": self.continuous_time_loss_function(x1t, x2t, t, p_theta_0_logit, observation)
+                "loss": self.loss
             }
         return {
             "p_theta_0_logit": p_theta_0_logit
