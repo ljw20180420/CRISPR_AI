@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-from CRISPR_diffuser.unet.configuration_CRISPR_diffuser import CRISPRDiffuserConfig
-from CRISPR_diffuser.unet.modeling_CRISPR_diffuser import CRISPRDiffuserModel
+from modeling_CRISPR_diffuser import CRISPRDiffuserConfig, CRISPRDiffuserModel
 from datasets import load_dataset
 import sys
 import os
@@ -17,34 +16,38 @@ import numpy as np
 from load_data import data_collector
 
 class CRISPRDiffuserTrainerCallback(TrainerCallback):
-    def on_optimizer_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, model, **kwargs):
-        assert not model.loss or not torch.isnan(model.loss) and not torch.isinf(model.loss), "loss is nan or inf"
+    def on_optimizer_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, model=None, **kwargs):
+        if model.loss and (torch.isnan(model.loss) or torch.isinf(model.loss)):
+            control.should_training_stop = True
+            return
         for p in model.parameters():
-            assert not p.grad.isnan().any() and not p.grad.isinf().any(), "gradient is nan or inf"
+            if p.grad is not None and (p.grad.isnan().any() or p.grad.isinf().any()):
+                control.should_training_stop = True
+                return
 
 logger.info("load scheduler")
 if args.noise_scheduler == "linear":
-    from CRISPR_diffuser.scheduler.linear_scheduler_CRISPR_diffuser import CRISPRDiffuserLinearScheduler
+    from CRISPR_diffuser.linear_scheduler_CRISPR_diffuser import CRISPRDiffuserLinearScheduler
     noise_scheduler = CRISPRDiffuserLinearScheduler(
-        num_train_timesteps=args.noise_timesteps
+        num_train_timesteps = args.noise_timesteps
     )
 elif args.noise_scheduler == "cosine":
-    from CRISPR_diffuser.scheduler.cosine_scheduler_CRISPR_diffuser import CRISPRDiffuserCosineScheduler
+    from CRISPR_diffuser.cosine_scheduler_CRISPR_diffuser import CRISPRDiffuserCosineScheduler
     noise_scheduler = CRISPRDiffuserCosineScheduler(
-        num_train_timesteps=args.noise_timesteps,
+        num_train_timesteps = args.noise_timesteps,
         cosine_factor = args.cosine_factor
     )
 elif args.noise_scheduler == "exp":
-    from CRISPR_diffuser.scheduler.exp_scheduler_CRISPR_diffuser import CRISPRDiffuserExpScheduler
+    from CRISPR_diffuser.exp_scheduler_CRISPR_diffuser import CRISPRDiffuserExpScheduler
     noise_scheduler = CRISPRDiffuserExpScheduler(
-        num_train_timesteps=args.noise_timesteps,
+        num_train_timesteps = args.noise_timesteps,
         exp_scale = args.exp_scale,
         exp_base = args.exp_base
     )
 elif args.noise_scheduler == "uniform":
-    from CRISPR_diffuser.scheduler.uniform_scheduler_CRISPR_diffuser import CRISPRDiffuserUniformScheduler
+    from CRISPR_diffuser.uniform_scheduler_CRISPR_diffuser import CRISPRDiffuserUniformScheduler
     noise_scheduler = CRISPRDiffuserUniformScheduler(
-        num_train_timesteps=args.noise_timesteps,
+        num_train_timesteps = args.noise_timesteps,
         uniform_scale = args.uniform_scale
     )
 
@@ -60,16 +63,16 @@ CRISPR_diffuser_model = CRISPRDiffuserModel(CRISPRDiffuserConfig(
 logger.info("loading data")
 ds = load_dataset(
     path = args.data_path,
-    name = f"{args.data_name}_CRISPR_diffuser",
+    name = f"{args.data_name}_{CRISPRDiffuserConfig.model_type}",
     trust_remote_code = True,
     test_ratio = args.test_ratio,
     validation_ratio = args.validation_ratio,
     seed = args.seed
 )
 
-logger.info("train model")
+logger.info("set trainer arguments")
 training_args = TrainingArguments(
-    output_dir = args.output_dir / CRISPRDiffuserConfig.model_type / f"{args.data_name}_CRISPR_diffuser",
+    output_dir = args.output_dir / CRISPRDiffuserConfig.model_type / f"{args.data_name}_{CRISPRDiffuserConfig.model_type}",
     seed = args.seed,
     logging_strategy = "epoch",
     eval_strategy = "epoch",
@@ -92,23 +95,25 @@ training_args.set_lr_scheduler(
     num_epochs = args.num_epochs,
     warmup_ratio = args.warmup_ratio
 )
-def compute_metrics(eval_prediction: EvalPrediction, rng: np.random.Generator, tb_writer: SummaryWriter, epoch_step_nums: int, ref2len: int) -> dict:
-    random_idx = rng.integers(len(eval_prediction.predictions))
-    compute_metrics.global_step += epoch_step_nums
-    tb_writer.add_image(
+
+logger.info("prepare metrics")
+def compute_metrics(eval_prediction: EvalPrediction) -> dict:
+    random_idx = compute_metrics.rng.integers(len(eval_prediction.predictions))
+    compute_metrics.global_step += compute_metrics.epoch_step_nums
+    compute_metrics.tb_writer.add_image(
         "p_theta_0",
         F.softmax(
             torch.from_numpy(eval_prediction.predictions[random_idx]).flatten(),
             dim = 0
-        ).view(1, ref2len + 1, -1) ** args.display_scale_factor,
+        ).view(1, compute_metrics.ref2len + 1, -1) ** args.display_scale_factor,
         global_step = compute_metrics.global_step
     )
-    tb_writer.add_image(
+    compute_metrics.tb_writer.add_image(
         "normalized observation",
         F.normalize(
             torch.from_numpy(eval_prediction.label_ids[random_idx]).flatten(),
             p = 1.0, dim = 0
-        ).view(1, ref2len + 1, -1) ** args.display_scale_factor,
+        ).view(1, compute_metrics.ref2len + 1, -1) ** args.display_scale_factor,
         global_step = compute_metrics.global_step
     )
     return {
@@ -118,6 +123,14 @@ def compute_metrics(eval_prediction: EvalPrediction, rng: np.random.Generator, t
         "t": eval_prediction.inputs["t"][random_idx]
     }
 compute_metrics.global_step = 0
+compute_metrics.rng = np.random.default_rng(args.seed)
+compute_metrics.tb_writer = SummaryWriter(training_args.logging_dir)
+compute_metrics.epoch_step_nums = int(np.ceil(len(ds["train"]) / args.batch_size))
+compute_metrics.ref2len = len(CRISPR_diffuser_model.stationary_sampler2_probs) - 1
+
+logger.info("train model")
+stationary_sampler1 = Categorical(probs=CRISPR_diffuser_model.stationary_sampler1_probs.to("cpu"))
+stationary_sampler2 = Categorical(probs=CRISPR_diffuser_model.stationary_sampler2_probs.to("cpu"))
 trainer = Trainer(
     model = CRISPR_diffuser_model,
     args = training_args,
@@ -126,32 +139,18 @@ trainer = Trainer(
     data_collator = lambda examples: data_collector(
         examples,
         noise_scheduler,
-        Categorical(probs=CRISPR_diffuser_model.stationary_sampler1_probs.to("cpu")),
-        Categorical(probs=CRISPR_diffuser_model.stationary_sampler2_probs.to("cpu"))
+        stationary_sampler1,
+        stationary_sampler2
     ),
-    compute_metrics=lambda eval_prediction: compute_metrics(
-        eval_prediction,
-        np.random.default_rng(args.seed),
-        SummaryWriter(training_args.logging_dir),
-        int(np.ceil(len(ds["train"]) / args.batch_size)),
-        len(CRISPR_diffuser_model.stationary_sampler2_probs) - 1
-    ),
-    callbacks=[CRISPRDiffuserTrainerCallback]
+    compute_metrics = compute_metrics,
+    callbacks = [CRISPRDiffuserTrainerCallback]
 )
-
 try:
     trainer.train(resume_from_checkpoint = True)
-    logger.info("push model")
-    trainer.push_to_hub()
-except AssertionError:
-    logger.info("push model")
-    trainer.push_to_hub()
 except ValueError:
-    try:
-        trainer.train()
-        logger.info("push model")
-        trainer.push_to_hub()
-    except AssertionError:
-        logger.info("push model")
-        trainer.push_to_hub()
+    trainer.train()
+
+logger.info("save model")
+trainer.save_model()
+trainer.create_model_card()
     
