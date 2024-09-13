@@ -44,6 +44,12 @@ parser_CRISPR_diffuser.add_argument("--display_scale_factor", type=float, defaul
 parser_inDelphi = parser.add_argument_group(title="inDelphi", description="parameters for inDelphi")
 parser_inDelphi.add_argument("--DELLEN_LIMIT", type=int, default=60, help="deletion length upper limit of inDelphi model")
 
+parser_Lindel = parser.add_argument_group(title="Lindel", description="parameters for Lindel")
+parser_Lindel.add_argument("--Lindel_dlen", type=int, default=30, help="the upper limit of deletion length (strictly less than dlen)")
+parser_Lindel.add_argument("--Lindel_mh_len", type=int, default=4, help="the upper limit of micro-homology length")
+parser_Lindel.add_argument("--Lindel_reg_const", type=float, default=0.01, help="regularization coefficient")
+parser_Lindel.add_argument("--Lindel_reg_mode", type=str, default="l2", choices=["l2", "l1"], help="regularization method")
+
 args = parser.parse_args()
 
 logger = logging.getLogger("logger")

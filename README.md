@@ -42,6 +42,7 @@ use torch.nn.functional.normalize to normalize observations
 
 TODO
 ```list
+Remove N from model (only ACGT) for performance
 Validation evaluation
 Generating Pipline
 Add a scatter converge diagram like that in http://yang-song.net/blog/2021/score

@@ -79,7 +79,7 @@ training_args = TrainingArguments(
     save_strategy = "epoch",
     load_best_model_at_end = True,
     remove_unused_columns = False,
-    label_names = CRISPR_diffuser_model.config_class.label_names,
+    label_names = CRISPRDiffuserConfig.label_names,
     include_inputs_for_metrics = True
 )
 training_args.set_dataloader(
@@ -153,4 +153,3 @@ except ValueError:
 logger.info("save model")
 trainer.save_model()
 trainer.create_model_card()
-    
