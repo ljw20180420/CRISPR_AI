@@ -50,6 +50,11 @@ parser_Lindel.add_argument("--Lindel_mh_len", type=int, default=4, help="the upp
 parser_Lindel.add_argument("--Lindel_reg_const", type=float, default=0.01, help="regularization coefficient")
 parser_Lindel.add_argument("--Lindel_reg_mode", type=str, default="l2", choices=["l2", "l1"], help="regularization method")
 
+parser_FOREcasT = parser.add_argument_group(title="FOREcasT", description="parameters for FOREcasT")
+parser_FOREcasT.add_argument("--FOREcasT_MAX_DEL_SIZE", type=int, default=30, help="max deletion size")
+parser_FOREcasT.add_argument("--FOREcasT_reg_const", type=float, default=0.01, help="regularization coefficient for deletion")
+parser_FOREcasT.add_argument("--FOREcasT_i1_reg_const", type=float, default=0.01, help="regularization coefficient for insertion")
+
 args = parser.parse_args()
 
 logger = logging.getLogger("logger")

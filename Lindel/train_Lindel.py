@@ -24,7 +24,6 @@ ds = load_dataset(
 logger.info("initialize model")
 LindelConfig.register_for_auto_class()
 LindelModel.register_for_auto_class()
-
 Lindel_models = {
     model: LindelModel(LindelConfig(
         dlen=args.Lindel_dlen,

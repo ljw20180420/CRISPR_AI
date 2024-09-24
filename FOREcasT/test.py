@@ -1,10 +1,5 @@
-from plotnine import ggplot, geom_point, aes
-import pandas as pd
-from load_data import train_dataloader
-for batch in train_dataloader:
-    break
+#!/usr/bin/env python
 
-ggplot(
-    pd.DataFrame({'idx': range(len(batch['count'][0])), 'count': batch['count'][0].cpu()}), aes(x='idx', y='count')
-) + geom_point()
+from diffusers import DiffusionPipeline
 
+pipe = DiffusionPipeline.from_pretrained("ljw20180420/SX_spcas9_FOREcasT", trust_remote_code=True)

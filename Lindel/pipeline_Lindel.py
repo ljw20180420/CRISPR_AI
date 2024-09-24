@@ -1,7 +1,5 @@
 from diffusers import DiffusionPipeline, __version__
 import torch.nn.functional as F
-import torch
-from tqdm import tqdm
 import json
 import numpy as np
 from pathlib import Path
