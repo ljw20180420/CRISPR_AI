@@ -5,7 +5,7 @@ from datasets import load_dataset
 import sys
 import os
 sys.path.append(os.getcwd())
-from config import args, logger
+from AI_models.config import args, logger
 from transformers import Trainer, TrainingArguments, TrainerCallback, TrainerState, TrainerControl
 from torch.distributions import Categorical
 import torch

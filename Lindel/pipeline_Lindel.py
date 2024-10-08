@@ -1,3 +1,4 @@
+import torch
 from diffusers import DiffusionPipeline, __version__
 import torch.nn.functional as F
 import json
@@ -42,6 +43,7 @@ class LindelPipeline(DiffusionPipeline):
                 self.dstarts.append(dstart)
                 self.dends.append(dstart + dlen)
 
+    @torch.no_grad()
     def __call__(self, input_indel, input_ins, input_del):
         indel_proba = F.softmax(self.indel_model(input_indel)["logit"], dim=1)
         ins_base_proba = F.softmax(self.ins_model(input_ins)["logit"], dim=1)

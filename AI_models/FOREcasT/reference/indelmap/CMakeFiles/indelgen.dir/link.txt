@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/indelgen.dir/indel.cpp.o CMakeFiles/indelgen.dir/oligo.cpp.o CMakeFiles/indelgen.dir/readmap.cpp.o CMakeFiles/indelgen.dir/gen.cpp.o CMakeFiles/indelgen.dir/indelgen.cpp.o -o indelgen 

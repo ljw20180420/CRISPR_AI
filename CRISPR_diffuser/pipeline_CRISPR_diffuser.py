@@ -40,6 +40,7 @@ class CRISPRDiffuserPipeline(DiffusionPipeline):
         self.stationary_sampler1 = Categorical(probs=unet.stationary_sampler1_probs)
         self.stationary_sampler2 = Categorical(probs=unet.stationary_sampler2_probs)
 
+    @torch.no_grad()
     def __call__(self, condition, batch_size=1, record_path=False):
         x1t = self.stationary_sampler1.sample(torch.Size([batch_size]))
         x2t = self.stationary_sampler2.sample(torch.Size([batch_size]))

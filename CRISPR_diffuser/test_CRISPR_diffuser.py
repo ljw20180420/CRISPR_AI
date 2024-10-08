@@ -12,7 +12,7 @@ from load_data import data_collector
 import sys
 import os
 sys.path.append(os.getcwd())
-from config import args, logger
+from AI_models.config import args, logger
 
 logger.info("load scheduler")
 scheduler_file = pathlib.Path("CRISPR_diffuser")

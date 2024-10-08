@@ -42,7 +42,9 @@ use torch.nn.functional.normalize to normalize observations
 
 TODO
 ```list
+Give up transformers pipeline. Always use diffusers pipeline because it is more flexible.
 Datasets 3.0.0 has bug with hf-mirror.com. Load data on huggingface.co through proxy.
+Put proxy setting in a single file.
 Put all AI models in a single folder (thereby being a single package)
 Remove N from model (only ACGT) for performance
 Add a scatter converge diagram like that in http://yang-song.net/blog/2021/score
