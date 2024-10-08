@@ -4,7 +4,6 @@ from AI_models.FOREcasT.train import train
 from AI_models.FOREcasT.test import test
 from diffusers import DiffusionPipeline
 from AI_models.config import args
-from AI_models.proxy import *
 
 # train()
 test()

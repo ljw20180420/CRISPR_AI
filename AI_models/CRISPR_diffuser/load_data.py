@@ -1,10 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
-import sys
-import os
-sys.path.append(os.getcwd())
-from AI_models.config import args
+from ..config import args
 
 @torch.no_grad()
 def data_collector(examples, noise_scheduler, stationary_sampler1, stationary_sampler2):

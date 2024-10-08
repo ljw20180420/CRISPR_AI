@@ -42,6 +42,7 @@ use torch.nn.functional.normalize to normalize observations
 
 TODO
 ```list
+add @torch.no_grad() to pipeline __call__()
 Give up transformers pipeline. Always use diffusers pipeline because it is more flexible.
 Datasets 3.0.0 has bug with hf-mirror.com. Load data on huggingface.co through proxy.
 Put proxy setting in a single file.
