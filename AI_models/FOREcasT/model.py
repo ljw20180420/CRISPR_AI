@@ -2,7 +2,6 @@ from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from transformers import PretrainedConfig
 
 class FOREcasTConfig(PretrainedConfig):
     model_type = "FOREcasT"

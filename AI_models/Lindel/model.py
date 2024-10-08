@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 
-from transformers import PretrainedConfig
-
 class LindelConfig(PretrainedConfig):
     model_type = "Lindel"
     label_names = ["count"]
