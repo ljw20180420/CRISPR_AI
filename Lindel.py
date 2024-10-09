@@ -3,7 +3,6 @@
 from AI_models.Lindel.train import train
 from AI_models.Lindel.test import test
 from diffusers import DiffusionPipeline
-from AI_models.config import args
 
 # train()
 test()

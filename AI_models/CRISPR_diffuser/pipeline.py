@@ -2,9 +2,6 @@ from diffusers import DiffusionPipeline, __version__
 from torch.distributions import Categorical
 import torch
 from tqdm import tqdm
-import json
-import numpy as np
-from pathlib import Path
 
 class CRISPRDiffuserPipeline(DiffusionPipeline):
     def __init__(self, unet, scheduler):
