@@ -6,6 +6,8 @@ import datasets
 import torch
 import torch.nn.functional as F
 from transformers import Trainer, TrainingArguments
+import numpy as np
+import pickle
 from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
 from .load_data import data_collector
@@ -69,7 +71,7 @@ def train_deletion():
 
 def train_insertion():
     logger.info("loading model")
-    inDelphi_model = inDelphiModel.from_pretrained(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}").partial_to(args.device).eval()
+    inDelphi_model = inDelphiModel.from_pretrained(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}").to(args.device)
 
     logger.info("loading data")
     ds = load_dataset(
@@ -88,7 +90,7 @@ def train_insertion():
     with torch.no_grad():
         onebp_features = []
         insert_probabilities = []
-        inDelphi_model.m654 = torch.zeros(5 ** 3, 5)
+        m654 = torch.zeros(5 ** 3, 5)
         for batch in train_dataloader:
             _, _, total_del_len_weights = inDelphi_model(batch["mh_input"].to(args.device), batch["mh_del_len"].to(args.device)).values()
             log_total_weights = total_del_len_weights.sum(dim=1, keepdim=True).log()
@@ -100,18 +102,19 @@ def train_insertion():
                     log_total_weights.cpu()
                 ], dim=1).tolist()
             )
-            inDelphi_model.m654.scatter_add_(dim=0, index=batch["m654"][:, None].expand(-1, 5), src=batch["insert_1bp"])
+            m654.scatter_add_(dim=0, index=batch["m654"][:, None].expand(-1, 5), src=batch["insert_1bp"])
             insert_probabilities.extend(batch["insert_probability"])
-        inDelphi_model.m4 = inDelphi_model.m654.view(5, 25, 5).sum(dim=1)
-        inDelphi_model.m654 = F.normalize(inDelphi_model.m654, dim=1, p=1.0)
-        inDelphi_model.m4 = F.normalize(inDelphi_model.m4, dim=1, p=1.0)
-        inDelphi_model.onebp_features = torch.tensor(onebp_features)
-        inDelphi_model.onebp_feature_mean, inDelphi_model.onebp_feature_std = inDelphi_model.onebp_features.mean(axis=0), inDelphi_model.onebp_features.std(axis=0)
-        inDelphi_model.insert_probabilities = torch.tensor(insert_probabilities)
+        onebp_features = np.array(onebp_features)
+        insert_probabilities = np.array(insert_probabilities)
+        m654 = m654.cpu().numpy()
 
     logger.info("save")
-    inDelphi_model.save_pretrained(
-        save_directory = args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}",
-        state_dict = inDelphi_model.state_dict(),
-        safe_serialization = True
-    )
+    with open(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}" / "insertion_model.pkl", "wb") as fd:
+        pickle.dump(
+            [
+                onebp_features,
+                insert_probabilities,
+                m654
+            ],
+            fd
+        )

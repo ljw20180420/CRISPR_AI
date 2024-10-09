@@ -12,13 +12,11 @@ class inDelphiConfig(PretrainedConfig):
         DELLEN_LIMIT = 60, # the upper limit of deletion length (strictly less than DELLEN_LIMIT)
         mid_dim = 16, # the size of middle layer of MLP
         seed = 63036, # random seed for intialization
-        train_size = 0, # training data size for insertion model
         **kwargs,
     ):
         self.DELLEN_LIMIT = DELLEN_LIMIT
         self.mid_dim = mid_dim
         self.seed = seed
-        self.train_size = train_size
         super().__init__(**kwargs)
 
 class inDelphiModel(PreTrainedModel):
@@ -27,13 +25,6 @@ class inDelphiModel(PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.insertion_model = None
-        self.register_buffer("onebp_features", torch.empty(config.train_size, 10))
-        self.register_buffer("insert_probabilities", torch.empty(config.train_size))
-        self.register_buffer("onebp_feature_mean", torch.empty(10))
-        self.register_buffer("onebp_feature_std", torch.empty(10))
-        self.register_buffer("m654", torch.empty(5 ** 3, 5))
-        self.register_buffer("m4", torch.empty(5, 5))
         self.generator = torch.Generator().manual_seed(config.seed)
         self.DELLEN_LIMIT = config.DELLEN_LIMIT
         self.register_buffer('del_lens', torch.arange(1, config.DELLEN_LIMIT, dtype=torch.float32))
@@ -46,18 +37,6 @@ class inDelphiModel(PreTrainedModel):
         self.mid_active = self.sigmoid
         self.out_active = self.logit_to_weight
         self.initialize_weights()
-
-    def partial_to(self, *args, **kwargs):
-        self = self.to(*args, **kwargs)
-        if "cpu" in args or "cpu" in kwargs:
-            return self
-        self.onebp_features = self.onebp_features.to("cpu")
-        self.insert_probabilities = self.insert_probabilities.to("cpu")
-        self.onebp_feature_mean = self.onebp_feature_mean.to("cpu")
-        self.onebp_feature_std = self.onebp_feature_std.to("cpu")
-        self.m654 = self.m654.to("cpu")
-        self.m4 = self.m4.to("cpu")
-        return self
 
     def initialize_weights(self):
         for m in self.modules():

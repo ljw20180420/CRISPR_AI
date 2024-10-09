@@ -4,6 +4,7 @@ from datasets import load_dataset
 import datasets
 from torch.utils.data import DataLoader
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+import pickle
 from .pipeline import inDelphiPipeline
 from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
@@ -17,7 +18,9 @@ def test():
     inDelphi_model.__module__ = inDelphi_model.__module__.split(".")[-1]
 
     logger.info("setup pipeline")
-    pipe = inDelphiPipeline(inDelphi_model)
+    with open(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}" / "insertion_model.pkl", "rb") as fd:
+        onebp_features, insert_probabilities, m654 = pickle.load(fd)
+    pipe = inDelphiPipeline(inDelphi_model, onebp_features, insert_probabilities, m654)
 
     logger.info("load test data")
     ds = load_dataset(
