@@ -55,6 +55,9 @@ parser_FOREcasT.add_argument("--FOREcasT_MAX_DEL_SIZE", type=int, default=30, he
 parser_FOREcasT.add_argument("--FOREcasT_reg_const", type=float, default=0.01, help="regularization coefficient for deletion")
 parser_FOREcasT.add_argument("--FOREcasT_i1_reg_const", type=float, default=0.01, help="regularization coefficient for insertion")
 
+parser_inference = parser.add_argument_group(title="inference", description="parameters for inference")
+parser_inference.add_argument("--inference_data", type=str, description="data for inference")
+
 args = parser.parse_args()
 
 logger = logging.getLogger("logger")

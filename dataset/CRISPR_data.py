@@ -278,13 +278,13 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 mh_del_lenss.append(del_lens[mask_mh])
                 mh_gt_posss.append(gt_poss[mask_mh])
                 mh_mh_lenss.append(mh_lens[mask_mh])
+                mh_gc_fracss.append([gc_content(refs[-1][gt_pos - mh_len:gt_pos]) for mh_len, gt_pos in zip(mh_mh_lenss[-1], mh_gt_posss[-1])])
                 # output
                 observations, insert_counts = self.get_observations(ref1, ref2, cut, INSERT_LIMIT = 1)
                 insert_1bpss.append(insert_counts)                
                 counts = self.get_output(observations, rep_num, rep_val, "inDelphi")
                 counts = counts[mask_del]
                 mh_countss.append(counts[mask_mh])
-                mh_gc_fracss.append([gc_content(refs[-1][gt_pos - mh_len:gt_pos]) for mh_len, gt_pos in zip(mh_mh_lenss[-1], mh_gt_posss[-1])])
                 mhless_counts = torch.zeros(self.config.DELLEN_LIMIT - 1, dtype=torch.int64)
                 mhless_counts = mhless_counts.scatter_add(dim = 0, index=(del_lens[~mask_mh] - 1).to(torch.int64), src=counts[~mask_mh])
                 mhless_countss.append(mhless_counts)

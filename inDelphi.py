@@ -1,5 +1,20 @@
 #!/usr/bin/env python
 
+from datasets import load_dataset, Features, Value
+from AI_models.config import args, logger
+
+ds = load_dataset('json', data_files=args.inference_data, features=Features({
+    'ref': Value('string'),
+    'cut': Value('int16')
+}))
+
+from dataset.CRISPR_data import CRISPRData
+
+
+
+
+
+
 from AI_models.inDelphi.train import train_deletion, train_insertion
 from AI_models.inDelphi.test import test
 from diffusers import DiffusionPipeline

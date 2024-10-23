@@ -38,6 +38,10 @@ class inDelphiPipeline(DiffusionPipeline):
                 batch["mh_input"][i, :, 0][:len(batch["mh_gt_pos"][i])].to(torch.int16).tolist()
                 for i in range(len(batch["mh_gt_pos"]))
             ],
+            "mh_gc_frac": [
+                batch["mh_input"][i, :, 1][:len(batch["mh_gt_pos"][i])].tolist()
+                for i in range(len(batch["mh_gt_pos"]))
+            ],
             "mh_weight": [
                 mh_weights[i, :len(batch["mh_gt_pos"][i])].tolist()
                 for i in range(len(batch["mh_gt_pos"]))
