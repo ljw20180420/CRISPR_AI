@@ -8,6 +8,7 @@ import pickle
 
 # train_deletion()
 # train_insertion()
+breakpoint()
 test()
 
 fs = HfFileSystem()
