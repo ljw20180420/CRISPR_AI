@@ -174,8 +174,10 @@ feature_DelSize_DelLoc = torch.cat([
 ], dim=-1).to(torch.float32)
 
 @torch.no_grad()
-def data_collector(examples):
-    features_var, counts = [], []
+def data_collector(examples, output_count=True):
+    features_var = []
+    if output_count:
+        counts = []
     for example in examples:
         feature_I1or2Rpt, feature_LocalCutSiteSequence, feature_LocalCutSiteSeqMatches, feature_LocalRelativeSequence, feature_SeqMatches, feature_microhomology = [], [], [], [], [], []
         for left, right, ins_seq in zip(lefts, rights, inss):
@@ -222,8 +224,14 @@ def data_collector(examples):
             feature_SeqMatches,
             feature_microhomology
         ], dim=-1).to(torch.float32))
-        counts.append(example["count"])
+        if output_count:
+            counts.append(example["count"])
+    features = torch.cat([feature_fix.expand(len(examples), -1, -1), torch.stack(features_var)], dim=-1)
+    if output_count:
+        return {
+            "feature": features,
+            "count": torch.tensor(counts)
+        }
     return {
-        "feature": torch.cat([feature_fix.expand(len(examples), -1, -1), torch.stack(features_var)], dim=-1),
-        "count": torch.tensor(counts)
+        "feature": features
     }

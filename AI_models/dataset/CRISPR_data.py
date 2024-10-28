@@ -27,6 +27,9 @@ from itertools import product
 # TODO: Add the licence for the dataset here if you can find it
 # _LICENSE = ""
 
+def gc_content(seq):
+    return (seq.count("G") + seq.count("C")) / len(seq)
+
 class CRISPRDataConfig(datasets.BuilderConfig):
     def __init__(self, ref_filter: Callable | None = None, cut_filter: Callable | None = None, author_filter: Callable | None = None, file_filter: Callable | None = None, test_ratio: float = 0.05, validation_ratio: float = 0.05, seed: int = 63036, features: datasets.Features = None, ref1len: int = 127, ref2len: int = 127, DELLEN_LIMIT: int = 60, Lindel_dlen: int = 30, Lindel_mh_len: int = 4, FOREcasT_MAX_DEL_SIZE: int = 30, **kwargs):
         """BuilderConfig for CRISPR_data.
@@ -258,10 +261,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             'ob_val': ob_vals
         }
 
-
     def inDelphi_trans_func(self, examples):
-        def gc_content(seq):
-            return (seq.count("G") + seq.count("C")) / len(seq)
         refs, cut_list, mh_del_lenss, mh_mh_lenss, mh_gt_posss, mh_gc_fracss, mh_countss, mhless_countss, insert_1bpss = [], [], [], [], [], [], [], [], []
         for ref1, ref2, cuts in zip(examples['ref1'], examples['ref2'], examples['cuts']):
             for cut in cuts:

@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
 from ..config import args, logger
-from .load_data import data_collector
+from .load_data import data_collector, outputs_train
 
 class CRISPRDiffuserTrainerCallback(TrainerCallback):
     def on_optimizer_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, model=None, **kwargs):
@@ -138,7 +138,8 @@ def train():
             examples,
             noise_scheduler,
             stationary_sampler1,
-            stationary_sampler2
+            stationary_sampler2,
+            outputs_train
         ),
         compute_metrics = compute_metrics,
         callbacks = [CRISPRDiffuserTrainerCallback]

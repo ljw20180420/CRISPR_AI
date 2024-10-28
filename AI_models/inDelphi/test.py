@@ -8,7 +8,7 @@ import pickle
 from .pipeline import inDelphiPipeline
 from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
-from .load_data import data_collector
+from .load_data import data_collector, outputs_test
 from ..proxy import *
 
 def test():
@@ -21,6 +21,7 @@ def test():
     with open(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}" / "insertion_model.pkl", "rb") as fd:
         onebp_features, insert_probabilities, m654 = pickle.load(fd)
     pipe = inDelphiPipeline(inDelphi_model, onebp_features, insert_probabilities, m654)
+    pipe.inDelphi_model.to(args.device)
 
     logger.info("load test data")
     ds = load_dataset(
@@ -33,7 +34,11 @@ def test():
         seed = args.seed,
         DELLEN_LIMIT = inDelphi_model.DELLEN_LIMIT
     )
-    test_dataloader = DataLoader(dataset=ds, batch_size=args.batch_size, collate_fn=lambda examples: data_collector(examples, mode="test"))
+    test_dataloader = DataLoader(
+        dataset=ds,
+        batch_size=args.batch_size,
+        collate_fn=lambda examples: data_collector(examples, args.DELLEN_LIMIT, outputs_test)
+    )
 
     logger.info("test pipeline")
     for batch in test_dataloader:

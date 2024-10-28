@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from .model import LindelConfig, LindelModel
 from .pipeline import LindelPipeline
-from .load_data import data_collector
+from .load_data import data_collector, outputs_test
 from ..config import args, logger
 from ..proxy import *
 
@@ -22,6 +22,9 @@ def test():
 
     logger.info("setup pipeline")
     pipe = LindelPipeline(**Lindel_models)
+    pipe.indel_model.to(args.device)
+    pipe.ins_model.to(args.device)
+    pipe.del_model.to(args.device)
 
     logger.info("load test data")
     ds = load_dataset(
@@ -38,16 +41,12 @@ def test():
     test_dataloader = DataLoader(
         dataset=ds,
         batch_size=args.batch_size,
-        collate_fn=lambda examples: data_collector(examples, Lindel_mh_len=args.Lindel_mh_len)
+        collate_fn=lambda examples: data_collector(examples, args.Lindel_dlen, args.Lindel_mh_len, outputs_test)
     )
 
     logger.info("test pipeline")
     for batch in test_dataloader:
-        result = pipe(
-            input_indel = batch["input_indel"],
-            input_ins = batch["input_ins"],
-            input_del = batch["input_del"]
-        )
+        output = pipe(batch)
         break
 
     logger.info("push to hub")

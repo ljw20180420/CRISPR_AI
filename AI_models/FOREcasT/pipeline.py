@@ -20,10 +20,10 @@ class FOREcasTPipeline(DiffusionPipeline):
         self.inss = (self.MAX_DEL_SIZE + 2) * (self.MAX_DEL_SIZE + 1) // 2 * [""] + ["A", "C", "G", "T", "AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT", "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT"]
 
     @torch.no_grad()
-    def __call__(self, feature):
-        assert feature.shape[1] == len(self.lefts), "the possible mutation number of the input feature does not fit the pipeline"
+    def __call__(self, batch):
+        assert batch["feature"].shape[1] == len(self.lefts), "the possible mutation number of the input feature does not fit the pipeline"
         return {
-            "proba": F.softmax(self.FOREcasT_model(feature)["logit"], dim=-1),
+            "proba": F.softmax(self.FOREcasT_model(batch["feature"].to(self.FOREcasT_model.device))["logit"], dim=-1),
             "left": self.lefts,
             "right": self.rights,
             "ins_seq": self.inss

@@ -17,34 +17,24 @@ class inDelphiPipeline(DiffusionPipeline):
 
     @torch.no_grad()
     def __call__(self, batch, use_m654=False):
-        mh_weights, mhless_weights, total_del_len_weights = self.inDelphi_model(batch["mh_input"], batch["mh_del_len"]).values()
+        mh_weights, mhless_weights, total_del_len_weights = self.inDelphi_model(
+            batch["mh_input"].to(self.inDelphi_model.device),
+            batch["mh_del_len"].to(self.inDelphi_model.device)
+        ).values()
         mX = self.m654 if use_m654 else self.m4
         log_total_weights = total_del_len_weights.sum(dim=1, keepdim=True).log()
         precisions = 1 - torch.distributions.Categorical(total_del_len_weights[:,:28]).entropy() / torch.log(torch.tensor(28))
         onebp_features = torch.cat([
             batch["onebp_feature"],
-            precisions[:, None],
-            log_total_weights
+            precisions[:, None].cpu(),
+            log_total_weights.cpu()
         ], dim=1).cpu().numpy()
         pre_insert_probabilities = self.insertion_model.predict((onebp_features - self.onebp_feature_mean) / self.onebp_feature_std)
         pre_insert_1bps = mX[batch['m654'] // 25] if mX.shape[0] == 5 else mX[batch['m654']]
         return {
-            "mh_gt_pos": batch["mh_gt_pos"],
-            "mh_del_len": [
-                batch["mh_del_len"][i][:len(batch["mh_gt_pos"][i])].tolist()
-                for i in range(len(batch["mh_gt_pos"]))
-            ],
-            "mh_mh_len": [
-                batch["mh_input"][i, :, 0][:len(batch["mh_gt_pos"][i])].to(torch.int16).tolist()
-                for i in range(len(batch["mh_gt_pos"]))
-            ],
-            "mh_gc_frac": [
-                batch["mh_input"][i, :, 1][:len(batch["mh_gt_pos"][i])].tolist()
-                for i in range(len(batch["mh_gt_pos"]))
-            ],
             "mh_weight": [
-                mh_weights[i, :len(batch["mh_gt_pos"][i])].tolist()
-                for i in range(len(batch["mh_gt_pos"]))
+                mh_weights[i, batch["mh_del_len"][i] < self.inDelphi_model.config.DELLEN_LIMIT]
+                for i in range(len(batch["mh_del_len"]))
             ],
             "mhless_weight": mhless_weights,
             "total_del_len_weight": total_del_len_weights,

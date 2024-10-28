@@ -10,7 +10,7 @@ import numpy as np
 import pickle
 from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
-from .load_data import data_collector
+from .load_data import data_collector, outputs_train_deletion, outputs_train_insertion
 
 def train_deletion():
     logger.info("loading data")
@@ -58,7 +58,7 @@ def train_deletion():
         args = training_args,
         train_dataset = ds["train"],
         eval_dataset = ds["validation"],
-        data_collator = data_collector
+        data_collator = lambda examples: data_collector(examples, args.DELLEN_LIMIT, outputs_train_deletion)
     )
     try:
         trainer.train(resume_from_checkpoint = True)
@@ -84,7 +84,11 @@ def train_insertion():
         seed = args.seed,
         DELLEN_LIMIT = inDelphi_model.DELLEN_LIMIT
     )
-    train_dataloader = DataLoader(dataset=ds, batch_size=args.batch_size, collate_fn=lambda examples: data_collector(examples, mode="train_insertion"))
+    train_dataloader = DataLoader(
+        dataset=ds,
+        batch_size=args.batch_size,
+        collate_fn=lambda examples: data_collector(examples, args.DELLEN_LIMIT, outputs_train_insertion)
+    )
 
     logger.info("get mean and std of model inputs, get 1bp insertion distribution in classes based on -6, -5, -4 nucletides")
     with torch.no_grad():

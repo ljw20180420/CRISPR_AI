@@ -4,7 +4,7 @@ from datasets import load_dataset
 from transformers import Trainer, TrainingArguments
 from .model import LindelConfig, LindelModel
 from ..config import args, logger
-from .load_data import data_collector
+from .load_data import data_collector, outputs_train_ins, outputs_train_del, outputs_train_indel
 
 def train():
     logger.info("loading data")
@@ -60,13 +60,19 @@ def train():
             num_epochs = args.num_epochs,
             warmup_ratio = args.warmup_ratio
         )
+        if model == "ins":
+            outputs = outputs_train_ins
+        elif model == "del":
+            outputs = outputs_train_del
+        elif model == "indel":
+            outputs = outputs_train_indel
         trainers[model] = Trainer(
             model = Lindel_models[model],
             args = training_args,
             train_dataset = ds["train"],
             eval_dataset = ds["validation"],
             # bind model to a local variable of lambda function to avoid access the non-local model when evaluate lambda function
-            data_collator = lambda examples, model=model: data_collector(examples, Lindel_mh_len=args.Lindel_mh_len, model=model)
+            data_collator = lambda examples, outputs=outputs: data_collector(examples, args.Lindel_dlen, args.Lindel_mh_len, outputs)
         )
 
     for model in ["indel", "ins", "del"]:

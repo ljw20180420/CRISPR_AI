@@ -18,6 +18,7 @@ def test():
 
     logger.info("setup pipeline")
     pipe = FOREcasTPipeline(FOREcasT_model, args.FOREcasT_MAX_DEL_SIZE)
+    pipe.FOREcasT_model.to(args.device)
 
     logger.info("load test data")
     ds = load_dataset(
@@ -38,7 +39,7 @@ def test():
 
     logger.info("test pipeline")
     for batch in test_dataloader:
-        result = pipe(batch["feature"])
+        output = pipe(batch)
         break
 
     logger.info("push to hub")

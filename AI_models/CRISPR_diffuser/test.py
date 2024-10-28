@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
 from .pipeline import CRISPRDiffuserPipeline
-from .load_data import data_collector
+from .load_data import data_collector, outputs_test
 from ..config import args, logger
 from ..proxy import *
 
@@ -50,6 +50,7 @@ def test():
         unet=CRISPR_diffuser_model,
         scheduler=noise_scheduler
     )
+    pipe.unet.to(args.device)
 
     logger.info("load test data")
     ds = load_dataset(
@@ -61,22 +62,21 @@ def test():
         validation_ratio = args.validation_ratio,
         seed = args.seed
     )
-    stationary_sampler1 = Categorical(probs=CRISPR_diffuser_model.stationary_sampler1_probs)
-    stationary_sampler2 = Categorical(probs=CRISPR_diffuser_model.stationary_sampler2_probs)
     test_dataloader = DataLoader(
         dataset=ds,
         batch_size=1,
         collate_fn=lambda examples: data_collector(
             examples,
             noise_scheduler,
-            stationary_sampler1,
-            stationary_sampler2
+            pipe.stationary_sampler1,
+            pipe.stationary_sampler2,
+            outputs_test
         )
     )
 
     logger.info("test pipeline")
     for batch in test_dataloader:
-        x1ts, x2ts, ts = pipe(batch["condition"], batch_size=args.batch_size, record_path=True)
+        x1ts, x2ts, ts = pipe(batch, batch_size=args.batch_size, record_path=True)
         break
 
     logger.info("push to hub")

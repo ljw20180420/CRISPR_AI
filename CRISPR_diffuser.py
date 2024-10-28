@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-from AI_models.CRISPR_diffuser.train import train
-from AI_models.CRISPR_diffuser.test import test
-from diffusers import DiffusionPipeline
-
+# from AI_models.CRISPR_diffuser.train import train
 # train()
-test()
 
-pipe = DiffusionPipeline.from_pretrained("ljw20180420/SX_spcas9_CRISPR_diffuser", trust_remote_code=True, custom_pipeline="ljw20180420/SX_spcas9_CRISPR_diffuser")
+# from AI_models.CRISPR_diffuser.test import test
+# test()
+
+from AI_models.CRISPR_diffuser.inference import inference
+for x1ts, x2ts, ts in inference():
+    pass

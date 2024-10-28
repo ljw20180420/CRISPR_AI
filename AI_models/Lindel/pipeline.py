@@ -18,10 +18,10 @@ class LindelPipeline(DiffusionPipeline):
                 self.dends.append(dstart + dlen)
 
     @torch.no_grad()
-    def __call__(self, input_indel, input_ins, input_del):
-        indel_proba = F.softmax(self.indel_model(input_indel)["logit"], dim=1)
-        ins_base_proba = F.softmax(self.ins_model(input_ins)["logit"], dim=1)
-        del_pos_proba = F.softmax(self.del_model(input_del)["logit"], dim=1)
+    def __call__(self, batch):
+        indel_proba = F.softmax(self.indel_model(batch["input_indel"].to(self.indel_model.device))["logit"], dim=1)
+        ins_base_proba = F.softmax(self.ins_model(batch["input_ins"].to(self.ins_model.device))["logit"], dim=1)
+        del_pos_proba = F.softmax(self.del_model(batch["input_del"].to(self.del_model.device))["logit"], dim=1)
         return {
             "del_proba": indel_proba[:, 0],
             "ins_proba": indel_proba[:, 1],
