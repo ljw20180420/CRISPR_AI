@@ -22,10 +22,10 @@ proxy(url="socks5h://127.0.0.1:1080")
 ```
 # Dataset
 ## Upload
-This needs the huggingface token of the author ljw20180420.
+Replace `owner` with your huggingface username.
 ```python
 from AI_models.dataset.upload import upload
-upload()
+upload(owner="ljw20180420")
 ```
 # Usage
 ## inDelphi
@@ -36,9 +36,10 @@ train_deletion()
 train_insertion()
 ```
 ### Test and upload to huggingface
+Replace `owner` with your huggingface username.
 ```python
 from AI_models.inDelphi.test import test
-test()
+test(owner="ljw20180420")
 ```
 ### Inference
 ```python
@@ -53,9 +54,10 @@ from AI_models.Lindel.train import train
 train()
 ```
 ### Test and upload to huggingface
+Replace `owner` with your huggingface username.
 ```python
 from AI_models.Lindel.test import test
-test()
+test(owner="ljw20180420")
 ```
 ### Inference
 ```python
@@ -70,9 +72,10 @@ from AI_models.FOREcasT.train import train
 train()
 ```
 ### Test and upload to huggingface
+Replace `owner` with your huggingface username.
 ```python
 from AI_models.FOREcasT.test import test
-test()
+test(owner="ljw20180420")
 ```
 ### Inference
 ```python
@@ -87,9 +90,10 @@ from AI_models.CRISPR_diffuser.train import train
 train()
 ```
 ### Test and upload to huggingface
+Replace `owner` with your huggingface username.
 ```python
 from AI_models.CRISPR_diffuser.test import test
-test()
+test(owner="ljw20180420")
 ```
 ### Inference
 ```python

@@ -10,7 +10,7 @@ from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
 from .load_data import data_collector, outputs_test
 
-def test():
+def test(owner="ljw20180420"):
     logger.info("load model")
     inDelphi_model = inDelphiModel.from_pretrained(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}")
     # remove parent module name
@@ -44,16 +44,16 @@ def test():
         output = pipe(batch)
 
     logger.info("push to hub")
-    pipe.push_to_hub(f"ljw20180420/{args.data_name}_{inDelphiConfig.model_type}")
+    pipe.push_to_hub(f"{owner}/{args.data_name}_{inDelphiConfig.model_type}")
     from huggingface_hub import HfApi
     api = HfApi()
     api.upload_file(
-        repo_id=f"ljw20180420/{args.data_name}_{inDelphiConfig.model_type}",
+        repo_id=f"{owner}/{args.data_name}_{inDelphiConfig.model_type}",
         path_or_fileobj="AI_models/inDelphi/pipeline.py",
         path_in_repo="pipeline.py"
     )
     api.upload_folder(
-        repo_id=f"ljw20180420/{args.data_name}_{inDelphiConfig.model_type}",
+        repo_id=f"{owner}/{args.data_name}_{inDelphiConfig.model_type}",
         folder_path=args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}",
         path_in_repo="inDelphi_model",
         ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]
