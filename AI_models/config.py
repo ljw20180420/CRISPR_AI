@@ -56,7 +56,6 @@ parser_FOREcasT.add_argument("--FOREcasT_reg_const", type=float, default=0.01, h
 parser_FOREcasT.add_argument("--FOREcasT_i1_reg_const", type=float, default=0.01, help="regularization coefficient for insertion")
 
 parser_inference = parser.add_argument_group(title="inference", description="parameters for inference")
-parser_inference.add_argument("--inference_data", type=str, help="data for inference")
 parser_inference.add_argument("--ref1len", type=int, default=127, help="length of reference 1")
 parser_inference.add_argument("--ref2len", type=int, default=127, help="length of reference 2")
 

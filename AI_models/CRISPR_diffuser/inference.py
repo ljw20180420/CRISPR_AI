@@ -3,7 +3,6 @@ from datasets import load_dataset, Features, Value
 from torch.utils.data import DataLoader
 from diffusers import DiffusionPipeline
 from tqdm import tqdm
-from ..proxy import *
 from ..config import args
 from .load_data import data_collector, outputs_inference
 from ..dataset.CRISPR_data import CRISPRData
@@ -36,7 +35,7 @@ def data_collector_inference(examples, noise_scheduler, stationary_sampler1, sta
     return data_collector(examples2, noise_scheduler, stationary_sampler1, stationary_sampler2, outputs_inference)
 
 @torch.no_grad()
-def inference():
+def inference(data_files="inference.json.gz"):
     if args.noise_scheduler == "linear":
         from .scheduler import CRISPRDiffuserLinearScheduler
         noise_scheduler = CRISPRDiffuserLinearScheduler(
@@ -65,7 +64,7 @@ def inference():
     pipe = DiffusionPipeline.from_pretrained("ljw20180420/SX_spcas9_CRISPR_diffuser", trust_remote_code=True, custom_pipeline="ljw20180420/SX_spcas9_CRISPR_diffuser")
     pipe.unet.to(args.device)
 
-    ds = load_dataset('json', data_files=args.inference_data, features=Features({
+    ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
         'cut': Value('int16')
     }))["train"]

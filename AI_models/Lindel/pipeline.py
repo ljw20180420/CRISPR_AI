@@ -1,9 +1,6 @@
 import torch
 from diffusers import DiffusionPipeline, __version__
 import torch.nn.functional as F
-import json
-import numpy as np
-from pathlib import Path
 
 class LindelPipeline(DiffusionPipeline):
     def __init__(self, indel_model, ins_model, del_model):

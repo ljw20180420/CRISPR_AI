@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import numpy as np
 
 outputs_train_ins = {
     "input": "input_ins",
@@ -30,7 +31,9 @@ outputs_inference = {
 @torch.no_grad()
 def data_collector(examples, Lindel_dlen, Lindel_mh_len, outputs):
     def onehotencoder(guide):
-        guideVal = (torch.frombuffer(guide.encode(), dtype=torch.int8) % 5).clamp(0, 3).to(torch.int64)
+        guideVal = torch.from_numpy(
+            (np.frombuffer(guide.encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+        )
         return torch.cat([
             F.one_hot(guideVal, num_classes=4).flatten(),
             F.one_hot(guideVal[:-1] + guideVal[1:] * 4, num_classes=16).flatten()

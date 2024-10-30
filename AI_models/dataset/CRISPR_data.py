@@ -9,6 +9,7 @@ import os
 import torch
 import torch.nn.functional as F
 from itertools import product
+import numpy as np
 
 # TODO: Add BibTeX citation
 # Find for instance the citation on arxiv or on the dataset repo/website
@@ -95,22 +96,22 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                     for offset in range(-ref2len, ref1len + 1)
                 ])
             )
-            # 'ACGTN' -> '02143'
-            nuc_code = "".join(
-                str(i.item())
-                for i in torch.frombuffer("ACGTN".encode(), dtype=torch.int8) % 5
+            # 'ACGT' -> '0213'
+            self.nuc_code = "".join(
+                str(i)
+                for i in (np.frombuffer("ACGT".encode(), dtype=np.int8) % 5).clip(0, 3)
             )
             self.base_idx = [
                 torch.tensor([
-                    int("".join(j), base=5)
-                    for j in product(*([nuc_code] * i))
+                    int("".join(j), base=len(self.nuc_code))
+                    for j in product(*([self.nuc_code] * i))
                 ])
                 for i in range(1, 3)
             ]
-            cutoff = 0
+            self.base_cutoff = [0]
             for bi in self.base_idx:
-                bi += cutoff
-                cutoff += len(bi)
+                bi += self.base_cutoff[-1]
+                self.base_cutoff.append(self.base_cutoff[-1] + len(bi))
             self.base_idx = torch.cat(self.base_idx)
         
 
@@ -119,14 +120,12 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         assert len(ref1) == self.config.ref1len and len(ref2) == self.config.ref2len, "reference length does not fit"
         observations = torch.zeros(len(ref2) + 1, len(ref1) + 1, dtype=torch.int64)
         if INSERT_LIMIT is not None:
-            base = len("ACGTN")
+            assert INSERT_LIMIT < len(self.base_cutoff), "INSERT_LIMIT is beyonded"
+            base = len(self.nuc_code)
             total = (base ** (INSERT_LIMIT + 1) - base) // (base - 1)
-            assert total <= len(self.base_idx), "INSERT_LIMIT is beyonded"
             insert_counts = torch.zeros(total, dtype=torch.int64)
             if count_long_insertion:
                 insert_count_long = 0
-            base_vec = base ** torch.arange(INSERT_LIMIT)
-            base_cutoff = (base ** (torch.arange(INSERT_LIMIT) + 1) - base) // (base - 1)
             cut1, cut2 = cut['cut1'], cut['cut2']
         for author in cut['authors']:
             for file in author['files']:
@@ -142,9 +141,10 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                         insert = ref1[cut1:ref1_end] + random_insert + ref2[ref2_start:cut2]
                         if len(insert) > 0:
                             if len(insert) <= INSERT_LIMIT:
-                                insert_counts[base_cutoff[len(insert) - 1] + (
-                                    base_vec[:len(insert)] * (torch.frombuffer(insert.encode(), dtype=torch.int8) % 5)
-                                ).sum()] += count
+                                insert_counts[
+                                    self.base_cutoff[len(insert) - 1] +
+                                    int("".join(str(i) for i in (np.frombuffer(insert.encode(), dtype=np.int8) % 5).clip(0, 3)), base=base)
+                                ] += count
                             elif count_long_insertion:
                                 insert_count_long += count
         if INSERT_LIMIT is not None:
@@ -161,7 +161,9 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
     def num2micro_homology(self, ref1, ref2, cut1, cut2, ext1=0, ext2=0):
         assert len(ref1) == self.config.ref1len and len(ref2) == self.config.ref2len, "reference length does not fit"
         mh_matrix = F.pad(
-            (torch.frombuffer(ref1[:cut1 + ext1].encode(), dtype=torch.int8).view(1, -1) == torch.frombuffer(ref2[cut2 - ext2:].encode(), dtype=torch.int8).view(-1, 1)).to(torch.int16),
+            torch.from_numpy(
+                np.frombuffer(ref1[:cut1 + ext1].encode(), dtype=np.int8)[None, :] == np.frombuffer(ref2[cut2 - ext2:].encode(), dtype=np.int8)[:, None]
+            ).to(torch.int16),
             pad=(0, len(ref1) - cut1 - ext1 + 1, cut2 - ext2, 1), value=0
         )
         rep_num = torch.cat((
@@ -325,9 +327,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 mh_lens_list.append(mh_lens)
                 #output
                 observations, insert_counts = self.get_observations(ref1, ref2, cut, INSERT_LIMIT=2, count_long_insertion=True)
-                insert_counts = insert_counts.tolist()
-                del insert_counts[-6:-1]
-                del insert_counts[4::5]
                 ins_counts.append(insert_counts)
                 counts = self.get_output(observations, rep_num, rep_val, "Lindel")               
                 del_counts.append(counts[mask_del_len])
@@ -354,14 +353,11 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 del_lens, dstarts = self.get_input(ref1, ref2, cut1, cut2, mh_matrix, rep_num, rep_val, "FOREcasT")
                 mask_del_len = (del_lens >= 0).logical_and(del_lens <= self.config.FOREcasT_MAX_DEL_SIZE).logical_and(dstarts <= 0).logical_and(dstarts + del_lens >= 0)
                 # output
-                observations, insert_counts = self.get_observations(ref1, ref2, cut, RANDDOM_INSERT_LIMIT=0, INSERT_LIMIT=2)
-                insert_counts = insert_counts.tolist()
-                del insert_counts[-5:]
-                del insert_counts[4::5]
+                observations, insert_counts = self.get_observations(ref1, ref2, cut, RANDOM_INSERT_LIMIT=0, INSERT_LIMIT=2)
                 counts = self.get_output(observations, rep_num, rep_val, "FOREcasT")
                 total_counts.append(torch.cat([
                     counts[mask_del_len],
-                    torch.tensor(insert_counts)
+                    insert_counts
                 ]))
         return {
             'ref': refs,

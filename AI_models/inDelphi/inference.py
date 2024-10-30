@@ -5,7 +5,6 @@ from diffusers import DiffusionPipeline
 from tqdm import tqdm
 from huggingface_hub import HfFileSystem
 import pickle
-from ..proxy import *
 from ..config import args, logger
 from .load_data import data_collector, outputs_inference
 from ..dataset.CRISPR_data import gc_content, CRISPRData
@@ -44,8 +43,9 @@ def data_collector_inference(examples):
     return data_collector(examples2, args.DELLEN_LIMIT, outputs_inference)
 
 @torch.no_grad()
-def inference():
-    ds = load_dataset('json', data_files=args.inference_data, features=Features({
+def inference(data_files="inference.json.gz"):
+    logger.info("load inference data")
+    ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
         'cut': Value('int16')
     }))["train"]
@@ -56,6 +56,7 @@ def inference():
         collate_fn=data_collector_inference
     )
 
+    logger.info("setup pipeline")
     fs = HfFileSystem()
     with fs.open("ljw20180420/SX_spcas9_inDelphi/inDelphi_model/insertion_model.pkl", "rb") as fd:
         onebp_features, insert_probabilities, m654 = pickle.load(fd)

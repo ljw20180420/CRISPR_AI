@@ -8,7 +8,6 @@ from .model import LindelConfig, LindelModel
 from .pipeline import LindelPipeline
 from .load_data import data_collector, outputs_test
 from ..config import args, logger
-from ..proxy import *
 
 def test():
     logger.info("load model")
@@ -47,7 +46,6 @@ def test():
     logger.info("test pipeline")
     for batch in test_dataloader:
         output = pipe(batch)
-        break
 
     logger.info("push to hub")
     pipe.push_to_hub(f"ljw20180420/{args.data_name}_{LindelConfig.model_type}")

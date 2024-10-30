@@ -3,7 +3,6 @@ from datasets import load_dataset, Features, Value
 from torch.utils.data import DataLoader
 from diffusers import DiffusionPipeline
 from tqdm import tqdm
-from ..proxy import *
 from ..config import args
 from .load_data import data_collector
 from ..dataset.CRISPR_data import CRISPRData
@@ -15,14 +14,14 @@ def data_collector_inference(examples):
     for example in examples:
         ref, cut = example["ref"], example["cut"]
         assert len(ref) >= args.ref1len and len(ref) >= args.ref2len, f"ref of length {len(ref)} is too short, please decrease ref1len={args.ref1len} and/or ref2len={args.ref2len} in inference arguments"
-        assert cut <= args.ref1len and len(ref) - cut <= args.ref2len, f"ref1len={args.ref1len} and/or ref2len={arg.ref2len} is too short, please increase them to cover cut site {cut}"
+        assert cut <= args.ref1len and len(ref) - cut <= args.ref2len, f"ref1len={args.ref1len} and/or ref2len={args.ref2len} is too short, please increase them to cover cut site {cut}"
         assert cut >= args.FOREcasT_MAX_DEL_SIZE, f"ref upstream to cut ({cut}) is less than FOREcasT_MAX_DEL_SIZE ({args.FOREcasT_MAX_DEL_SIZE}), extend ref to upstream"
         assert len(ref) - cut >= args.FOREcasT_MAX_DEL_SIZE, f"ref downstream to cut ({len(ref) - cut}) is less than FOREcasT_MAX_DEL_SIZE ({args.FOREcasT_MAX_DEL_SIZE}), extend ref to downstream"
     return data_collector(examples, output_count=False)
 
 @torch.no_grad()
-def inference():
-    ds = load_dataset('json', data_files=args.inference_data, features=Features({
+def inference(data_files="inference.json.gz"):
+    ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
         'cut': Value('int16')
     }))["train"]

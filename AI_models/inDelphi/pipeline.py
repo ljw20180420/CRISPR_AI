@@ -12,7 +12,7 @@ class inDelphiPipeline(DiffusionPipeline):
         self.onebp_feature_std = onebp_features.std(axis=0)
         self.insertion_model = KNeighborsRegressor(weights='distance').fit((onebp_features - self.onebp_feature_mean) / self.onebp_feature_std, insert_probabilities)
         self.m654 = m654 / np.maximum(np.linalg.norm(m654, ord=1, axis=1, keepdims=True), 1e-6)
-        self.m4 = m654.reshape(5, 25, 5).sum(axis=1)
+        self.m4 = m654.reshape(16, 4, 4).sum(axis=0)
         self.m4 = self.m4 / np.maximum(np.linalg.norm(self.m4, ord=1, axis=1, keepdims=True), 1e-6)
 
     @torch.no_grad()
@@ -30,7 +30,7 @@ class inDelphiPipeline(DiffusionPipeline):
             log_total_weights.cpu()
         ], dim=1).cpu().numpy()
         pre_insert_probabilities = self.insertion_model.predict((onebp_features - self.onebp_feature_mean) / self.onebp_feature_std)
-        pre_insert_1bps = mX[batch['m654'] // 25] if mX.shape[0] == 5 else mX[batch['m654']]
+        pre_insert_1bps = mX[batch['m654'] % 4] if mX.shape[0] == 4 else mX[batch['m654']]
         return {
             "mh_weight": [
                 mh_weights[i, batch["mh_del_len"][i] < self.inDelphi_model.config.DELLEN_LIMIT]

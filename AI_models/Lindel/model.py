@@ -35,13 +35,16 @@ class LindelModel(PreTrainedModel):
         self.reg_mode = config.reg_mode
         self.reg_const = config.reg_const
         if config.model == "indel":
+            # onehotencoder(ref[cut-17:cut+3])
             feature_dim = 20 * 4 + 19 * 16
             class_dim = 2
         elif config.model == "ins":
+            # onehotencoder(ref[cut-3:cut+3])
             feature_dim = 6 * 4 + 5 * 16
             class_dim = 21
         elif config.model == "del":
             class_dim = (4 + 1 + 4 + config.dlen - 1) * (config.dlen - 1) // 2
+            # concatenate get_feature and onehotencoder(ref[cut-17:cut+3])
             feature_dim = class_dim * (config.mh_len + 1) + 20 * 4 + 19 * 16
         self.linear = nn.Linear(in_features=feature_dim, out_features=class_dim)
         self.initialize_weights()

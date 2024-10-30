@@ -53,7 +53,9 @@ feature_InsLoc = torch.tensor(feature_InsLoc)
 
 def get_feature_LocalCutSiteSequence(ref, cut):
     return F.one_hot(
-        (torch.frombuffer(ref[cut - 5:cut + 4].encode(), dtype=torch.int8) % 5).clamp(0, 3).to(torch.int64),
+        torch.from_numpy(
+            (np.frombuffer(ref[cut - 5:cut + 4].encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+        ),
         num_classes=4
     ).flatten()
 
@@ -62,11 +64,15 @@ def get_feature_LocalCutSiteSeqMatches(ref, cut):
     offset2_bases = ref[cut - 3] + ref[cut - 3:cut - 1] + ref[cut - 3:cut] + ref[cut - 3:cut + 1]
     return (
         F.one_hot(
-            (torch.frombuffer(offset1_bases.encode(), dtype=torch.int8) % 5).clamp(0, 3).to(torch.int64),
+            torch.from_numpy(
+                (np.frombuffer(offset1_bases.encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            ),
             num_classes=4
         ).flatten() *
         F.one_hot(
-            (torch.frombuffer(offset2_bases.encode(), dtype=torch.int8) % 5).clamp(0, 3).to(torch.int64),
+            torch.from_numpy(
+                (np.frombuffer(offset2_bases.encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            ),
             num_classes=4
         ).flatten()
     )
@@ -76,11 +82,15 @@ def get_feature_LocalRelativeSequence(ref, cut, left, right, ins_seq):
         return torch.zeros(48, dtype=torch.int64)
     return torch.cat([
         F.one_hot(
-            (torch.frombuffer(ref[cut + left - 3:cut + left + 3].encode(), dtype=torch.int8) % 5).clamp(0, 3).to(torch.int64),
+            torch.from_numpy(
+                (np.frombuffer(ref[cut + left - 3:cut + left + 3].encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            ),
             num_classes=4
         ).flatten(),
         F.one_hot(
-            (torch.frombuffer(ref[cut + right - 3:cut + right + 3].encode(), dtype=torch.int8) % 5).clamp(0, 3).to(torch.int64),
+            torch.from_numpy(
+                (np.frombuffer(ref[cut + right - 3:cut + right + 3].encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            ),
             num_classes=4
         ).flatten()
     ])
@@ -89,7 +99,9 @@ def get_feature_SeqMatches(ref, cut, left, right, ins_seq):
     if len(ins_seq) > 0:
         return torch.zeros(72, dtype=torch.int64)
     return F.one_hot(
-        (torch.frombuffer(ref[cut + left - 3:cut + left + 3].encode(), dtype=torch.int8)[:, None] == torch.frombuffer(ref[cut + right - 3:cut + right + 3].encode(), dtype=torch.int8)).to(torch.int64),
+        torch.from_numpy(
+            (np.frombuffer(ref[cut + left - 3:cut + left + 3].encode(), dtype=np.int8)[:, None] == np.frombuffer(ref[cut + right - 3:cut + right + 3].encode(), dtype=np.int8)).astype(np.int64)
+        ),
         num_classes=2
     ).flatten()
 

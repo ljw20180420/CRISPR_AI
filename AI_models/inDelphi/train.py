@@ -94,7 +94,7 @@ def train_insertion():
     with torch.no_grad():
         onebp_features = []
         insert_probabilities = []
-        m654 = torch.zeros(5 ** 3, 5)
+        m654 = torch.zeros(4 ** 3, 4)
         for batch in train_dataloader:
             _, _, total_del_len_weights = inDelphi_model(batch["mh_input"].to(args.device), batch["mh_del_len"].to(args.device)).values()
             log_total_weights = total_del_len_weights.sum(dim=1, keepdim=True).log()
@@ -106,7 +106,7 @@ def train_insertion():
                     log_total_weights.cpu()
                 ], dim=1).tolist()
             )
-            m654.scatter_add_(dim=0, index=batch["m654"][:, None].expand(-1, 5), src=batch["insert_1bp"])
+            m654.scatter_add_(dim=0, index=batch["m654"][:, None].expand(-1, 4), src=batch["insert_1bp"])
             insert_probabilities.extend(batch["insert_probability"])
         onebp_features = np.array(onebp_features)
         insert_probabilities = np.array(insert_probabilities)

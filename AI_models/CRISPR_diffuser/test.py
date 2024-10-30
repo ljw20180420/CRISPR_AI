@@ -9,7 +9,6 @@ from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
 from .pipeline import CRISPRDiffuserPipeline
 from .load_data import data_collector, outputs_test
 from ..config import args, logger
-from ..proxy import *
 
 def test():
     logger.info("load scheduler")
@@ -77,7 +76,6 @@ def test():
     logger.info("test pipeline")
     for batch in test_dataloader:
         x1ts, x2ts, ts = pipe(batch, batch_size=args.batch_size, record_path=True)
-        break
 
     logger.info("push to hub")
     pipe.push_to_hub(f"ljw20180420/{args.data_name}_{CRISPRDiffuserConfig.model_type}")

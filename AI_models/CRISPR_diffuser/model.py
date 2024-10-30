@@ -12,7 +12,7 @@ class CRISPRDiffuserConfig(PretrainedConfig):
 
     def __init__(
         self,
-        channels: List = [13, 32, 64, 96, 64, 32, 1],
+        channels: List = [11, 32, 64, 96, 64, 32, 1],
         MCMC_corrector_factor: float = 0.001,
         ref1len: int = 127,
         ref2len: int = 127,

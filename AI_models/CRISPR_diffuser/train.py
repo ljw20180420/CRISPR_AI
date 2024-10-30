@@ -53,7 +53,7 @@ def train():
     CRISPRDiffuserConfig.register_for_auto_class()
     CRISPRDiffuserModel.register_for_auto_class()
     CRISPR_diffuser_model = CRISPRDiffuserModel(CRISPRDiffuserConfig(
-        channels = [13] + args.unet_channels + [1],
+        channels = [11] + args.unet_channels + [1],
         MCMC_corrector_factor = args.MCMC_corrector_factor,
         seed=args.seed
     ))

@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
+import numpy as np
 from ..config import args
 
 outputs_train = ["x1t_x2t_t", "condition", "observation"]
@@ -16,12 +17,16 @@ def data_collector(examples, noise_scheduler, stationary_sampler1, stationary_sa
         one_hot_cut = torch.zeros(ref2len + 1, ref1len + 1)
         one_hot_cut[example['cut2'], example['cut1']] = 1.0
         one_hot_ref1 = F.one_hot(
-            (torch.frombuffer((example['ref1'] + "N").encode(), dtype=torch.int8) % base).to(torch.int64),
-            num_classes=base
+            torch.from_numpy(
+                (np.frombuffer((example['ref1'] + "N").encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            ),
+            num_classes=4
         ).T[:, None, :].expand(-1, ref2len + 1, -1)
         one_hot_ref2 = F.one_hot(
-            (torch.frombuffer((example['ref2'] + "N").encode(), dtype=torch.int8) % base).to(torch.int64),
-            num_classes=base
+            torch.from_numpy(
+                (np.frombuffer((example['ref2'] + "N").encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            ),
+            num_classes=4
         ).T[:, :, None].expand(-1, -1, ref1len + 1)
         return torch.cat([
             mh_matrix[None, :, :],
@@ -36,20 +41,19 @@ def data_collector(examples, noise_scheduler, stationary_sampler1, stationary_sa
         return observation
 
     batch_size, ref1len, ref2len = len(examples), len(examples[0]['ref1']), len(examples[0]['ref2'])
-    base = len("ACGTN")
     results = dict()
     if "condition" in outputs:
         results["condition"] = torch.stack([
             get_condition(example)
             for example in examples
         ])
-    if "observation" in outputs:
+    if "x1t_x2t_t" in outputs or "observation" in outputs:
         results["observation"] = torch.stack([
             get_observation(example)
             for example in examples
         ])
     if "x1t_x2t_t" in outputs:
-        x_cross0 = Categorical(probs=observations.view(batch_size, -1)).sample()
+        x_cross0 = Categorical(probs=results["observation"].view(batch_size, -1)).sample()
         x20 = x_cross0 // (ref1len + 1)
         x10 = x_cross0 % (ref1len + 1)
         t = noise_scheduler.step_to_time(torch.rand(batch_size) * args.noise_timesteps)

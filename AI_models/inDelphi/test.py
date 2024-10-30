@@ -9,7 +9,6 @@ from .pipeline import inDelphiPipeline
 from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
 from .load_data import data_collector, outputs_test
-from ..proxy import *
 
 def test():
     logger.info("load model")

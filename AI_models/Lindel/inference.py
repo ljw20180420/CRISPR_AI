@@ -3,7 +3,6 @@ from datasets import load_dataset, Features, Value
 from torch.utils.data import DataLoader
 from diffusers import DiffusionPipeline
 from tqdm import tqdm
-from ..proxy import *
 from ..config import args
 from .load_data import data_collector, outputs_inference
 from ..dataset.CRISPR_data import CRISPRData
@@ -37,15 +36,15 @@ def data_collector_inference(examples):
         examples2.append({
             'ref': ref,
             'cut': cut,
-            'dstart': dstarts,
-            'del_len': del_lens,
-            'mh_len': mh_lens
+            'dstart': dstarts.tolist(),
+            'del_len': del_lens.tolist(),
+            'mh_len': mh_lens.tolist()
         })
     return data_collector(examples2, args.Lindel_dlen, args.Lindel_mh_len, outputs_inference)
 
 @torch.no_grad()
-def inference():
-    ds = load_dataset('json', data_files=args.inference_data, features=Features({
+def inference(data_files="inference.json.gz"):
+    ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
         'cut': Value('int16')
     }))["train"]

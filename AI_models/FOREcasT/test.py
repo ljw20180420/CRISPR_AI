@@ -8,7 +8,6 @@ from .model import FOREcasTConfig, FOREcasTModel
 from .pipeline import FOREcasTPipeline
 from .load_data import data_collector
 from ..config import args, logger
-from ..proxy import *
 
 def test():
     logger.info("load model")
@@ -40,7 +39,6 @@ def test():
     logger.info("test pipeline")
     for batch in test_dataloader:
         output = pipe(batch)
-        break
 
     logger.info("push to hub")
     pipe.push_to_hub(f"ljw20180420/{args.data_name}_{FOREcasTConfig.model_type}")
