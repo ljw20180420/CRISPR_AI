@@ -43,7 +43,7 @@ def data_collector_inference(examples):
     return data_collector(examples2, args.DELLEN_LIMIT, outputs_inference)
 
 @torch.no_grad()
-def inference(data_files="inference.json.gz"):
+def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
     logger.info("load inference data")
     ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
@@ -58,9 +58,9 @@ def inference(data_files="inference.json.gz"):
 
     logger.info("setup pipeline")
     fs = HfFileSystem()
-    with fs.open("ljw20180420/SX_spcas9_inDelphi/inDelphi_model/insertion_model.pkl", "rb") as fd:
+    with fs.open(f"{owner}/{data_name}_inDelphi/inDelphi_model/insertion_model.pkl", "rb") as fd:
         onebp_features, insert_probabilities, m654 = pickle.load(fd)
-    pipe = DiffusionPipeline.from_pretrained("ljw20180420/SX_spcas9_inDelphi", trust_remote_code=True, custom_pipeline="ljw20180420/SX_spcas9_inDelphi", onebp_features = onebp_features, insert_probabilities = insert_probabilities, m654 = m654)
+    pipe = DiffusionPipeline.from_pretrained(f"{owner}/{data_name}_inDelphi", trust_remote_code=True, custom_pipeline=f"{owner}/{data_name}_inDelphi", onebp_features = onebp_features, insert_probabilities = insert_probabilities, m654 = m654)
     pipe.inDelphi_model.to(args.device)
 
     for batch in tqdm(inference_dataloader):

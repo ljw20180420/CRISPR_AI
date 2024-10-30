@@ -3,7 +3,7 @@ from datasets import load_dataset, Features, Value
 from torch.utils.data import DataLoader
 from diffusers import DiffusionPipeline
 from tqdm import tqdm
-from ..config import args
+from ..config import args, logger
 from .load_data import data_collector
 from ..dataset.CRISPR_data import CRISPRData
 
@@ -20,7 +20,8 @@ def data_collector_inference(examples):
     return data_collector(examples, output_count=False)
 
 @torch.no_grad()
-def inference(data_files="inference.json.gz"):
+def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+    logger.info("load inference data")
     ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
         'cut': Value('int16')
@@ -32,7 +33,8 @@ def inference(data_files="inference.json.gz"):
         collate_fn=data_collector_inference
     )
 
-    pipe = DiffusionPipeline.from_pretrained("ljw20180420/SX_spcas9_FOREcasT", trust_remote_code=True, custom_pipeline="ljw20180420/SX_spcas9_FOREcasT", MAX_DEL_SIZE=args.FOREcasT_MAX_DEL_SIZE)
+    logger.info("setup pipeline")
+    pipe = DiffusionPipeline.from_pretrained(f"{owner}/{data_name}_FOREcasT", trust_remote_code=True, custom_pipeline=f"{owner}/{data_name}_FOREcasT", MAX_DEL_SIZE=args.FOREcasT_MAX_DEL_SIZE)
     pipe.FOREcasT_model.to(args.device)
 
     for batch in tqdm(inference_dataloader):

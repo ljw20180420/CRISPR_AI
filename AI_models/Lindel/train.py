@@ -6,11 +6,11 @@ from .model import LindelConfig, LindelModel
 from ..config import args, logger
 from .load_data import data_collector, outputs_train_ins, outputs_train_del, outputs_train_indel
 
-def train():
+def train(owner="ljw20180420", data_name="SX_spcas9"):
     logger.info("loading data")
     ds = load_dataset(
-        path = args.data_path,
-        name = f"{args.data_name}_{LindelConfig.model_type}",
+        path = f"{owner}/CRISPR_data",
+        name = f"{data_name}_{LindelConfig.model_type}",
         trust_remote_code = True,
         test_ratio = args.test_ratio,
         validation_ratio = args.validation_ratio,
@@ -38,7 +38,7 @@ def train():
     trainers = dict()
     for model in ["indel", "ins", "del"]:
         training_args = TrainingArguments(
-            output_dir = args.output_dir / LindelConfig.model_type / f"{args.data_name}_{LindelConfig.model_type}_{model}",
+            output_dir = args.output_dir / LindelConfig.model_type / f"{data_name}_{LindelConfig.model_type}_{model}",
             seed = args.seed,
             logging_strategy = "epoch",
             eval_strategy = "epoch",

@@ -12,11 +12,11 @@ from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
 from .load_data import data_collector, outputs_train_deletion, outputs_train_insertion
 
-def train_deletion():
+def train_deletion(owner="ljw20180420", data_name="SX_spcas9"):
     logger.info("loading data")
     ds = load_dataset(
-        path = args.data_path,
-        name = f"{args.data_name}_{inDelphiConfig.model_type}",
+        path = f"{owner}/CRISPR_data",
+        name = f"{data_name}_{inDelphiConfig.model_type}",
         trust_remote_code = True,
         test_ratio = args.test_ratio,
         validation_ratio = args.validation_ratio,
@@ -31,7 +31,7 @@ def train_deletion():
 
     logger.info("train model")
     training_args = TrainingArguments(
-        output_dir = args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}",
+        output_dir = args.output_dir / inDelphiConfig.model_type / f"{data_name}_{inDelphiConfig.model_type}",
         seed = args.seed,
         logging_strategy = "epoch",
         eval_strategy = "epoch",
@@ -69,14 +69,14 @@ def train_deletion():
     trainer.save_model()
     trainer.create_model_card()
 
-def train_insertion():
+def train_insertion(owner="ljw20180420", data_name="SX_spcas9"):
     logger.info("loading model")
-    inDelphi_model = inDelphiModel.from_pretrained(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}").to(args.device)
+    inDelphi_model = inDelphiModel.from_pretrained(args.output_dir / inDelphiConfig.model_type / f"{data_name}_{inDelphiConfig.model_type}").to(args.device)
 
     logger.info("loading data")
     ds = load_dataset(
-        path = args.data_path,
-        name = f"{args.data_name}_{inDelphiConfig.model_type}",
+        path = f"{owner}/CRISPR_data",
+        name = f"{data_name}_{inDelphiConfig.model_type}",
         split = datasets.Split.TRAIN,
         trust_remote_code = True,
         test_ratio = args.test_ratio,
@@ -113,7 +113,7 @@ def train_insertion():
         m654 = m654.cpu().numpy()
 
     logger.info("save")
-    with open(args.output_dir / inDelphiConfig.model_type / f"{args.data_name}_{inDelphiConfig.model_type}" / "insertion_model.pkl", "wb") as fd:
+    with open(args.output_dir / inDelphiConfig.model_type / f"{data_name}_{inDelphiConfig.model_type}" / "insertion_model.pkl", "wb") as fd:
         pickle.dump(
             [
                 onebp_features,

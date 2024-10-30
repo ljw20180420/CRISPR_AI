@@ -1,3 +1,5 @@
+# Introduction
+If your want to train, test and upload models by yourself, please replace `owner` with your huggingface username. If you only do inference, left `owner` as "ljw20180420". Currently, `data_name` can be one of "SX_spcas9", "SX_spymac", "SX_ispymac".
 # Install
 ```bash
 git clone https://github.com/ljw20180420/CRISPR_AI.git
@@ -22,7 +24,6 @@ proxy(url="socks5h://127.0.0.1:1080")
 ```
 # Dataset
 ## Upload
-Replace `owner` with your huggingface username.
 ```python
 from AI_models.dataset.upload import upload
 upload(owner="ljw20180420")
@@ -32,73 +33,69 @@ upload(owner="ljw20180420")
 ### Train
 ```python
 from AI_models.inDelphi.train import train_deletion, train_insertion
-train_deletion()
-train_insertion()
+train_deletion(owner="ljw20180420", data_name="SX_spcas9")
+train_insertion(owner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
-Replace `owner` with your huggingface username.
 ```python
 from AI_models.inDelphi.test import test
-test(owner="ljw20180420")
+test(owner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.inDelphi.inference import inference
-for output in inference(data_files="inference.json.gz"):
+for output in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
 ## Lindel
 ### Train
 ```python
 from AI_models.Lindel.train import train
-train()
+train(owner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
-Replace `owner` with your huggingface username.
 ```python
 from AI_models.Lindel.test import test
-test(owner="ljw20180420")
+test(oowner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.Lindel.inference import inference
-for output in inference(data_files="inference.json.gz"):
+for output in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
 ## FOREcasT
 ### Train
 ```python
 from AI_models.FOREcasT.train import train
-train()
+train(owner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
-Replace `owner` with your huggingface username.
 ```python
 from AI_models.FOREcasT.test import test
-test(owner="ljw20180420")
+test(owner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.FOREcasT.inference import inference
-for output in inference(data_files="inference.json.gz"):
+for output in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
 ## CRISPR_diffuser
 ### Train
 ```python
 from AI_models.CRISPR_diffuser.train import train
-train()
+train(owner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
-Replace `owner` with your huggingface username.
 ```python
 from AI_models.CRISPR_diffuser.test import test
-test(owner="ljw20180420")
+test(owner="ljw20180420", data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.CRISPR_diffuser.inference import inference
-for x1ts, x2ts, ts in inference(data_files="inference.json.gz"):
+for x1ts, x2ts, ts in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
 

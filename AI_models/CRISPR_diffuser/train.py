@@ -22,7 +22,7 @@ class CRISPRDiffuserTrainerCallback(TrainerCallback):
                 control.should_training_stop = True
                 return
 
-def train():
+def train(owner="ljw20180420", data_name="SX_spcas9"):
     logger.info("load scheduler")
     if args.noise_scheduler == "linear":
         from .scheduler import CRISPRDiffuserLinearScheduler
@@ -60,8 +60,8 @@ def train():
 
     logger.info("loading data")
     ds = load_dataset(
-        path = args.data_path,
-        name = f"{args.data_name}_{CRISPRDiffuserConfig.model_type}",
+        path = f"{owner}/CRISPR_data",
+        name = f"{data_name}_{CRISPRDiffuserConfig.model_type}",
         trust_remote_code = True,
         test_ratio = args.test_ratio,
         validation_ratio = args.validation_ratio,
@@ -70,7 +70,7 @@ def train():
 
     logger.info("set trainer arguments")
     training_args = TrainingArguments(
-        output_dir = args.output_dir / CRISPRDiffuserConfig.model_type / f"{args.data_name}_{CRISPRDiffuserConfig.model_type}",
+        output_dir = args.output_dir / CRISPRDiffuserConfig.model_type / f"{data_name}_{CRISPRDiffuserConfig.model_type}",
         seed = args.seed,
         logging_strategy = "epoch",
         eval_strategy = "epoch",

@@ -6,11 +6,11 @@ from .model import FOREcasTConfig, FOREcasTModel
 from ..config import args, logger
 from .load_data import data_collector
 
-def train():
+def train(owner="ljw20180420", data_name="SX_spcas9"):
     logger.info("loading data")
     ds = load_dataset(
-        path = args.data_path,
-        name = f"{args.data_name}_{FOREcasTConfig.model_type}",
+        path = f"{owner}/CRISPR_data",
+        name = f"{data_name}_{FOREcasTConfig.model_type}",
         trust_remote_code = True,
         test_ratio = args.test_ratio,
         validation_ratio = args.validation_ratio,
@@ -29,7 +29,7 @@ def train():
 
     logger.info("train model")
     training_args = TrainingArguments(
-        output_dir = args.output_dir / FOREcasTConfig.model_type / f"{args.data_name}_{FOREcasTConfig.model_type}",
+        output_dir = args.output_dir / FOREcasTConfig.model_type / f"{data_name}_{FOREcasTConfig.model_type}",
         seed = args.seed,
         logging_strategy = "epoch",
         eval_strategy = "epoch",

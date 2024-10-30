@@ -9,10 +9,10 @@ from .pipeline import LindelPipeline
 from .load_data import data_collector, outputs_test
 from ..config import args, logger
 
-def test(owner="ljw20180420"):
+def test(owner="ljw20180420", data_name="SX_spcas9"):
     logger.info("load model")
     Lindel_models = {
-        f"{model}_model": LindelModel.from_pretrained(args.output_dir / LindelConfig.model_type / f"{args.data_name}_{LindelConfig.model_type}_{model}")
+        f"{model}_model": LindelModel.from_pretrained(args.output_dir / LindelConfig.model_type / f"{data_name}_{LindelConfig.model_type}_{model}")
         for model in ["indel", "ins", "del"]
     }
     # remove parent module name
@@ -27,8 +27,8 @@ def test(owner="ljw20180420"):
 
     logger.info("load test data")
     ds = load_dataset(
-        path=args.data_path,
-        name=f"{args.data_name}_{LindelConfig.model_type}",
+        path=f"{owner}/CRISPR_data",
+        name=f"{data_name}_{LindelConfig.model_type}",
         split = datasets.Split.TEST,
         trust_remote_code = True,
         test_ratio = args.test_ratio,
@@ -48,18 +48,18 @@ def test(owner="ljw20180420"):
         output = pipe(batch)
 
     logger.info("push to hub")
-    pipe.push_to_hub(f"{owner}/{args.data_name}_{LindelConfig.model_type}")
+    pipe.push_to_hub(f"{owner}/{data_name}_{LindelConfig.model_type}")
     from huggingface_hub import HfApi
     api = HfApi()
     api.upload_file(
-        repo_id=f"{owner}/{args.data_name}_{LindelConfig.model_type}",
+        repo_id=f"{owner}/{data_name}_{LindelConfig.model_type}",
         path_or_fileobj="AI_models/Lindel/pipeline.py",
         path_in_repo="pipeline.py"
     )
     for model in ["indel", "ins", "del"]:
         api.upload_folder(
-            repo_id=f"{owner}/{args.data_name}_{LindelConfig.model_type}",
-            folder_path=args.output_dir / LindelConfig.model_type / f"{args.data_name}_{LindelConfig.model_type}_{model}",
+            repo_id=f"{owner}/{data_name}_{LindelConfig.model_type}",
+            folder_path=args.output_dir / LindelConfig.model_type / f"{data_name}_{LindelConfig.model_type}_{model}",
             path_in_repo=f"{model}_model",
             ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]
         )

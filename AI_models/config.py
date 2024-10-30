@@ -12,8 +12,6 @@ parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_availa
 parser.add_argument("--log", type=str, default="WARNING", choices=['CRITICAL', 'FATAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'NOTSET'], help="set logging level")
 
 parser_dataset = parser.add_argument_group(title="dataset", description="parameters for loading and split dataset")
-parser_dataset.add_argument("--data_path", type=str, default="ljw20180420/CRISPR_data", help="data path")
-parser_dataset.add_argument("--data_name", type=str, default="SX_spcas9", choices=["SX_spcas9", "SX_spymac", "SX_ispymac"], help="data name")
 parser_dataset.add_argument("--test_ratio", type=float, default=0.05, help="proportion for test samples")
 parser_dataset.add_argument("--validation_ratio", type=float, default=0.05, help="proportion for validation samples")
 
