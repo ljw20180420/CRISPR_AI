@@ -12,7 +12,7 @@ from ..dataset.CRISPR_data import gc_content, CRISPRData
 CRISPR_data = CRISPRData(ref1len = args.ref1len, ref2len = args.ref2len, DELLEN_LIMIT = args.DELLEN_LIMIT)
 
 @torch.no_grad()
-def data_collector_inference(examples):
+def data_collector_inference(examples, return_input=False):
     examples2 = list()
     for example in examples:
         ref, cut = example["ref"], example["cut"]
@@ -37,9 +37,12 @@ def data_collector_inference(examples):
                 "cut": cut,
                 "mh_del_len": del_lens[mask_mh].tolist(),
                 "mh_mh_len": mh_lens[mask_mh].tolist(),
+                "mh_gt_pos": gt_poss[mask_mh].tolist(),
                 "mh_gc_frac": [gc_content(ref[gt_pos - mh_len:gt_pos]) for mh_len, gt_pos in zip(mh_lens[mask_mh], gt_poss[mask_mh])]
             }
         )
+    if return_input:
+        return data_collector(examples2, args.DELLEN_LIMIT, outputs_inference), examples2
     return data_collector(examples2, args.DELLEN_LIMIT, outputs_inference)
 
 @torch.no_grad()
