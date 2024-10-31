@@ -9,7 +9,7 @@ from .pipeline import FOREcasTPipeline
 from .load_data import data_collector
 from ..config import args, logger
 
-def test(owner="ljw20180420", data_name="SX_spcas9"):
+def test(data_name=args.data_name):
     logger.info("load model")
     FOREcasT_model = FOREcasTModel.from_pretrained(args.output_dir / FOREcasTConfig.model_type / f"{data_name}_{FOREcasTConfig.model_type}")
     # remove parent module name
@@ -21,7 +21,7 @@ def test(owner="ljw20180420", data_name="SX_spcas9"):
 
     logger.info("load test data")
     ds = load_dataset(
-        path=f"{owner}/CRISPR_data",
+        path=f"{args.owner}/CRISPR_data",
         name=f"{data_name}_{FOREcasTConfig.model_type}",
         split = datasets.Split.TEST,
         trust_remote_code = True,
@@ -41,16 +41,16 @@ def test(owner="ljw20180420", data_name="SX_spcas9"):
         output = pipe(batch)
 
     logger.info("push to hub")
-    pipe.push_to_hub(f"{owner}/{data_name}_{FOREcasTConfig.model_type}")
+    pipe.push_to_hub(f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}")
     from huggingface_hub import HfApi
     api = HfApi()
     api.upload_file(
-        repo_id=f"{owner}/{data_name}_{FOREcasTConfig.model_type}",
+        repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
         path_or_fileobj="AI_models/FOREcasT/pipeline.py",
         path_in_repo="pipeline.py"
     )
     api.upload_folder(
-        repo_id=f"{owner}/{data_name}_{FOREcasTConfig.model_type}",
+        repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
         folder_path=args.output_dir / FOREcasTConfig.model_type / f"{data_name}_{FOREcasTConfig.model_type}",
         path_in_repo="FOREcasT_model",
         ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]

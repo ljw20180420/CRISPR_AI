@@ -20,7 +20,7 @@ def data_collector_inference(examples):
     return data_collector(examples, output_count=False)
 
 @torch.no_grad()
-def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+def inference(data_name=args.data_name, data_files="inference.json.gz"):
     logger.info("load inference data")
     ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
@@ -34,7 +34,7 @@ def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.
     )
 
     logger.info("setup pipeline")
-    pipe = DiffusionPipeline.from_pretrained(f"{owner}/{data_name}_FOREcasT", trust_remote_code=True, custom_pipeline=f"{owner}/{data_name}_FOREcasT", MAX_DEL_SIZE=args.FOREcasT_MAX_DEL_SIZE)
+    pipe = DiffusionPipeline.from_pretrained(f"{args.owner}/{data_name}_FOREcasT", trust_remote_code=True, custom_pipeline=f"{args.owner}/{data_name}_FOREcasT", MAX_DEL_SIZE=args.FOREcasT_MAX_DEL_SIZE)
     pipe.FOREcasT_model.to(args.device)
 
     for batch in tqdm(inference_dataloader):

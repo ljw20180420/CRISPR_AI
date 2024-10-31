@@ -12,10 +12,10 @@ from .model import inDelphiConfig, inDelphiModel
 from ..config import args, logger
 from .load_data import data_collector, outputs_train_deletion, outputs_train_insertion
 
-def train_deletion(owner="ljw20180420", data_name="SX_spcas9"):
+def train_deletion(data_name=args.data_name):
     logger.info("loading data")
     ds = load_dataset(
-        path = f"{owner}/CRISPR_data",
+        path = f"{args.owner}/CRISPR_data",
         name = f"{data_name}_{inDelphiConfig.model_type}",
         trust_remote_code = True,
         test_ratio = args.test_ratio,
@@ -69,13 +69,13 @@ def train_deletion(owner="ljw20180420", data_name="SX_spcas9"):
     trainer.save_model()
     trainer.create_model_card()
 
-def train_insertion(owner="ljw20180420", data_name="SX_spcas9"):
+def train_insertion(data_name=args.data_name):
     logger.info("loading model")
     inDelphi_model = inDelphiModel.from_pretrained(args.output_dir / inDelphiConfig.model_type / f"{data_name}_{inDelphiConfig.model_type}").to(args.device)
 
     logger.info("loading data")
     ds = load_dataset(
-        path = f"{owner}/CRISPR_data",
+        path = f"{args.owner}/CRISPR_data",
         name = f"{data_name}_{inDelphiConfig.model_type}",
         split = datasets.Split.TRAIN,
         trust_remote_code = True,

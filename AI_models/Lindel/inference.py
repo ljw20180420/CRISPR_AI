@@ -43,7 +43,7 @@ def data_collector_inference(examples):
     return data_collector(examples2, args.Lindel_dlen, args.Lindel_mh_len, outputs_inference)
 
 @torch.no_grad()
-def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+def inference(data_name=args.data_name, data_files="inference.json.gz"):
     logger.info("load inference data")
     ds = load_dataset('json', data_files=data_files, features=Features({
         'ref': Value('string'),
@@ -57,7 +57,7 @@ def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.
     )
 
     logger.info("setup pipeline")
-    pipe = DiffusionPipeline.from_pretrained(f"{owner}/{data_name}_Lindel", trust_remote_code=True, custom_pipeline=f"{owner}/{data_name}_Lindel")
+    pipe = DiffusionPipeline.from_pretrained(f"{args.owner}/{data_name}_Lindel", trust_remote_code=True, custom_pipeline=f"{args.owner}/{data_name}_Lindel")
     pipe.indel_model.to(args.device)
     pipe.ins_model.to(args.device)
     pipe.del_model.to(args.device)

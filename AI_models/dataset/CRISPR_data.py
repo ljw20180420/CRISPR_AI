@@ -3,7 +3,6 @@
 
 import re
 import datasets
-import re._compiler
 from typing import Callable
 import os
 import torch

@@ -6,10 +6,10 @@ from .model import LindelConfig, LindelModel
 from ..config import args, logger
 from .load_data import data_collector, outputs_train_ins, outputs_train_del, outputs_train_indel
 
-def train(owner="ljw20180420", data_name="SX_spcas9"):
+def train(data_name=args.data_name):
     logger.info("loading data")
     ds = load_dataset(
-        path = f"{owner}/CRISPR_data",
+        path = f"{args.owner}/CRISPR_data",
         name = f"{data_name}_{LindelConfig.model_type}",
         trust_remote_code = True,
         test_ratio = args.test_ratio,

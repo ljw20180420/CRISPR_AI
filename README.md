@@ -1,95 +1,154 @@
 # Introduction
-If your want to train, test and upload models by yourself, please replace `owner` with your huggingface username. If you only do inference, left `owner` as "ljw20180420". Currently, `data_name` can be one of "SX_spcas9", "SX_spymac", "SX_ispymac".
+First of all, your should set `output_dir` in `config.ini` to a proper value based on your working environment.
+
+If your want to train, test and upload models by yourself, please set `owner` in `config.ini` to your huggingface username. If you only do inference, left `owner` as "ljw20180420" in `config.ini`.
+
+`data_name` is default to "SX_spcas9". To train and test on other data, either set `data_name` to one of "SX_spcas9", "SX_spymac", "SX_ispymac" in `config.ini`, or specify it by `train(data_name="SX_spcas9")` and `test(data_name="SX_spcas9")`.
+
+
+
 # Install
 ```bash
 git clone https://github.com/ljw20180420/CRISPR_AI.git
 ```
+
+
+
 # proxy
 ```python
 from AI_models.proxy import proxy
 proxy(url="socks5h://127.0.0.1:1080")
 ```
+
+
+
 # Dataset
 ## Upload
 ```python
 from AI_models.dataset.upload import upload
-upload(owner="ljw20180420")
+upload()
 ```
+
+
+
 # Usage
 ## inDelphi
 ### Train
 ```python
 from AI_models.inDelphi.train import train_deletion, train_insertion
-train_deletion(owner="ljw20180420", data_name="SX_spcas9")
-train_insertion(owner="ljw20180420", data_name="SX_spcas9")
+train_deletion(data_name="SX_spcas9")
+train_insertion(data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.inDelphi.test import test
-test(owner="ljw20180420", data_name="SX_spcas9")
+test(data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.inDelphi.inference import inference
-for output in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
 ### App
 ```python
 from AI_models.inDelphi.app import app
-app()
+app(data_name="SX_spcas9")
 ```
+### Space
+```python
+from AI_models.inDelphi.space import space
+space(data_name="SX_spcas9")
+```
+
+
 ## Lindel
 ### Train
 ```python
 from AI_models.Lindel.train import train
-train(owner="ljw20180420", data_name="SX_spcas9")
+train(data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.Lindel.test import test
-test(oowner="ljw20180420", data_name="SX_spcas9")
+test(data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.Lindel.inference import inference
-for output in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
+### App
+```python
+from AI_models.Lindel.app import app
+app(data_name="SX_spcas9")
+```
+### Space
+```python
+from AI_models.Lindel.space import space
+space(data_name="SX_spcas9")
+```
+
 ## FOREcasT
 ### Train
 ```python
 from AI_models.FOREcasT.train import train
-train(owner="ljw20180420", data_name="SX_spcas9")
+train(data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.FOREcasT.test import test
-test(owner="ljw20180420", data_name="SX_spcas9")
+test(data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.FOREcasT.inference import inference
-for output in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
+### App
+```python
+from AI_models.FOREcasT.app import app
+app(data_name="SX_spcas9")
+```
+### Space
+```python
+from AI_models.FOREcasT.space import space
+space(data_name="SX_spcas9")
+```
+
+
 ## CRISPR_diffuser
 ### Train
 ```python
 from AI_models.CRISPR_diffuser.train import train
-train(owner="ljw20180420", data_name="SX_spcas9")
+train(data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.CRISPR_diffuser.test import test
-test(owner="ljw20180420", data_name="SX_spcas9")
+test(data_name="SX_spcas9")
 ```
 ### Inference
 ```python
 from AI_models.CRISPR_diffuser.inference import inference
-for x1ts, x2ts, ts in inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+for x1ts, x2ts, ts in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
     pass
 ```
+### App
+```python
+from AI_models.CRISPR_diffuser.app import app
+app(data_name="SX_spcas9")
+```
+### Space
+```python
+from AI_models.CRISPR_diffuser.space import space
+space(data_name="SX_spcas9")
+```
+
+
+
 # Input
 ```json
 {"ref": "AAAAAAAAAAAAAAAAAAAAAAAAGACGGCAGCCTTTTGACCTCCCAACCCCCCTATAGTCAGATAGTCAAGAAGGGCATTATCTGGCTTACCTGAATCGTCCCAAGAATTTTCTTCGGTGAGCATTTGTGGAGACCCTGGGATGTAGGTTGGATTAAACTGTGATGGGTCCATCGGCGTCTTGACACAACACTAGGCTT", "cut": 100}
@@ -113,7 +172,6 @@ TODO
 Add a scatter converge diagram like that in http://yang-song.net/blog/2021/score
 AI explaining
 UI
-migrate from argparse to ConfigArgParse
 use latent diffuser
 use mamba
 use KAN

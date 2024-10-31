@@ -9,7 +9,7 @@ from .pipeline import CRISPRDiffuserPipeline
 from .load_data import data_collector, outputs_test
 from ..config import args, logger
 
-def test(owner="ljw20180420", data_name="SX_spcas9"):
+def test(data_name=args.data_name):
     logger.info("load scheduler")
     if args.noise_scheduler == "linear":
         from .scheduler import CRISPRDiffuserLinearScheduler
@@ -52,7 +52,7 @@ def test(owner="ljw20180420", data_name="SX_spcas9"):
 
     logger.info("load test data")
     ds = load_dataset(
-        path=f"{owner}/CRISPR_data",
+        path=f"{args.owner}/CRISPR_data",
         name=f"{data_name}_{CRISPRDiffuserConfig.model_type}",
         split = datasets.Split.TEST,
         trust_remote_code = True,
@@ -77,22 +77,22 @@ def test(owner="ljw20180420", data_name="SX_spcas9"):
         x1ts, x2ts, ts = pipe(batch, batch_size=args.batch_size, record_path=True)
 
     logger.info("push to hub")
-    pipe.push_to_hub(f"{owner}/{data_name}_{CRISPRDiffuserConfig.model_type}")
+    pipe.push_to_hub(f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}")
     from huggingface_hub import HfApi
     api = HfApi()
     api.upload_file(
-        repo_id=f"{owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
         path_or_fileobj="AI_models/CRISPR_diffuser/pipeline.py",
         path_in_repo="pipeline.py"
     )
     api.upload_folder(
-        repo_id=f"{owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
         folder_path=args.output_dir / CRISPRDiffuserConfig.model_type / f"{data_name}_{CRISPRDiffuserConfig.model_type}",
         path_in_repo="unet",
         ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]
     )
     api.upload_file(
-        repo_id=f"{owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
         path_or_fileobj="AI_models/CRISPR_diffuser/scheduler.py",
         path_in_repo=f"scheduler/scheduler.py"
     )

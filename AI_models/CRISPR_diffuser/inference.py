@@ -35,7 +35,8 @@ def data_collector_inference(examples, noise_scheduler, stationary_sampler1, sta
     return data_collector(examples2, noise_scheduler, stationary_sampler1, stationary_sampler2, outputs_inference)
 
 @torch.no_grad()
-def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.json.gz"):
+def inference(data_name=args.data_name, data_files="inference.json.gz"):
+    logger.info("get scheduler")
     if args.noise_scheduler == "linear":
         from .scheduler import CRISPRDiffuserLinearScheduler
         noise_scheduler = CRISPRDiffuserLinearScheduler(
@@ -62,7 +63,7 @@ def inference(owner="ljw20180420", data_name="SX_spcas9", data_files="inference.
         )
 
     logger.info("setup pipeline")
-    pipe = DiffusionPipeline.from_pretrained(f"{owner}/{data_name}_CRISPR_diffuser", trust_remote_code=True, custom_pipeline=f"{owner}/{data_name}_CRISPR_diffuser")
+    pipe = DiffusionPipeline.from_pretrained(f"{args.owner}/{data_name}_CRISPR_diffuser", trust_remote_code=True, custom_pipeline=f"{args.owner}/{data_name}_CRISPR_diffuser")
     pipe.unet.to(args.device)
 
     logger.info("load inference data")

@@ -1,24 +1,24 @@
 from huggingface_hub import HfApi
 from pathlib import Path
-from ..proxy import *
+from ..config import args
 
-def upload(owner="ljw20180420"):
+def upload():
     api = HfApi()
     api.create_repo(
-        repo_id=f"{owner}/CRISPR_data",
+        repo_id=f"{args.owner}/CRISPR_data",
         repo_type="dataset",
         exist_ok=True
     )
     api.upload_file(
         path_or_fileobj=Path(__file__).parent / "CRISPR_data.py",
         path_in_repo="CRISPR_data.py",
-        repo_id=f"{owner}/CRISPR_data",
+        repo_id=f"{args.owner}/CRISPR_data",
         repo_type="dataset"
     )
     api.upload_file(
         path_or_fileobj=Path(__file__).parent / "dataset.json.gz",
         path_in_repo="dataset.json.gz",
-        repo_id=f"{owner}/CRISPR_data",
+        repo_id=f"{args.owner}/CRISPR_data",
         repo_type="dataset"
     )
 
@@ -41,6 +41,6 @@ def upload(owner="ljw20180420"):
     # api.upload_file(
     #     path_or_fileobj="dataset/README.md",
     #     path_in_repo="README.md",
-    #     repo_id=f"{owner}/CRISPR_data",
+    #     repo_id=f"{args.owner}/CRISPR_data",
     #     repo_type="dataset"
     # )
