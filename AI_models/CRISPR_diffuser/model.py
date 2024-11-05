@@ -12,13 +12,15 @@ class CRISPRDiffuserConfig(PretrainedConfig):
 
     def __init__(
         self,
+        count_normalize: float = 1000.,
         channels: List = [11, 32, 64, 96, 64, 32, 1],
-        MCMC_corrector_factor: float = 0.001,
+        MCMC_corrector_factor: List = [1, 0.001],
         ref1len: int = 127,
         ref2len: int = 127,
         seed: int = 63036, # random seed for intialization
         **kwargs,
     ):
+        self.count_normalize = count_normalize
         self.channels = channels
         self.MCMC_corrector_factor = MCMC_corrector_factor
         self.ref1len = ref1len
@@ -36,53 +38,51 @@ class CRISPRDiffuserModel(PreTrainedModel):
         # record loss inside model to stop training in callbacks
         self.loss = None
         self.generator = torch.Generator().manual_seed(config.seed)
-        self.channels = config.channels
-        self.MCMC_corrector_factor = config.MCMC_corrector_factor
         self.register_buffer("stationary_sampler1_probs", F.normalize(torch.ones(config.ref1len + 1), p=1.0, dim=0))
         self.register_buffer("stationary_sampler2_probs", F.normalize(torch.ones(config.ref2len + 1), p=1.0, dim=0))
         # time
         self.time_emb = nn.Sequential(
-            nn.Linear(in_features=self.channels[1], out_features=4 * self.channels[1]),
+            nn.Linear(in_features=self.config.channels[1], out_features=4 * self.config.channels[1]),
             nn.SiLU(),
-            nn.Linear(in_features=4 * self.channels[1], out_features=4 * self.channels[1])
+            nn.Linear(in_features=4 * self.config.channels[1], out_features=4 * self.config.channels[1])
         )
         # down blocks
         self.down_time_embs = nn.ModuleList([])
         self.down_first_convs = nn.ModuleList([])
         self.down_second_convs = nn.ModuleList([])
         self.down_samples = nn.ModuleList([])
-        for i in range((len(self.channels) - 1) // 2 - 1):
+        for i in range((len(self.config.channels) - 1) // 2 - 1):
             self.down_first_convs.append(nn.Sequential(
-                nn.Conv2d(in_channels=self.channels[i], out_channels=self.channels[i + 1], kernel_size=3, padding=1),
-                nn.BatchNorm2d(num_features=self.channels[i + 1]),
+                nn.Conv2d(in_channels=self.config.channels[i], out_channels=self.config.channels[i + 1], kernel_size=3, padding=1),
+                nn.BatchNorm2d(num_features=self.config.channels[i + 1]),
                 nn.SiLU(inplace=True)
             ))
             self.down_second_convs.append(nn.Sequential(
-                nn.Conv2d(in_channels=self.channels[i + 1], out_channels=self.channels[i + 1], kernel_size=3, padding=1),
-                nn.BatchNorm2d(num_features=self.channels[i + 1]),
+                nn.Conv2d(in_channels=self.config.channels[i + 1], out_channels=self.config.channels[i + 1], kernel_size=3, padding=1),
+                nn.BatchNorm2d(num_features=self.config.channels[i + 1]),
                 nn.SiLU(inplace=True),
             ))
             self.down_time_embs.append(nn.Sequential(
-                nn.Linear(in_features=4 * self.channels[1], out_features=self.channels[i + 1]),
+                nn.Linear(in_features=4 * self.config.channels[1], out_features=self.config.channels[i + 1]),
                 nn.SiLU()
             ))
             self.down_samples.append(
                 nn.MaxPool2d(kernel_size=2) # nn.AvgPool2d(kernel_size=2), nn.Conv2d(channels[i + 1], channels[i + 1], kernel_size=2, stride=2)
             )
         # mid block
-        i = (len(self.channels) - 1) // 2 - 1
+        i = (len(self.config.channels) - 1) // 2 - 1
         self.mid_first_conv = nn.Sequential(
-            nn.Conv2d(in_channels=self.channels[i], out_channels=self.channels[i + 1], kernel_size=3, padding=1),
-            nn.BatchNorm2d(num_features=self.channels[i + 1]),
+            nn.Conv2d(in_channels=self.config.channels[i], out_channels=self.config.channels[i + 1], kernel_size=3, padding=1),
+            nn.BatchNorm2d(num_features=self.config.channels[i + 1]),
             nn.SiLU(inplace=True)
         )
         self.mid_second_conv = nn.Sequential(
-            nn.Conv2d(in_channels=self.channels[i + 1], out_channels=self.channels[i + 1], kernel_size=3, padding=1),
-            nn.BatchNorm2d(num_features=self.channels[i + 1]),
+            nn.Conv2d(in_channels=self.config.channels[i + 1], out_channels=self.config.channels[i + 1], kernel_size=3, padding=1),
+            nn.BatchNorm2d(num_features=self.config.channels[i + 1]),
             nn.SiLU(inplace=True),
         )
         self.mid_time_emb = nn.Sequential(
-            nn.Linear(in_features=4 * self.channels[1], out_features=self.channels[i + 1]),
+            nn.Linear(in_features=4 * self.config.channels[1], out_features=self.config.channels[i + 1]),
             nn.SiLU()
         )
         # up blocks
@@ -90,25 +90,25 @@ class CRISPRDiffuserModel(PreTrainedModel):
         self.up_time_embs = nn.ModuleList([])
         self.up_first_convs = nn.ModuleList([])
         self.up_second_convs = nn.ModuleList([])
-        for i in range((len(self.channels) - 1) // 2, len(self.channels) - 2):
+        for i in range((len(self.config.channels) - 1) // 2, len(self.config.channels) - 2):
             self.up_samples.append(
-                nn.ConvTranspose2d(in_channels=self.channels[i], out_channels=self.channels[i + 1], kernel_size=2, stride=2)
+                nn.ConvTranspose2d(in_channels=self.config.channels[i], out_channels=self.config.channels[i + 1], kernel_size=2, stride=2)
             )
             self.up_time_embs.append(nn.Sequential(
-                nn.Linear(in_features=4 * self.channels[1], out_features=self.channels[i + 1]),
+                nn.Linear(in_features=4 * self.config.channels[1], out_features=self.config.channels[i + 1]),
                 nn.SiLU()
             ))
             self.up_first_convs.append(nn.Sequential(
-                nn.Conv2d(in_channels=self.channels[i + 1]+self.channels[len(self.channels) - i - 2], out_channels=self.channels[i + 1], kernel_size=3, padding=1),
-                nn.BatchNorm2d(num_features=self.channels[i + 1]),
+                nn.Conv2d(in_channels=self.config.channels[i + 1]+self.config.channels[len(self.config.channels) - i - 2], out_channels=self.config.channels[i + 1], kernel_size=3, padding=1),
+                nn.BatchNorm2d(num_features=self.config.channels[i + 1]),
                 nn.SiLU(inplace=True)
             ))
             self.up_second_convs.append(nn.Sequential(
-                nn.Conv2d(in_channels=self.channels[i + 1], out_channels=self.channels[i + 1], kernel_size=3, padding=1),
-                nn.BatchNorm2d(num_features=self.channels[i + 1]),
+                nn.Conv2d(in_channels=self.config.channels[i + 1], out_channels=self.config.channels[i + 1], kernel_size=3, padding=1),
+                nn.BatchNorm2d(num_features=self.config.channels[i + 1]),
                 nn.SiLU(inplace=True)
             ))
-        self.out_cov = nn.Conv2d(in_channels=self.channels[-2], out_channels=self.channels[-1], kernel_size=1)
+        self.out_cov = nn.Conv2d(in_channels=self.config.channels[-2], out_channels=self.config.channels[-1], kernel_size=1)
 
     def initialize_weights(self):
         for m in self.modules():
@@ -135,7 +135,7 @@ class CRISPRDiffuserModel(PreTrainedModel):
             )[:, None, :, :],
             condition
         ), dim = 1)
-        t_emb = get_timestep_embedding(t, embedding_dim=self.channels[1], flip_sin_to_cos=True, downscale_freq_shift=0)
+        t_emb = get_timestep_embedding(t, embedding_dim=self.config.channels[1], flip_sin_to_cos=True, downscale_freq_shift=0)
         t_emb = self.time_emb(t_emb)
         down_xs = []
         for i in range(len(self.down_first_convs)):
@@ -175,6 +175,10 @@ class CRISPRDiffuserModel(PreTrainedModel):
             p_theta_0_logit.view(batch_size, -1),
             dim = 1
         ).view(batch_size, len(self.stationary_sampler2_probs), len(self.stationary_sampler1_probs))
+        log_p_theta_0 = F.log_softmax(
+            p_theta_0_logit.view(batch_size, -1),
+            dim = 1
+        ).view(batch_size, len(self.stationary_sampler2_probs), len(self.stationary_sampler1_probs))
 
         g_theta_1_t, q_rkm_1 = get_g_theta_d_and_q_rkm(self.stationary_sampler1_probs, x1t, 1, p_theta_0)
         g_theta_2_t, q_rkm_2 = get_g_theta_d_and_q_rkm(self.stationary_sampler2_probs, x2t, 2, p_theta_0)
@@ -183,12 +187,18 @@ class CRISPRDiffuserModel(PreTrainedModel):
             p=1.0, dim=1
         )
 
-        return (
+        negative_ELBO = (
             self.stationary_sampler1_probs[x1t] * g_theta_1_t.sum(dim = 1) +
             torch.inner(self.stationary_sampler1_probs, g_theta_1_t.log()) +
             self.stationary_sampler2_probs[x2t] * g_theta_2_t.sum(dim = 1) +
-            torch.inner(self.stationary_sampler2_probs, g_theta_2_t.log()) -
-            self.config.MCMC_corrector_factor * (p_theta_0.log().view(batch_size, -1) * q_0_give_t).sum(dim=1)
+            torch.inner(self.stationary_sampler2_probs, g_theta_2_t.log())
+        )
+
+        MCMC_corrector = (log_p_theta_0.view(batch_size, -1) * q_0_give_t).sum(dim=1)
+
+        return observation.sum() / self.config.count_normalize * (
+            self.config.MCMC_corrector_factor[0] * negative_ELBO -
+            self.config.MCMC_corrector_factor[1] * MCMC_corrector
         ).sum()
     
     # transformers.modeling_utils.ModuleUtilsMixin.floating_point_ops cannot handle nested input_dict, override it to avoid the error

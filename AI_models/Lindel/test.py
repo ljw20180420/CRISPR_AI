@@ -7,7 +7,10 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from .model import LindelConfig, LindelModel
 from .pipeline import LindelPipeline
 from .load_data import data_collector, outputs_test
-from ..config import args, logger
+from ..config import get_config, get_logger
+
+args = get_config(config_file="config_Lindel.ini")
+logger = get_logger(args)
 
 def test(data_name=args.data_name):
     logger.info("load model")

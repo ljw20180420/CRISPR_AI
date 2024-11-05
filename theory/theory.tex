@@ -197,7 +197,7 @@ By Eq. \eqref{EqDivParaHatR}, define
 \end{eqnarray}
 Replace $\hat{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})$ by $\tilde{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})$ in $\mathcal{L}^\text{CT}(\theta)$.
 \begin{eqnarray}\label{EqBetterNgELBO}
-  \tilde{\mathcal{L}}^\text{CT}(\theta)\coloneq T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\qty[\sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) - \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\tilde{R}_t^\theta\qty(x^{(1:D)}|y^{(1:D)})] + C.
+  \tilde{\mathcal{L}}^\text{CT}(\theta)\coloneq T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\qty[\sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) - \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\tilde{R}_t^\theta\qty(x^{(1:D)}\middle|y^{(1:D)})] + C.
 \end{eqnarray}
 Then all one needs is to calculate $g^\theta_t(y|x)$, which only needs a single pass for $p^\theta_{0|t}(\cdot|x)$. Even though https://arxiv.org/pdf/2402.03701 derives Eq. \eqref{EqDivParaHatR}, they do not use it to get Eq. \eqref{EqBetterNgELBO}.
 
@@ -242,12 +242,6 @@ Normalize $q_{0, t}\qty(\cdot, x^{(1:2)}_t)$ to $q_{0|t}\qty(\cdot\middle|x^{(1:
 \section{Sampling}
 CRISPR data have lots of duplicate for some reads. Suppose there are $N$ read types with duplicates $\qty{c_i}_{i=1}^N$. Generally, the wildtype $c_1$ dominates the total population. Thus, the rare case cannot be trained efficiently. One goodness of diffusion model is that it diffuse the wildtype mass to non-wildtype case, which mitigates the unbalance of training data.
 
-\section{Validation}
-To validate the accuracy of diffuser model, one must sample lots of data from the diffuser, which is quite inefficient, especially when there are lots of time steps. Since each step of the reverse process generates an estimation of $p^\theta_0\qty(\cdot\middle|x^{(1:D)}_t)$, we use the approximation
-\begin{eqnarray*}
-  p^\theta_0\qty(x^{(1:D)}_0) \approx \frac{\sum_{t=1}^T p^\theta_0\qty(\cdot\middle|x^{(1:D)}_t)}{T}.
-\end{eqnarray*}
-The valid loss is defined as the negative cross entropy $\mathbb{E}_{q_0\qty(x^{(1:D)}_0)}\qty[\log p_0^\theta\qty(x^{(1:D)}_0)]$.
 
 \section{Noise scheduler}
 

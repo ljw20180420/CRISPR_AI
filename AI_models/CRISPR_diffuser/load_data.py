@@ -2,7 +2,9 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
 import numpy as np
-from ..config import args
+from ..config import get_config
+
+args = get_config(config_file="config_CRISPR_diffuser.ini")
 
 outputs_train = ["x1t_x2t_t", "condition", "observation"]
 outputs_test = ["condition", "observation"]

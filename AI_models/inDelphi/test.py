@@ -7,8 +7,11 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 import pickle
 from .pipeline import inDelphiPipeline
 from .model import inDelphiConfig, inDelphiModel
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_test
+
+args = get_config(config_file="config_inDelphi.ini")
+logger = get_logger(args)
 
 def test(data_name=args.data_name):
     logger.info("load model")

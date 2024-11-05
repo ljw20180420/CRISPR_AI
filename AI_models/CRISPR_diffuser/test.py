@@ -7,34 +7,15 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
 from .pipeline import CRISPRDiffuserPipeline
 from .load_data import data_collector, outputs_test
-from ..config import args, logger
+from ..config import get_config, get_logger
+from .scheduler import scheduler
+
+args = get_config(config_file="config_CRISPR_diffuser.ini")
+logger = get_logger(args)
 
 def test(data_name=args.data_name):
     logger.info("load scheduler")
-    if args.noise_scheduler == "linear":
-        from .scheduler import CRISPRDiffuserLinearScheduler
-        noise_scheduler = CRISPRDiffuserLinearScheduler(
-            num_train_timesteps=args.noise_timesteps
-        )
-    elif args.noise_scheduler == "cosine":
-        from .scheduler import CRISPRDiffuserCosineScheduler
-        noise_scheduler = CRISPRDiffuserCosineScheduler(
-            num_train_timesteps=args.noise_timesteps,
-            cosine_factor = args.cosine_factor
-        )
-    elif args.noise_scheduler == "exp":
-        from .scheduler import CRISPRDiffuserExpScheduler
-        noise_scheduler = CRISPRDiffuserExpScheduler(
-            num_train_timesteps=args.noise_timesteps,
-            exp_scale = args.exp_scale,
-            exp_base = args.exp_base
-        )
-    elif args.noise_scheduler == "uniform":
-        from .scheduler import CRISPRDiffuserUniformScheduler
-        noise_scheduler = CRISPRDiffuserUniformScheduler(
-            num_train_timesteps=args.noise_timesteps,
-            uniform_scale = args.uniform_scale
-        )
+    noise_scheduler = scheduler()
     # remove parent module name
     noise_scheduler.__module__ = noise_scheduler.__module__.split(".")[-1]
     
@@ -75,6 +56,7 @@ def test(data_name=args.data_name):
     logger.info("test pipeline")
     for batch in test_dataloader:
         x1ts, x2ts, ts = pipe(batch, batch_size=args.batch_size, record_path=True)
+        break
 
     logger.info("push to hub")
     pipe.push_to_hub(f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}")

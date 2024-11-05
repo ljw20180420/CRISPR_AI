@@ -1,7 +1,9 @@
 from huggingface_hub import HfApi
 from huggingface_hub import HfFileSystem
 from .model import CRISPRDiffuserConfig
-from ..config import args
+from ..config import get_config
+
+args = get_config(config_file="config_CRISPR_diffuser.ini")
 
 def space(data_name=args.data_name):
     api = HfApi()

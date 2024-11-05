@@ -146,6 +146,11 @@ app(data_name="SX_spcas9")
 from AI_models.CRISPR_diffuser.space import space
 space(data_name="SX_spcas9")
 ```
+### Dynamics
+```python
+from AI_models.CRISPR_diffuser.dynamics import dynamics
+dynamics()
+```
 
 
 
@@ -169,9 +174,13 @@ space(data_name="SX_spcas9")
 
 TODO
 ```list
+use improved loss function for low dimension ???
+weight loss based on the observation count
+increase num_epochs of training CRISPR diffuser
+put more weights on small steps
+optimize MCMC_corrector_factor
 Add a scatter converge diagram like that in http://yang-song.net/blog/2021/score
 AI explaining
-UI
 use latent diffuser
 use mamba
 use KAN

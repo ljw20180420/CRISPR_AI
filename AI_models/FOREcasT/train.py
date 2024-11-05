@@ -3,8 +3,11 @@
 from datasets import load_dataset
 from transformers import Trainer, TrainingArguments
 from .model import FOREcasTConfig, FOREcasTModel
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector
+
+args = get_config(config_file="config_FOREcasT.ini")
+logger = get_logger(args)
 
 def train(data_name=args.data_name):
     logger.info("loading data")

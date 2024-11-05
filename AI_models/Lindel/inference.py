@@ -3,9 +3,12 @@ from datasets import load_dataset, Features, Value
 from torch.utils.data import DataLoader
 from diffusers import DiffusionPipeline
 from tqdm import tqdm
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_inference
 from ..dataset.CRISPR_data import CRISPRData
+
+args = get_config(config_file="config_Lindel.ini")
+logger = get_logger(args)
 
 CRISPR_data = CRISPRData(ref1len = args.ref1len, ref2len = args.ref2len, Lindel_dlen = args.Lindel_dlen, Lindel_mh_len = args.Lindel_mh_len)
 

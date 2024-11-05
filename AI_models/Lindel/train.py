@@ -3,8 +3,11 @@
 from datasets import load_dataset
 from transformers import Trainer, TrainingArguments
 from .model import LindelConfig, LindelModel
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_train_ins, outputs_train_del, outputs_train_indel
+
+args = get_config(config_file="config_Lindel.ini")
+logger = get_logger(args)
 
 def train(data_name=args.data_name):
     logger.info("loading data")

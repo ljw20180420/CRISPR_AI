@@ -1,7 +1,9 @@
 import torch.nn.functional as F
 import numpy as np
 import torch
-from ..config import args
+from ..config import get_config
+
+args = get_config(config_file="config_FOREcasT.ini")
 
 lefts = np.concatenate([
     np.arange(-DEL_SIZE, 1)

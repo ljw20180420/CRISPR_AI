@@ -3,7 +3,10 @@ from diffusers import DiffusionPipeline
 import torch
 import pandas as pd
 from .inference import data_collector_inference
-from ..config import args, logger
+from ..config import get_config, get_logger
+
+args = get_config(config_file="config_Lindel.ini")
+logger = get_logger(args)
 
 @torch.no_grad()
 def app(data_name=args.data_name):

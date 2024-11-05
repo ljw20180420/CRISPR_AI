@@ -5,9 +5,12 @@ from diffusers import DiffusionPipeline
 from tqdm import tqdm
 from huggingface_hub import HfFileSystem
 import pickle
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_inference
 from ..dataset.CRISPR_data import gc_content, CRISPRData
+
+args = get_config(config_file="config_inDelphi.ini")
+logger = get_logger(args)
 
 CRISPR_data = CRISPRData(ref1len = args.ref1len, ref2len = args.ref2len, DELLEN_LIMIT = args.DELLEN_LIMIT)
 

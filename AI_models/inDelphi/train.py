@@ -9,8 +9,11 @@ from transformers import Trainer, TrainingArguments
 import numpy as np
 import pickle
 from .model import inDelphiConfig, inDelphiModel
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_train_deletion, outputs_train_insertion
+
+args = get_config(config_file="config_inDelphi.ini")
+logger = get_logger(args)
 
 def train_deletion(data_name=args.data_name):
     logger.info("loading data")

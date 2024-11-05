@@ -4,6 +4,9 @@ import torch
 import torch.nn.functional as F
 from typing import Tuple
 from torch.distributions import Categorical
+from ..config import get_config
+
+args = get_config(config_file="config_CRISPR_diffuser.ini")
 
 class CRISPRDiffuserBaseScheduler(SchedulerMixin, ConfigMixin):
     @register_to_config
@@ -165,3 +168,29 @@ class CRISPRDiffuserUniformScheduler(CRISPRDiffuserBaseScheduler):
 
     def step_to_time(self, steps: torch.Tensor):
         return self.config.uniform_scale * steps / self.config.num_train_timesteps
+
+def scheduler():
+    if args.noise_scheduler == "linear":
+        from .scheduler import CRISPRDiffuserLinearScheduler
+        return CRISPRDiffuserLinearScheduler(
+            num_train_timesteps = args.noise_timesteps
+        )
+    if args.noise_scheduler == "cosine":
+        from .scheduler import CRISPRDiffuserCosineScheduler
+        return CRISPRDiffuserCosineScheduler(
+            num_train_timesteps = args.noise_timesteps,
+            cosine_factor = args.cosine_factor
+        )
+    if args.noise_scheduler == "exp":
+        from .scheduler import CRISPRDiffuserExpScheduler
+        return CRISPRDiffuserExpScheduler(
+            num_train_timesteps = args.noise_timesteps,
+            exp_scale = args.exp_scale,
+            exp_base = args.exp_base
+        )
+    if args.noise_scheduler == "uniform":
+        from .scheduler import CRISPRDiffuserUniformScheduler
+        return CRISPRDiffuserUniformScheduler(
+            num_train_timesteps = args.noise_timesteps,
+            uniform_scale = args.uniform_scale
+        )

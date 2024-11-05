@@ -3,9 +3,13 @@ from datasets import load_dataset, Features, Value
 from torch.utils.data import DataLoader
 from diffusers import DiffusionPipeline
 from tqdm import tqdm
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_inference
 from ..dataset.CRISPR_data import CRISPRData
+from .scheduler import scheduler
+
+args = get_config(config_file="config_CRISPR_diffuser.ini")
+logger = get_logger(args)
 
 CRISPR_data = CRISPRData(ref1len = args.ref1len, ref2len = args.ref2len)
 
@@ -30,37 +34,14 @@ def data_collector_inference(examples, noise_scheduler, stationary_sampler1, sta
             'cut2': cut2,
             'mh_ref1': mh_ref1,
             'mh_ref2': mh_ref2,
-            'mh_val': mh_matrix[mh_ref2, mh_ref1],
+            'mh_val': mh_matrix[mh_ref2, mh_ref1].tolist(),
         })
     return data_collector(examples2, noise_scheduler, stationary_sampler1, stationary_sampler2, outputs_inference)
 
 @torch.no_grad()
 def inference(data_name=args.data_name, data_files="inference.json.gz"):
     logger.info("get scheduler")
-    if args.noise_scheduler == "linear":
-        from .scheduler import CRISPRDiffuserLinearScheduler
-        noise_scheduler = CRISPRDiffuserLinearScheduler(
-            num_train_timesteps = args.noise_timesteps
-        )
-    elif args.noise_scheduler == "cosine":
-        from .scheduler import CRISPRDiffuserCosineScheduler
-        noise_scheduler = CRISPRDiffuserCosineScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            cosine_factor = args.cosine_factor
-        )
-    elif args.noise_scheduler == "exp":
-        from .scheduler import CRISPRDiffuserExpScheduler
-        noise_scheduler = CRISPRDiffuserExpScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            exp_scale = args.exp_scale,
-            exp_base = args.exp_base
-        )
-    elif args.noise_scheduler == "uniform":
-        from .scheduler import CRISPRDiffuserUniformScheduler
-        noise_scheduler = CRISPRDiffuserUniformScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            uniform_scale = args.uniform_scale
-        )
+    noise_scheduler = scheduler()
 
     logger.info("setup pipeline")
     pipe = DiffusionPipeline.from_pretrained(f"{args.owner}/{data_name}_CRISPR_diffuser", trust_remote_code=True, custom_pipeline=f"{args.owner}/{data_name}_CRISPR_diffuser")

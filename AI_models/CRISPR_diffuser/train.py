@@ -8,9 +8,14 @@ import torch.nn.functional as F
 from transformers.trainer_utils import EvalPrediction
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+from statistics import geometric_mean
 from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_train
+from .scheduler import scheduler
+
+args = get_config(config_file="config_CRISPR_diffuser.ini")
+logger = get_logger(args)
 
 class CRISPRDiffuserTrainerCallback(TrainerCallback):
     def on_optimizer_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, model=None, **kwargs):
@@ -23,41 +28,6 @@ class CRISPRDiffuserTrainerCallback(TrainerCallback):
                 return
 
 def train(data_name=args.data_name):
-    logger.info("load scheduler")
-    if args.noise_scheduler == "linear":
-        from .scheduler import CRISPRDiffuserLinearScheduler
-        noise_scheduler = CRISPRDiffuserLinearScheduler(
-            num_train_timesteps = args.noise_timesteps
-        )
-    elif args.noise_scheduler == "cosine":
-        from .scheduler import CRISPRDiffuserCosineScheduler
-        noise_scheduler = CRISPRDiffuserCosineScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            cosine_factor = args.cosine_factor
-        )
-    elif args.noise_scheduler == "exp":
-        from .scheduler import CRISPRDiffuserExpScheduler
-        noise_scheduler = CRISPRDiffuserExpScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            exp_scale = args.exp_scale,
-            exp_base = args.exp_base
-        )
-    elif args.noise_scheduler == "uniform":
-        from .scheduler import CRISPRDiffuserUniformScheduler
-        noise_scheduler = CRISPRDiffuserUniformScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            uniform_scale = args.uniform_scale
-        )
-
-    logger.info("initialize model")
-    CRISPRDiffuserConfig.register_for_auto_class()
-    CRISPRDiffuserModel.register_for_auto_class()
-    CRISPR_diffuser_model = CRISPRDiffuserModel(CRISPRDiffuserConfig(
-        channels = [11] + args.unet_channels + [1],
-        MCMC_corrector_factor = args.MCMC_corrector_factor,
-        seed=args.seed
-    ))
-
     logger.info("loading data")
     ds = load_dataset(
         path = f"{args.owner}/CRISPR_data",
@@ -67,6 +37,35 @@ def train(data_name=args.data_name):
         validation_ratio = args.validation_ratio,
         seed = args.seed
     )
+
+    logger.info("estimate count_normalize")
+    train_counts = ds['train'].map(
+        lambda examples: {'count': [sum(example) for example in examples]},
+        batched=True,
+        input_columns=['ob_val'],
+        remove_columns=['ref1', 'ref2', 'cut1', 'cut2', 'mh_ref1', 'mh_ref2', 'mh_val', 'ob_ref1', 'ob_ref2', 'ob_val']
+    )
+    validation_counts = ds['validation'].map(
+        lambda examples: {'count': [sum(example) for example in examples]},
+        batched=True,
+        input_columns=['ob_val'],
+        remove_columns=['ref1', 'ref2', 'cut1', 'cut2', 'mh_ref1', 'mh_ref2', 'mh_val', 'ob_ref1', 'ob_ref2', 'ob_val']
+    )
+    # count_normalize = geometric_mean(train_counts['count'] + validation_counts['count'])
+    count_normalize = max(train_counts['count'] + validation_counts['count'])
+        
+    logger.info("load scheduler")
+    noise_scheduler = scheduler()
+
+    logger.info("initialize model")
+    CRISPRDiffuserConfig.register_for_auto_class()
+    CRISPRDiffuserModel.register_for_auto_class()
+    CRISPR_diffuser_model = CRISPRDiffuserModel(CRISPRDiffuserConfig(
+        count_normalize = count_normalize,
+        channels = [11] + args.unet_channels + [1],
+        MCMC_corrector_factor = args.MCMC_corrector_factor,
+        seed = args.seed
+    ))
 
     logger.info("set trainer arguments")
     training_args = TrainingArguments(

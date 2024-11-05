@@ -3,9 +3,12 @@ from datasets import load_dataset, Features, Value
 from torch.utils.data import DataLoader
 from diffusers import DiffusionPipeline
 from tqdm import tqdm
-from ..config import args, logger
+from ..config import get_config, get_logger
 from .load_data import data_collector
 from ..dataset.CRISPR_data import CRISPRData
+
+args = get_config(config_file="config_FOREcasT.ini")
+logger = get_logger(args)
 
 CRISPR_data = CRISPRData(ref1len = args.ref1len, ref2len = args.ref2len, FOREcasT_MAX_DEL_SIZE = args.FOREcasT_MAX_DEL_SIZE)
 
