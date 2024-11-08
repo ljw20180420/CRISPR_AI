@@ -14,7 +14,7 @@ class CRISPRDiffuserConfig(PretrainedConfig):
         self,
         count_normalize: float = 1000.,
         channels: List = [11, 32, 64, 96, 64, 32, 1],
-        MCMC_corrector_factor: List = [1, 0.001],
+        MCMC_corrector_factor: List = [1., 0., 0.001],
         ref1len: int = 127,
         ref2len: int = 127,
         seed: int = 63036, # random seed for intialization
@@ -158,7 +158,12 @@ class CRISPRDiffuserModel(PreTrainedModel):
         }
 
     def continuous_time_loss_function(self, x1t: torch.Tensor, x2t: torch.Tensor, t: torch.Tensor, p_theta_0_logit: torch.Tensor, observation: torch.Tensor):
-        def get_g_theta_d_and_q_rkm(stationary_sampler_probs, xt, dim, p_theta_0):
+        def get_q_rkm_d(stationary_sampler_probs, xt):
+            xt_one_hot = F.one_hot(xt, len(stationary_sampler_probs))
+            q_rkm_d = alpha_t[:, None] * xt_one_hot + ((1 - alpha_t) * stationary_sampler_probs[xt])[:, None]
+            return q_rkm_d
+        
+        def get_g_theta_d(stationary_sampler_probs, xt, dim, p_theta_0):
             auxilary_term = 1 + (1 / alpha_t - 1) * stationary_sampler_probs[xt]
             xt_one_hot = F.one_hot(xt, len(stationary_sampler_probs))
             p_theta_d_0 = p_theta_0.sum(dim=dim)
@@ -166,8 +171,7 @@ class CRISPRDiffuserModel(PreTrainedModel):
                 (1 - p_theta_d_0[torch.arange(p_theta_d_0.shape[0]), xt] / auxilary_term)[:, None] * stationary_sampler_probs +
                 (alpha_t / (1 - alpha_t))[:, None] * p_theta_d_0
             ) * (1 - xt_one_hot) / stationary_sampler_probs[xt][:, None] + xt_one_hot
-            q_rkm = alpha_t[:, None] * xt_one_hot + ((1 - alpha_t) * stationary_sampler_probs[xt])[:, None]
-            return g_theta_d, q_rkm
+            return g_theta_d
 
         alpha_t = torch.e ** (-t)
         batch_size = p_theta_0_logit.shape[0]
@@ -180,25 +184,45 @@ class CRISPRDiffuserModel(PreTrainedModel):
             dim = 1
         ).view(batch_size, len(self.stationary_sampler2_probs), len(self.stationary_sampler1_probs))
 
-        g_theta_1_t, q_rkm_1 = get_g_theta_d_and_q_rkm(self.stationary_sampler1_probs, x1t, 1, p_theta_0)
-        g_theta_2_t, q_rkm_2 = get_g_theta_d_and_q_rkm(self.stationary_sampler2_probs, x2t, 2, p_theta_0)
+        g_theta_1_t = get_g_theta_d(self.stationary_sampler1_probs, x1t, 1, p_theta_0)
+        g_theta_2_t = get_g_theta_d(self.stationary_sampler2_probs, x2t, 2, p_theta_0)
+
+        q_rkm_1 = get_q_rkm_d(self.stationary_sampler1_probs, x1t)
+        q_rkm_2 = get_q_rkm_d(self.stationary_sampler2_probs, x2t)
         q_0_give_t = F.normalize(
             (observation * q_rkm_1[:, None, :] * q_rkm_2[:, :, None]).view(batch_size, -1),
             p=1.0, dim=1
-        )
+        ).view(batch_size, len(self.stationary_sampler2_probs), len(self.stationary_sampler1_probs))
 
-        negative_ELBO = (
+        g_1_t = get_g_theta_d(self.stationary_sampler1_probs, x1t, 1, q_0_give_t)
+        g_2_t = get_g_theta_d(self.stationary_sampler2_probs, x2t, 2, q_0_give_t)
+
+        common_negative_ELBO = (
             self.stationary_sampler1_probs[x1t] * g_theta_1_t.sum(dim = 1) +
-            torch.inner(self.stationary_sampler1_probs, g_theta_1_t.log()) +
-            self.stationary_sampler2_probs[x2t] * g_theta_2_t.sum(dim = 1) +
-            torch.inner(self.stationary_sampler2_probs, g_theta_2_t.log())
+            self.stationary_sampler2_probs[x2t] * g_theta_2_t.sum(dim = 1)
         )
 
-        MCMC_corrector = (log_p_theta_0.view(batch_size, -1) * q_0_give_t).sum(dim=1)
+        log_g_theta_1_t = g_theta_1_t.log().clamp(-1000, torch.inf)
+        log_g_theta_2_t = g_theta_2_t.log().clamp(-1000, torch.inf)
 
-        return observation.sum() / self.config.count_normalize * (
-            self.config.MCMC_corrector_factor[0] * negative_ELBO -
-            self.config.MCMC_corrector_factor[1] * MCMC_corrector
+        forward_negative_ELBO = common_negative_ELBO + (
+            torch.inner(self.stationary_sampler1_probs, log_g_theta_1_t) +
+            torch.inner(self.stationary_sampler2_probs, log_g_theta_2_t)
+        )
+
+        reverse_negative_ELBO = common_negative_ELBO - (
+            (g_1_t * log_g_theta_1_t).sum(dim=1) +
+            (g_2_t * log_g_theta_2_t).sum(dim=1)
+        )
+
+        MCMC_corrector = - (log_p_theta_0.view(batch_size, -1) * q_0_give_t.view(batch_size, -1)).sum(dim=1)
+
+        return ( 
+            observation.sum(dim=(1, 2)) / self.config.count_normalize * (
+                self.config.MCMC_corrector_factor[0] * forward_negative_ELBO +
+                self.config.MCMC_corrector_factor[1] * reverse_negative_ELBO +
+                self.config.MCMC_corrector_factor[2] * MCMC_corrector
+            )
         ).sum()
     
     # transformers.modeling_utils.ModuleUtilsMixin.floating_point_ops cannot handle nested input_dict, override it to avoid the error

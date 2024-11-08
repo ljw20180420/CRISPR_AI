@@ -3,6 +3,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from .inference import data_collector_inference
@@ -12,6 +13,8 @@ from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
 from .perfect_model import PerfectModel
 from .pipeline import CRISPRDiffuserPipeline
 
+os.environ["CUDA_VISIBLE_DEVICES"]=""
+
 args = get_config("config_CRISPR_diffuser.ini")
 logger = get_logger(args)
 
@@ -19,15 +22,18 @@ logger.info("get scheduler")
 noise_scheduler = scheduler()
 
 logger.info("load model")
-# CRISPR_diffuser_model = CRISPRDiffuserModel.from_pretrained(args.output_dir / CRISPRDiffuserConfig.model_type / f"{args.data_name}_{CRISPRDiffuserConfig.model_type}")
-perfect_model = PerfectModel(CRISPRDiffuserConfig())
+model = CRISPRDiffuserModel.from_pretrained("/home/ljw/sdc1/CRISPR_results/CRISPR_diffuser.max.0,1,0/SX_spcas9_CRISPR_diffuser")
+# model = CRISPRDiffuserModel.from_pretrained("/home/ljw/sdc1/CRISPR_results/CRISPR_diffuser/SX_spcas9_CRISPR_diffuser/checkpoint-322")
+# model = CRISPRDiffuserModel.from_pretrained("/home/ljw/sdc1/CRISPR_results/CRISPR_diffuser.max.1,0/SX_spcas9_CRISPR_diffuser")
+# model = CRISPRDiffuserModel.from_pretrained("/home/ljw/sdc1/CRISPR_results/CRISPR_diffuser.max.0,1/SX_spcas9_CRISPR_diffuser")
+# model = PerfectModel(CRISPRDiffuserConfig())
 
 logger.info("setup pipeline")
 pipe = CRISPRDiffuserPipeline(
-    unet=perfect_model,
+    unet=model,
     scheduler=noise_scheduler
 )
-pipe.unet.to(args.device)
+pipe.unet.to("cpu")
 
 @torch.no_grad()
 def to_numpy(xts):
@@ -36,19 +42,20 @@ def to_numpy(xts):
     return [xt.cpu().numpy() for xt in xts]
 
 @torch.no_grad()
-def draw(x1ts, x2ts, filename):
+def draw(x1ts, x2ts, filename, interval=120, pad=5):
     x1ts, x2ts = to_numpy(x1ts), to_numpy(x2ts)
     fig, ax = plt.subplots()
     scat = ax.scatter(x1ts[0], x2ts[0], c="b", s=5)
     ax.set(xlim=[0, args.ref1len], ylim=[0, args.ref2len], xlabel='ref1', ylabel='ref2')
 
     def update(frame):
+        idx = min(frame, len(x1ts) - 1)
         scat.set_offsets(
-            np.stack([x1ts[frame], x2ts[frame]]).T
+            np.stack([x1ts[idx], x2ts[idx]]).T
         )
         return scat
  
-    ani = animation.FuncAnimation(fig=fig, func=update, frames=len(x1ts), interval=240)
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=len(x1ts) + pad, interval=interval)
     ani.save(filename=filename, writer="pillow")
     plt.close()
 
@@ -90,6 +97,7 @@ def reverse(x1t, x2t, t, ref, cut, step):
         },
         batch["condition"].to(pipe.unet.device).expand(batch_size, -1, -1, -1)
     )["p_theta_0_logit"]
+    breakpoint()
     fig, ax = plt.subplots()
     ax.imshow(
         F.softmax(
@@ -101,17 +109,16 @@ def reverse(x1t, x2t, t, ref, cut, step):
     plt.close()
 
 @torch.no_grad()
-def dynamics():
-    # logger.info("calculate")
-    # ref="AAAAAAAAAAAAAAAAAAAAAAAAGACGGCAGCCTTTTGACCTCCCAACCCCCCTATAGTCAGATAGTCAAGAAGGGCATTATCTGGCTTACCTGAATCGTCCCAAGAATTTTCTTCGGTGAGCATTTGTGGAGACCCTGGGATGTAGGTTGGATTAAACTGTGATGGGTCCATCGGCGTCTTGACACAACACTAGGCTT"
-    # cut=100
-    # for step in range(args.noise_timesteps + 1):
-    #     x1ts, x2ts, ts = forward(step, x10=100, x20=27, batch_size=args.batch_size)
-    #     draw(x1ts, x2ts, f'zshit/forward_{step}.gif')
-    #     reverse(x1ts[-1], x2ts[-1], ts[-1], ref, cut, step)
-    
+def call_forward_reverse():
+    ref="AAAAAAAAAAAAAAAAAAAAAAAAGACGGCAGCCTTTTGACCTCCCAACCCCCCTATAGTCAGATAGTCAAGAAGGGCATTATCTGGCTTACCTGAATCGTCCCAAGAATTTTCTTCGGTGAGCATTTGTGGAGACCCTGGGATGTAGGTTGGATTAAACTGTGATGGGTCCATCGGCGTCTTGACACAACACTAGGCTT"
+    cut=100
+    for step in range(args.noise_timesteps + 1):
+        x1ts, x2ts, ts = forward(step, x10=100, x20=27, batch_size=args.batch_size)
+        draw(x1ts, x2ts, f'zshit/forward_{step}.gif')
+        reverse(x1ts[-1], x2ts[-1], ts[-1], ref, cut, step)
 
-    logger.info("do inference")
+@torch.no_grad()
+def dynamics(batch_size=args.batch_size, epoch=1):
     ref="AAAAAAAAAAAAAAAAAAAAAAAAGACGGCAGCCTTTTGACCTCCCAACCCCCCTATAGTCAGATAGTCAAGAAGGGCATTATCTGGCTTACCTGAATCGTCCCAAGAATTTTCTTCGGTGAGCATTTGTGGAGACCCTGGGATGTAGGTTGGATTAAACTGTGATGGGTCCATCGGCGTCTTGACACAACACTAGGCTT"
     cut=100
     batch = data_collector_inference(
@@ -123,6 +130,14 @@ def dynamics():
         pipe.stationary_sampler1,
         pipe.stationary_sampler2
     )
-    x1ts, x2ts, ts = pipe(batch, batch_size=args.batch_size, record_path=True)
-    draw(x1ts, x2ts, "zshit/inference.gif")
+    x1ts_all, x2ts_all = None, None
+    for ep in range(epoch):
+        x1ts, x2ts, ts = pipe(batch, batch_size=batch_size, record_path=True)
+        if not x1ts_all:
+            x1ts_all = x1ts
+            x2ts_all = x2ts
+            continue
+        x1ts_all = [torch.cat([x1t_all, x1t]) for x1t_all, x1t in zip(x1ts_all, x1ts)]
+        x2ts_all = [torch.cat([x2t_all, x2t]) for x2t_all, x2t in zip(x2ts_all, x2ts)]
+    draw(x1ts_all, x2ts_all, "zshit/inference.gif")
     

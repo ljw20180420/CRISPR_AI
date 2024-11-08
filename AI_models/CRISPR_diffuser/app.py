@@ -28,7 +28,7 @@ def app(data_name=args.data_name):
             pipe.stationary_sampler1,
             pipe.stationary_sampler2
         )
-        x1t, x2t = pipe(batch, batch_size=1, record_path=False)
+        x1t, x2t = pipe(batch, batch_size=args.batch_size, record_path=False)
         return pd.DataFrame(
             {
                 "x1": x1t.tolist(),

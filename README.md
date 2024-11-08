@@ -150,6 +150,8 @@ space(data_name="SX_spcas9")
 ```python
 from AI_models.CRISPR_diffuser.dynamics import dynamics
 dynamics()
+from AI_models.CRISPR_diffuser.dynamics import call_forward_reverse
+call_forward_reverse()
 ```
 
 
@@ -174,12 +176,14 @@ dynamics()
 
 TODO
 ```list
-use improved loss function for low dimension ???
+more robust valid loss for CRISPR diffusion
 weight loss based on the observation count
 increase num_epochs of training CRISPR diffuser
 put more weights on small steps
 optimize MCMC_corrector_factor
-Add a scatter converge diagram like that in http://yang-song.net/blog/2021/score
+increase model parameters
+decrease model window size (128 -> 64 -> 32)
+for decreased window size, exact inference is possible
 AI explaining
 use latent diffuser
 use mamba

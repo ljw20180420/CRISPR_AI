@@ -176,24 +176,24 @@ $p^{\theta,(d)}_{s|t}$ is used to efficiently sample $x^{(d)}_s$ in the reverse 
 
 Assume that all dimensions are independent in the forward process. Then by https://arxiv.org/pdf/2402.03701,
 \begin{eqnarray}\label{EqDivParaHatR}
-  &&g^{(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}q^{(d)}_{0|t}\qty(x^{(d)}_0\middle| y^{(1:D)}),\\
-  &&\hat{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})=\sum_{d=1}^D R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}} g^{(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})=\sum_{d=1}^D \frac{R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}}}{g^{(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}.
+  &&g^{(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}q^{(d)}_{0|t}\qty(y^{(d)}_0\middle| x^{(1:D)}),\\
+  &&\hat{R}_t\qty(y^{(1:D)}\middle|x^{(1:D)})=\sum_{d=1}^D R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}} g^{(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})=\sum_{d=1}^D \frac{R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}}}{g^{(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})}.
 \end{eqnarray}
 In https://arxiv.org/pdf/2402.03701, the author suggests to parameterize the negative ELBO by
 \begin{eqnarray*}
-  \mathcal{L}^\text{CT}(\theta)\coloneq T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\qty[\sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) - \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\hat{R}_t^\theta\qty(x^{(1:D)}|y^{(1:D)})] + C,
+  \mathcal{L}^\text{CT}(\theta)\coloneq T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\qty[\sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) - \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\hat{R}_t^\theta\qty(x^{(1:D)}\middle|y^{(1:D)})] + C,
 \end{eqnarray*}
 where
 \begin{eqnarray*}
-  &&\hat{R}^\theta_t\qty(x^{(1:D)}\middle|y^{(1:D)})\coloneqq\sum_{d=1}^D R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}} g^{\theta,(d)}_t\qty(x^{(d)}\middle|y^{(1:D)}),\\
-  &&g^{\theta,(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}p^{\theta,(d)}_{0|t}\qty(x^{(d)}_0\middle| y^{(1:D)}).
+  &&\hat{R}^\theta_t\qty(y^{(1:D)}\middle|x^{(1:D)})\coloneqq\sum_{d=1}^D R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}} g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)}),\\
+  &&g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}p^{\theta,(d)}_{0|t}\qty(x^{(d)}_0\middle| x^{(1:D)}).
 \end{eqnarray*}
-However, this parameterization needs an expensive network inference to get $p^{\theta,(d)}_{0|t}\qty(\cdot\middle|y^{(1:D)})$ for each $y^{(1:D)}$. Both https://arxiv.org/pdf/2205.14987 and https://arxiv.org/pdf/2402.03701 avoid the multiple passes by changing the expectation variable
+However, this parameterization needs an expensive network inference to get $p^{\theta,(d)}_{0|t}\qty(\cdot\middle|y^{(1:D)})$ for each $y^{(1:D)}$ to calculate $\hat{R}^\theta_t\qty(x^{(1:D)}\middle|y^{(1:D)})$. Both https://arxiv.org/pdf/2205.14987 and https://arxiv.org/pdf/2402.03701 avoid the multiple passes by changing the expectation variable
 through importance sampling. We propose a simpler method as follows.
 
 By Eq. \eqref{EqDivParaHatR}, define
 \begin{eqnarray}
-  \tilde{R}^\theta_t\qty(x^{(1:D)}\middle|y^{(1:D)})\coloneq\sum_{d=1}^D \frac{R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}}}{g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}.
+  \tilde{R}^\theta_t\qty(x^{(1:D)}\middle|y^{(1:D)})\coloneq\sum_{d=1}^D \frac{R^{(d)}_t\qty(y^{(d)}\middle| x^{(d)})\delta_{x^{\setminus d},y^{\setminus d}}}{g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}.
 \end{eqnarray}
 Replace $\hat{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})$ by $\tilde{R}_t\qty(x^{(1:D)}\middle|y^{(1:D)})$ in $\mathcal{L}^\text{CT}(\theta)$.
 \begin{eqnarray}\label{EqBetterNgELBO}
@@ -208,20 +208,33 @@ By https://arxiv.org/pdf/2402.03701,
 We now simplify the second term.
 \begin{eqnarray*}
   &&- \sum_{y^{(1:D)}\neq x^{(1:D)}}R_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\tilde{R}_t^\theta\qty(x^{(1:D)}\middle|y^{(1:D)})\\
-  &&=-\sum_{d=1}^D\sum_{y^{(d)}\neq x^{(d)}}R^{(d)}_t\qty(y^{(d)}\middle|x^{(d)})\log\frac{R_t^{(d)}\qty(x^{(d)}|y^{(d)})}{g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}\\
+  &&=-\sum_{d=1}^D\sum_{y^{(d)}\neq x^{(d)}}R^{(d)}_t\qty(y^{(d)}\middle|x^{(d)})\log\frac{R_t^{(d)}\qty(y^{(d)}|x^{(d)})}{g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})}\\
   &&=\sum_{d=1}^D\sum_{y^{(d)}\neq x^{(d)}}R^{(d)}_t\qty(y^{(d)}\middle|x^{(d)})\log g^{\theta,(d)}_t\qty(y^{(d)}\middle|x^{(1:D)}) + C\\
   &&=\sum_{d=1}^D \left\langle R^{(d)}_t\qty(\cdot\middle|x^{(d)}),\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + C\\
-  &&=\sum_{d=1}^D \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + C.
+  &&=\sum_{d=1}^D \left\langle \mathbf{m}_d,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + C.
 \end{eqnarray*}
 Thus,
 \begin{eqnarray*}
-  \tilde{\mathcal{L}}^\text{CT}(\theta)=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)},\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle] + C.
+  \tilde{\mathcal{L}}^\text{CT}(\theta)=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)},\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle + \left\langle \mathbf{m}_d,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)})\right\rangle] + C.
+\end{eqnarray*}
+
+\section{Another ELBO of continuous-time discrete-space diffusion model}
+By Appendix \ref{DiscussLoss}, ELBO can also be represented by
+\begin{eqnarray*}
+  \mathcal{L}^\text{CT,rev}(\theta)\coloneq T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)})}\qty[\sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) - \sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)})] + C.
+\end{eqnarray*}
+Also,
+\begin{eqnarray*}
+  && - \sum_{y^{(1:D)}\neq x^{(1:D)}}\hat{R}_t\qty(y^{(1:D)}\middle|x^{(1:D)})\log\hat{R}_t^\theta\qty(y^{(1:D)}\middle|x^{(1:D)}) \\
+  && = - \sum_{d=1}^D\sum_{y^{(d)}\neq x^{(d)}}R_t\qty(x^{(d)}\middle|y^{(d)})g_t^{(d)}\qty(y^{(d)}\middle|x^{(1:D)})\log\qty[R_t\qty(x^{(d)}\middle|y^{(d)})g_t^{\theta, (d)}\qty(y^{(d)}\middle|x^{(1:D)})] \\
+  && = - \sum_{d=1}^D\sum_{y^{(d)}\neq x^{(d)}}R_t\qty(x^{(d)}\middle|y^{(d)})g_t^{(d)}\qty(y^{(d)}\middle|x^{(1:D)})\log g_t^{\theta, (d)}\qty(y^{(d)}\middle|x^{(1:D)}) + C \\
+  && = - \sum_{d=1}^D \left\langle\mathbf{x}^{(d)}, \mathbf{m}_d\right\rangle \left\langle g_t^{(d)}\qty(\cdot \middle|x^{(1:D)}), \log g_t^{\theta, (d)}\qty(\cdot \middle|x^{(1:D)}) \right\rangle + C.
 \end{eqnarray*}
 
 \section{MCMC correction}
 In both https://arxiv.org/pdf/2205.14987 and https://arxiv.org/pdf/2402.03701, the author suggest to use MCMC correction. In their case, $D$ is large (high dimensional case). Thus, it is expensive to express the $D$-dimensional $q_0\qty(\cdot)$. They choose to sample $x^{(1:D)}_0$ and $x^{(1:D)}_t$ from $q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t)$, and use
 \begin{eqnarray*}
-  \mathcal{L}^\text{CE}_t(\theta)\gets -\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t).
+  \mathcal{L}^\text{CE}(\theta)\gets -T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t)}\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t).
 \end{eqnarray*}
 as a correction to the loss function.
 
@@ -234,9 +247,9 @@ In our case, $D = 2$. Then
 \begin{eqnarray*}
   q_{0, t}\qty(\cdot, x^{(1:2)}_t) = q^{(1)}_{t|0}\qty(x^{(1)}_t\middle|\cdot) \circ q_0\qty(\cdot) \circ \qty(q^{(2)}_{t|0}\qty(x^{(2)}_t\middle|\cdot))^\top.
 \end{eqnarray*}
-Normalize $q_{0, t}\qty(\cdot, x^{(1:2)}_t)$ to $q_{0|t}\qty(\cdot\middle|x^{(1:2)}_t)$. Then a better MCMC correction is
+Normalize $q_{0, t}\qty(\cdot, x^{(1:2)}_t)$ to $q_{0|t}\qty(\cdot\middle|x^{(1:2)}_t)$. Then a more efficient MCMC correction is
 \begin{eqnarray*}
-  \tilde{\mathcal{L}}^\text{CE}_t(\theta)\gets -\mathbb{E}_{q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)}\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t).
+  \tilde{\mathcal{L}}^\text{CE}(\theta)\gets -T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t\qty(x^{(1:D)}_t)}\sum_{x^{(1:D)}_0}q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t).
 \end{eqnarray*}
 
 \section{Sampling}
@@ -280,7 +293,7 @@ where $a=b=5$ by defaults.
   \caption{Training: {\color{red} red: discrete-time step}; {\color{blue} blue: continuous-time step}.}
   \label{TrainAlg}
   \begin{algorithmic}
-    \Require $\mathbf{m}$, $q_0\qty(x^{(1:D)})$, $\lambda$, $T$, $0<t_1<t_2<t_3<\cdots<t_n=T$.
+    \Require $\mathbf{m}$, $q_0\qty(x^{(1:D)})$, $\lambda_1$, $\lambda_2$, $\lambda_3$, $T$, $0<t_1<t_2<t_3<\cdots<t_n=T$.
     \Repeat
     \State Draw $x^{(1:D)}_0\sim q_0\qty(x^{(1:D)})$.
     \State Draw {\color{red} $t\sim\mathcal{U}\qty(\qty{t_i}_{i=1}^n)$} or {\color{blue} $t\sim\mathcal{U}(t;0,T)$}.
@@ -315,10 +328,11 @@ where $a=b=5$ by defaults.
     \State
     {\color{blue}
     \begin{eqnarray*}
-      g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\gets \frac{1}{\left\langle \mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle}\qty[\qty(1-\frac{\left\langle p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t),x^{(d)}_t\right\rangle}{a^{(d)}_3})\mathbf{m}_d + \frac{\alpha_{t|0}}{1-\alpha_{t|0}}p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t)]\circ \qty(\mathbf{1}-\mathbf{x}^{(d)}_t) + \mathbf{x}^{(d)}_t.
+      && g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\gets \frac{1}{\left\langle \mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle}\qty[\qty(1-\frac{\left\langle p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t),\mathbf{x}^{(d)}_t\right\rangle}{a^{(d)}_3})\mathbf{m}_d + \frac{\alpha_{t|0}}{1-\alpha_{t|0}}p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t)]\circ \qty(\mathbf{1}-\mathbf{x}^{(d)}_t) + \mathbf{x}^{(d)}_t, \\
+      && \tilde{\mathcal{L}}^\text{CT}_t(\theta)\gets \sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle + \left\langle \mathbf{m}_d,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle], \\
+      && \mathcal{L}^\text{CT,rev}_t(\theta) \gets \sum_{d=1}^D\qty[ \left\langle\mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle - \left\langle\mathbf{x}^{(d)}_t, \mathbf{m}_d\right\rangle \left\langle g_t^{(d)}\qty(\cdot \middle|x^{(1:D)}), \log g_t^{\theta, (d)}\qty(\cdot \middle|x^{(1:D)}) \right\rangle ].
     \end{eqnarray*}
     }
-    \State {\color{blue} $\tilde{\mathcal{L}}^\text{CT}_t(\theta)\gets \sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle + \left\langle \mathbf{m}_d^\top,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle]$.}
     \State
     \begin{eqnarray*}
       &&q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|\cdot) \gets \alpha^{(d)}_t \mathbf{x}^{(d)}_t + \qty(1 - \alpha^{(d)}_t)\left\langle\mathbf{x}^{(d)}_t, \mathbf{m}_d\right\rangle\mathbf{1},\\
@@ -327,7 +341,7 @@ where $a=b=5$ by defaults.
       &&q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t) \gets q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t) / q_t\qty(x^{(1:D)}_t).
     \end{eqnarray*}
     \State $\tilde{\mathcal{L}}^\text{CE}_t(\theta)\gets -\mathbb{E}_{q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)}\log p^\theta_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t)$.
-    \State {\color{red} $\nabla_\theta\qty[\mathcal{L}^\text{DT}_t(\theta) + \lambda \mathcal{L}^\text{CE}_t(\theta)]$} or {\color{blue} $\nabla_\theta\qty[\mathcal{L}^\text{CT}_t(\theta) + \lambda \mathcal{L}^\text{CE}_t(\theta)]$}.
+    \State {\color{red} $\nabla_\theta\qty[\lambda_1 \mathcal{L}^\text{DT}_t(\theta) + \lambda_3 \mathcal{L}^\text{CE}_t(\theta)]$} or {\color{blue} $\nabla_\theta\qty[\lambda_1 \mathcal{L}^\text{CT}_t(\theta) + \lambda_2 \mathcal{L}^\text{CT,rev}_t(\theta) + \lambda_3 \mathcal{L}^\text{CE}_t(\theta)]$}.
     \Until{convergence}
   \end{algorithmic}
 \end{algorithm}
@@ -445,18 +459,6 @@ For discrete-space discrete-time diffusion models, thera are three parameterizat
   \end{enumerate}
 \end{enumerate}
 
-\section{Continuous-time discrete diffusion}
-In https://arxiv.org/pdf/2205.14987, the derivation of continuous-time ELBO treat $\mathbb{E}_{q_{k+1|k}(x_{k+1}|x_k)}\qty[\log p_{k|k+1}^\theta(x_k|x_{k+1})]$ for $k>0$ and $k=0$ differently. This is not necessary. Actually, the negative ELBO (or VLB)
-\begin{eqnarray*}
-  \mathcal{L}^\text{DT}(\theta) = -\Delta t\sum_{k=0}^{K-1}\mathbb{E}_{q_k(x_k)}\qty[\hat{R}_k^\theta(x_k|x_k) + \sum_{x_{k+1}\neq x_k}R_k(x_{k+1}|x_k)\log\hat{R}_k^\theta(x_k|x_{k+1})] + o(\Delta t) + C.
-\end{eqnarray*}
-Then
-\begin{eqnarray*}
-  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = - \int_0^T \mathbb{E}_{q_t(x)}\qty[\hat{R}_t^\theta(x|x) + \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)]dt + C\\
-  &&=\int_0^T \mathbb{E}_{q_t(x)}\qty[\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)]dt + C\\
-  &&=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t(x)}\qty[\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)] + C.
-\end{eqnarray*}
-
 \section{Relate the time for $R_t=\beta_t R_b$}
 
 The continuous-time discrete markov process $\frac{d q_t}{dt}=q_t R_t$ has a closed form solution $q_t = q_0 e^{\int_0^t R_s ds}$ if for all $s$ and $t$, $R_s$ and $R_t$ commute. In https://arxiv.org/pdf/2205.14987, the authors suggest to use $R_t\coloneqq \beta_t R_b$, where $R_b$ is a base transition rate, and $\beta_t$ is a time-dependent scalar. They also claim that $R_t$ can be transformed to time-homogeneous process by rescale time but do not give more details. Here is more details.
@@ -477,6 +479,62 @@ Thus, the rescaled process has constant transition rate $R_b$. Three parts in th
   \item For generating, the exact Gillespie's algorithm in https://arxiv.org/pdf/2205.14987 does not change. The tau-leaping algorithm in https://arxiv.org/pdf/2205.14987, the unified discrete-time scheduler in https://arxiv.org/pdf/2402.03701, and the MCMC predictor-corrector should be rescaled accordingly.
 \end{enumerate}
 With out loss of generality, we always assume time-homogeneous process $\beta_t=1$ in this paper.
+
+\section{Discussion on loss function of continuous-time diffusion}
+\label{DiscussLoss}
+
+The discrete-time ELBO is
+\begin{eqnarray*}
+  &&\mathcal{L}^{DT}(\theta)= \mathbb{E}_{q_0(x_0)}\bigg( \\
+  &&\qquad \mathbf{KL}\qty(q_{K|0}(x_K|x_0)\| p_K(x_K)) \\
+  &&\qquad - \mathbb{E}_{q_{1|0}(x_1|x_0)}\log p^\theta_{0|1}(x_0|x_1) \\
+  &&\qquad + \sum_{k=1}^{K - 1} \mathbb{E}_{q_{k+1|0}(x_{k+1}|x_0)}\mathbf{KL}\qty(q_{k|0,k+1}(x_k|x_0,x_{k+1})\middle\|p^\theta_{k|k+1}(x_k|x_{k+1})) \\
+  &&\bigg) \\
+  && = - \mathbb{E}_{q_0(x_0)}\bigg( \\
+  &&\qquad - \mathbb{E}_{q_{1|0}(x_1|x_0)}\log p^\theta_{0|1}(x_0|x_1) \\
+  &&\qquad - \sum_{k=1}^{K - 1} \mathbb{E}_{q_{k+1|0}(x_{k+1}|x_0)}\mathbb{E}_{q_{k|0,k+1}(x_k|x_0,x_{k+1})}\log p^\theta_{k|k+1}(x_k|x_{k+1}) \\
+  &&\bigg) + C\\
+  && = - \sum_{k=0}^{K - 1} \mathbb{E}_{q_{k,k+1}(x_k,x_{k+1})}\log p^\theta_{k|k+1}(x_k|x_{k+1}) + C = \sum_{k=0}^{K - 1} L_k,
+\end{eqnarray*}
+where
+\begin{eqnarray*}
+  L_k\coloneqq - \mathbb{E}_{q_{k,k+1}(x_k,x_{k+1})}\log p^\theta_{k|k+1}(x_k|x_{k+1}).
+\end{eqnarray*}
+
+In https://arxiv.org/pdf/2205.14987, the author sample $x_k$, and expand the expectation over $x_{k+1}$.
+\begin{eqnarray*}
+&&L_k = -\mathbb{E}_{q_k(x_k)}\mathbb{E}_{q_{k+1|k}\qty(x_{k+1}|x_k)}\log \qty(\delta_{x_k,x_{k+1}} + \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) \\
+&&= -\mathbb{E}_{q_k(x_k)}\sum_{x_{k+1}}q_{k+1|k}\qty(x_{k+1}|x_k)\log \qty(\delta_{x_k,x_{k+1}} + \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) \\
+&&= -\mathbb{E}_{q_k(x_k)}\sum_{x_{k+1}}\qty(\delta_{x_k,x_{k+1}} + R_k\qty(x_{k+1}|x_k)\Delta t + o(\Delta t))\log \qty(\delta_{x_k,x_{k+1}} + \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) \\
+&&= -\mathbb{E}_{q_k(x_k)}\qty(\hat{R}_{k+1}^\theta\qty(x_k|x_k)\Delta t + \sum_{x_{k+1}\neq x_k}R_k\qty(x_{k+1}|x_k)\Delta t \log \qty(\hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) + o(\Delta t)) \\
+&&= -\mathbb{E}_{q_k(x_k)}\qty(\hat{R}_{k+1}^\theta\qty(x_k|x_k)\Delta t + \sum_{x_{k+1}\neq x_k}R_k\qty(x_{k+1}|x_k)\Delta t \qty(\log\Delta t + \log \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1}) + \log(1 + o(1))) + o(\Delta t)) \\
+&&= -\Delta t\mathbb{E}_{q_k(x_k)}\qty(\hat{R}_{k+1}^\theta\qty(x_k|x_k) + \sum_{x_{k+1}\neq x_k}R_k\qty(x_{k+1}|x_k) \log \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})) + o(\Delta t) + C.
+\end{eqnarray*}
+Thus,
+\begin{eqnarray*}
+  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = \sum_{k=0}^{K-1}L_k \\
+  &&= - \int_0^T \mathbb{E}_{q_t(x)}\qty(\hat{R}_t^\theta(x|x) + \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y))dt + C\\
+  &&=\int_0^T \mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y))dt + C\\
+  &&=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)) + C.
+\end{eqnarray*}
+
+On the contrary, we sample $x_{k+1}$, and expand the expectation over $x_k$.
+\begin{eqnarray*}
+  &&L_k = - \mathbb{E}_{q_{k+1}(x_{k+1})}\mathbb{E}_{q_{k|k+1}\qty(x_k|x_{k+1})}\log \qty(\delta_{x_k,x_{k+1}} + \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) \\
+  &&= - \mathbb{E}_{q_{k+1}(x_{k+1})}\sum_{x_k}q_{k|k+1}\qty(x_k|x_{k+1})\log \qty(\delta_{x_k,x_{k+1}} + \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) \\
+  &&= - \mathbb{E}_{q_{k+1}(x_{k+1})}\sum_{x_k}\qty(\delta_{x_k,x_{k+1}} + \hat{R}_{k+1}\qty(x_k|x_{k+1})\Delta t + o(\Delta t))\log \qty(\delta_{x_k,x_{k+1}} + \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) \\
+  &&= - \mathbb{E}_{q_{k+1}(x_{k+1})}\qty(\hat{R}_{k+1}^\theta\qty(x_{k+1}|x_{k+1})\Delta t + \sum_{x_k\neq x_{k+1}}\hat{R}_{k+1}\qty(x_k|x_{k+1})\Delta t \log \qty(\hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})\Delta t + o(\Delta t)) + o(\Delta t)) \\
+  &&= -\mathbb{E}_{q_{k+1}(x_{k+1})}\qty(\hat{R}_{k+1}^\theta\qty(x_{k+1}|x_{k+1})\Delta t + \sum_{x_k\neq x_{k+1}}\hat{R}_{k+1}\qty(x_k|x_{k+1})\Delta t \qty(\log\Delta t + \log \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1}) + \log(1 + o(1))) + o(\Delta t)) \\
+  &&= -\Delta t\mathbb{E}_{q_{k+1}(x_{k+1})}\qty(\hat{R}_{k+1}^\theta\qty(x_{k+1}|x_{k+1}) + \sum_{x_k\neq x_{k+1}}\hat{R}_{k+1}\qty(x_k|x_{k+1}) \log \hat{R}_{k+1}^\theta\qty(x_k|x_{k+1})) + o(\Delta t) + C.
+\end{eqnarray*}
+Thus,
+\begin{eqnarray*}
+  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = \sum_{k=0}^{K-1}L_k \\
+  &&= - \int_0^T \mathbb{E}_{q_t(x)}\qty(\hat{R}_t^\theta(x|x) + \sum_{y\neq x}\hat{R}_t(y|x)\log\hat{R}_t^\theta(y|x))dt + C\\
+  &&=\int_0^T \mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}\hat{R}_t(y|x)\log\hat{R}_t^\theta(y|x))dt + C\\
+  &&=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}\hat{R}_t(y|x)\log\hat{R}_t^\theta(y|x)) + C.
+\end{eqnarray*}
+
 
 %\centerline{\bf \bfseries  ---------------------------------------------------------}
 

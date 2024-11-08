@@ -37,7 +37,7 @@ def get_config(config_file=None):
 
     parser_CRISPR_diffuser = parser.add_argument_group(title="CRISPR diffuser", description="parameters for CRISPR diffuser")
     parser_CRISPR_diffuser.add_argument("--max_micro_homology", type=int, default=7, help="Clip micro-homology strength to (0, max_micro_homology).")
-    parser_CRISPR_diffuser.add_argument("--MCMC_corrector_factor", nargs='+', type=float, default=[1, 0.001], help="weight of the MCMC corrector term")
+    parser_CRISPR_diffuser.add_argument("--MCMC_corrector_factor", nargs='+', type=float, default=[1., 0., 0.001], help="weight of the MCMC corrector term")
     parser_CRISPR_diffuser.add_argument("--unet_channels", nargs='+', type=int, default=[32, 64, 96, 64, 32], help="the output channels of Unet")
     parser_CRISPR_diffuser.add_argument("--noise_scheduler", type=str, default="exp", choices=["linear", "cosine", "exp", "uniform"], help="noise scheduler used for diffuser model")
     parser_CRISPR_diffuser.add_argument("--noise_timesteps", type=int, default=20, help="number of noise scheduler time steps")
