@@ -12,7 +12,7 @@ def get_config(config_file=None):
         )
     else:
         parser.add_argument('--config', required=True, is_config_file=True, help='config file path')
-    parser.add_argument("--output_dir", type=pathlib.Path, required=True, help="output directory")
+    parser.add_argument("--output_dir", type=pathlib.Path, default="./CRISPR_results", help="output directory")
     parser.add_argument("--seed", type=int, default=63036, help="random seed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="device")
     parser.add_argument("--log", type=str, default="WARNING", choices=['CRITICAL', 'FATAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'NOTSET'], help="set logging level")
