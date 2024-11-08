@@ -2,8 +2,6 @@
 
 import torch
 import torch.nn.functional as F
-import datasets
-from datasets import load_dataset, Features, Value
 from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
 from ..config import get_config, get_logger
 

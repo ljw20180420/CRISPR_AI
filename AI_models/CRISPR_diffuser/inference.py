@@ -41,7 +41,14 @@ def data_collector_inference(examples, noise_scheduler, stationary_sampler1, sta
 @torch.no_grad()
 def inference(data_name=args.data_name, data_files="inference.json.gz"):
     logger.info("get scheduler")
-    noise_scheduler = scheduler()
+    noise_scheduler = scheduler(
+        noise_scheduler=args.noise_scheduler,
+        noise_timesteps=args.noise_timesteps,
+        cosine_factor=args.cosine_factor,
+        exp_scale=args.exp_scale,
+        exp_base=args.exp_base,
+        uniform_scale=args.uniform_scale
+    )
 
     logger.info("setup pipeline")
     pipe = DiffusionPipeline.from_pretrained(f"{args.owner}/{data_name}_CRISPR_diffuser", trust_remote_code=True, custom_pipeline=f"{args.owner}/{data_name}_CRISPR_diffuser")

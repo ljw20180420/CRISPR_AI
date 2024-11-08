@@ -9,7 +9,7 @@ import matplotlib.animation as animation
 from .inference import data_collector_inference
 from ..config import get_config, get_logger
 from .scheduler import scheduler
-from .model import CRISPRDiffuserConfig, CRISPRDiffuserModel
+from .model import CRISPRDiffuserModel
 from .perfect_model import PerfectModel
 from .pipeline import CRISPRDiffuserPipeline
 
@@ -19,7 +19,14 @@ args = get_config("config_CRISPR_diffuser.ini")
 logger = get_logger(args)
 
 logger.info("get scheduler")
-noise_scheduler = scheduler()
+noise_scheduler = scheduler(
+    noise_scheduler=args.noise_scheduler,
+    noise_timesteps=args.noise_timesteps,
+    cosine_factor=args.cosine_factor,
+    exp_scale=args.exp_scale,
+    exp_base=args.exp_base,
+    uniform_scale=args.uniform_scale
+)
 
 logger.info("load model")
 model = CRISPRDiffuserModel.from_pretrained("/home/ljw/sdc1/CRISPR_results/CRISPR_diffuser.max.0,1,0/SX_spcas9_CRISPR_diffuser")

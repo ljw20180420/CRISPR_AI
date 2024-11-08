@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from requests.exceptions import ConnectionError
 from datasets import load_dataset
 import datasets
 from torch.utils.data import DataLoader
@@ -15,7 +16,14 @@ logger = get_logger(args)
 
 def test(data_name=args.data_name):
     logger.info("load scheduler")
-    noise_scheduler = scheduler()
+    noise_scheduler = scheduler(
+        noise_scheduler=args.noise_scheduler,
+        noise_timesteps=args.noise_timesteps,
+        cosine_factor=args.cosine_factor,
+        exp_scale=args.exp_scale,
+        exp_base=args.exp_base,
+        uniform_scale=args.uniform_scale
+    )
     # remove parent module name
     noise_scheduler.__module__ = noise_scheduler.__module__.split(".")[-1]
     
@@ -58,23 +66,29 @@ def test(data_name=args.data_name):
         x1ts, x2ts, ts = pipe(batch, batch_size=args.batch_size, record_path=True)
         break
 
-    logger.info("push to hub")
-    pipe.push_to_hub(f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}")
-    from huggingface_hub import HfApi
-    api = HfApi()
-    api.upload_file(
-        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
-        path_or_fileobj="AI_models/CRISPR_diffuser/pipeline.py",
-        path_in_repo="pipeline.py"
-    )
-    api.upload_folder(
-        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
-        folder_path=args.output_dir / CRISPRDiffuserConfig.model_type / f"{data_name}_{CRISPRDiffuserConfig.model_type}",
-        path_in_repo="unet",
-        ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]
-    )
-    api.upload_file(
-        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
-        path_or_fileobj="AI_models/CRISPR_diffuser/scheduler.py",
-        path_in_repo=f"scheduler/scheduler.py"
-    )
+    while True:
+        try:
+            logger.info("push to hub")
+            pipe.push_to_hub(f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}")
+            from huggingface_hub import HfApi
+            api = HfApi()
+            api.upload_file(
+                repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+                path_or_fileobj="AI_models/CRISPR_diffuser/pipeline.py",
+                path_in_repo="pipeline.py"
+            )
+            api.upload_folder(
+                repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+                folder_path=args.output_dir / CRISPRDiffuserConfig.model_type / f"{data_name}_{CRISPRDiffuserConfig.model_type}",
+                path_in_repo="unet",
+                ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]
+            )
+            api.upload_file(
+                repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+                path_or_fileobj="AI_models/CRISPR_diffuser/scheduler.py",
+                path_in_repo=f"scheduler/scheduler.py"
+            )
+            break
+        except ConnectionError as err:
+            print(err)
+            print("retry")

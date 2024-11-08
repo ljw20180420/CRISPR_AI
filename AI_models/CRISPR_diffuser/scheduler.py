@@ -4,9 +4,6 @@ import torch
 import torch.nn.functional as F
 from typing import Tuple
 from torch.distributions import Categorical
-from ..config import get_config
-
-args = get_config(config_file="config_CRISPR_diffuser.ini")
 
 class CRISPRDiffuserBaseScheduler(SchedulerMixin, ConfigMixin):
     @register_to_config
@@ -169,28 +166,28 @@ class CRISPRDiffuserUniformScheduler(CRISPRDiffuserBaseScheduler):
     def step_to_time(self, steps: torch.Tensor):
         return self.config.uniform_scale * steps / self.config.num_train_timesteps
 
-def scheduler():
-    if args.noise_scheduler == "linear":
+def scheduler(noise_scheduler="exp", noise_timesteps=20, cosine_factor=0.008, exp_scale=5.0, exp_base=5.0, uniform_scale=1.0):
+    if noise_scheduler == "linear":
         from .scheduler import CRISPRDiffuserLinearScheduler
         return CRISPRDiffuserLinearScheduler(
-            num_train_timesteps = args.noise_timesteps
+            num_train_timesteps = noise_timesteps
         )
-    if args.noise_scheduler == "cosine":
+    if noise_scheduler == "cosine":
         from .scheduler import CRISPRDiffuserCosineScheduler
         return CRISPRDiffuserCosineScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            cosine_factor = args.cosine_factor
+            num_train_timesteps = noise_timesteps,
+            cosine_factor = cosine_factor
         )
-    if args.noise_scheduler == "exp":
+    if noise_scheduler == "exp":
         from .scheduler import CRISPRDiffuserExpScheduler
         return CRISPRDiffuserExpScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            exp_scale = args.exp_scale,
-            exp_base = args.exp_base
+            num_train_timesteps = noise_timesteps,
+            exp_scale = exp_scale,
+            exp_base = exp_base
         )
-    if args.noise_scheduler == "uniform":
+    if noise_scheduler == "uniform":
         from .scheduler import CRISPRDiffuserUniformScheduler
         return CRISPRDiffuserUniformScheduler(
-            num_train_timesteps = args.noise_timesteps,
-            uniform_scale = args.uniform_scale
+            num_train_timesteps = noise_timesteps,
+            uniform_scale = uniform_scale
         )

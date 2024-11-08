@@ -55,7 +55,14 @@ def train(data_name=args.data_name):
     count_normalize = max(train_counts['count'] + validation_counts['count'])
         
     logger.info("load scheduler")
-    noise_scheduler = scheduler()
+    noise_scheduler = scheduler(
+        noise_scheduler=args.noise_scheduler,
+        noise_timesteps=args.noise_timesteps,
+        cosine_factor=args.cosine_factor,
+        exp_scale=args.exp_scale,
+        exp_base=args.exp_base,
+        uniform_scale=args.uniform_scale
+    )
 
     logger.info("initialize model")
     CRISPRDiffuserConfig.register_for_auto_class()
