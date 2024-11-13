@@ -182,10 +182,7 @@ call_forward_reverse()
 
 TODO
 ```list
-clamp(-1000, torch.inf) to clamp_min(-1000)
 more robust valid loss for CRISPR diffusion
-weight loss based on the observation count
-increase num_epochs of training CRISPR diffuser
 put more weights on small steps
 optimize MCMC_corrector_factor
 increase model parameters
