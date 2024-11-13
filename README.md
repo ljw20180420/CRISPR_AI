@@ -20,19 +20,32 @@ conda env create --prefix AI_models/inDelphi/reference/.conda --file AI_models/i
 
 
 
-# proxy
+# Proxy
+## huggingface_hub
 ```python
 from AI_models.proxy import proxy
 proxy(url="socks5h://127.0.0.1:1080")
 ```
-
+## datasets
+Add the following to `.bashrc`.
+```bash
+export MY_HF_DATASETS_DOWNLOAD_MANAGER_PROXY="socks5h://127.0.0.1:1080"
+```
 
 
 # Dataset
+## Test
+```python
+from AI_models.dataset.utils import test
+test()
+```
+
+
 ## Upload
 ```python
-from AI_models.dataset.upload import upload
-upload()
+from AI_models.dataset.utils import upload
+upload(do_test=False)
+upload(do_test=True)
 ```
 
 

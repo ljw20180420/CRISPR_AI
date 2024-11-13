@@ -226,6 +226,27 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         return None
 
     # trans_funcs
+    def CRISPR_transformer_trans_func(self, examples):
+        ref1s, ref2s, ob_ref1s, ob_ref2s, ob_vals = [], [], [], [], []
+        for ref1, ref2, cuts in zip(examples['ref1'], examples['ref2'], examples['cuts']):
+            for cut in cuts:
+                # ref
+                ref1s.append(ref1)
+                ref2s.append(ref2)
+                # output
+                observations = self.get_observations(ref1, ref2, cut)
+                ob_ref2, ob_ref1 = observations.nonzero(as_tuple=True)
+                ob_ref1s.append(ob_ref1)
+                ob_ref2s.append(ob_ref2)
+                ob_vals.append(observations[ob_ref2, ob_ref1])
+        return {
+            'ref1': ref1s,
+            'ref2': ref2s,
+            'ob_ref1': ob_ref1s,
+            'ob_ref2': ob_ref2s,
+            'ob_val': ob_vals
+        }
+
     def CRISPR_diffuser_trans_func(self, examples):
         ref1s, ref2s, cut1s, cut2s, mh_ref1s, mh_ref2s, mh_vals, ob_ref1s, ob_ref2s, ob_vals = [], [], [], [], [], [], [], [], [], []
         for ref1, ref2, cuts in zip(examples['ref1'], examples['ref2'], examples['cuts']):
@@ -375,6 +396,14 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
     # You will be able to load one or the other configurations in the following list with
     # data = datasets.load_dataset('path_to_CRISPR_data', 'config_name')
 
+    features_CRISPR_transformer = datasets.Features({
+        'ref1': datasets.Value('string'),
+        'ref2': datasets.Value('string'),
+        'ob_ref1': datasets.Sequence(datasets.Value('int16')),
+        'ob_ref2': datasets.Sequence(datasets.Value('int16')),
+        'ob_val': datasets.Sequence(datasets.Value('int64'))
+    })
+
     features_CRISPR_diffuser = datasets.Features({
         'ref1': datasets.Value('string'),
         'ref2': datasets.Value('string'),
@@ -421,6 +450,31 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         CRISPRDataConfig(
             author_filter = lambda author, ref1, ref2, cut1, cut2: author == "SX",
             file_filter = lambda file, ref1, ref2, cut1, cut2, author: bool(re.search("^(A2-|A7-|D2-)", file)),
+            features = features_CRISPR_transformer,
+            name = "SX_spcas9_CRISPR_transformer",
+            version = VERSION,
+            description = "Data of spcas9 protein of sx and lcy for CRISPR transformer training"
+        ),
+        CRISPRDataConfig(
+            author_filter = lambda author, ref1, ref2, cut1, cut2: author == "SX",
+            file_filter = lambda file, ref1, ref2, cut1, cut2, author: bool(re.search("^(X-|x-|B2-|36t-)", file)),
+            features = features_CRISPR_transformer,
+            name = "SX_spymac_CRISPR_transformer",
+            version = VERSION,
+            description = "Data of spymac protein of sx and lcy for CRISPR transformer training"
+        ),
+        CRISPRDataConfig(
+            author_filter = lambda author, ref1, ref2, cut1, cut2: author == "SX",
+            file_filter = lambda file, ref1, ref2, cut1, cut2, author: bool(re.search("^(i10t-|i83-)", file)),
+            features = features_CRISPR_transformer,
+            name = "SX_ispymac_CRISPR_transformer",
+            version = VERSION,
+            description = "Data of ispymac protein of sx and lcy for CRISPR transformer training"
+        ),
+
+        CRISPRDataConfig(
+            author_filter = lambda author, ref1, ref2, cut1, cut2: author == "SX",
+            file_filter = lambda file, ref1, ref2, cut1, cut2, author: bool(re.search("^(A2-|A7-|D2-)", file)),
             features = features_CRISPR_diffuser,
             name = "SX_spcas9_CRISPR_diffuser",
             version = VERSION,
@@ -442,6 +496,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             version = VERSION,
             description = "Data of ispymac protein of sx and lcy for CRISPR diffuser training"
         ),
+
         CRISPRDataConfig(
             author_filter = lambda author, ref1, ref2, cut1, cut2: author == "SX",
             file_filter = lambda file, ref1, ref2, cut1, cut2, author: bool(re.search("^(A2-|A7-|D2-)", file)),
@@ -466,6 +521,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             version = VERSION,
             description = "Data of ispymac protein of sx and lcy for inDelphi training"
         ),
+
         CRISPRDataConfig(
             author_filter = lambda author, ref1, ref2, cut1, cut2: author == "SX",
             file_filter = lambda file, ref1, ref2, cut1, cut2, author: bool(re.search("^(A2-|A7-|D2-)", file)),
@@ -490,6 +546,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             version = VERSION,
             description = "Data of ispymac protein of sx and lcy for Lindel training"
         ),
+
         CRISPRDataConfig(
             author_filter = lambda author, ref1, ref2, cut1, cut2: author == "SX",
             file_filter = lambda file, ref1, ref2, cut1, cut2, author: bool(re.search("^(A2-|A7-|D2-)", file)),
@@ -544,8 +601,20 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         # dl_manager is a datasets.download.DownloadManager that can be used to download and extract URLS
         # It can accept any type or nested list/dict and will give back the same structure with the url replaced with path to local files.
         # By default the archives will be extracted and a path to a cached folder where they are extracted is returned instead of the archive
-        hf_endpoint = os.environ.get("HF_ENDPOINT", "https://" + "huggingface.co")
-        downloaded_files = dl_manager.download(f"{hf_endpoint}/datasets/ljw20180420/CRISPR_data/resolve/main/dataset.json.gz")
+        proxy_url = os.environ.get("MY_HF_DATASETS_DOWNLOAD_MANAGER_PROXY")
+        if proxy_url:
+            from datasets.download.download_manager import DownloadManager, DownloadConfig
+            dl_manager_proxy = DownloadManager(
+                download_config=DownloadConfig(
+                    proxies={
+                        "http": proxy_url,
+                        "https": proxy_url
+                    }
+                )
+            )
+            downloaded_files = dl_manager_proxy.download("https://github.com/ljw20180420/CRISPRdata/raw/refs/heads/main/dataset.json.gz")
+        else:
+            downloaded_files = dl_manager.download("https://github.com/ljw20180420/CRISPRdata/raw/refs/heads/main/dataset.json.gz")
         # downloaded_files = dl_manager.download("./test.json.gz")
         
         ds = datasets.load_dataset('json', data_files=downloaded_files, features=datasets.Features({
@@ -567,7 +636,9 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             })]
         }))
         ds = ds.map(self.filter_refs, batched=True)
-        if self.config.name.endswith("_CRISPR_diffuser"):
+        if self.config.name.endswith("_CRISPR_transformer"):
+            ds = ds.map(self.CRISPR_transformer_trans_func, batched=True, remove_columns=['cuts'])
+        elif self.config.name.endswith("_CRISPR_diffuser"):
             ds = ds.map(self.CRISPR_diffuser_trans_func, batched=True, remove_columns=['cuts'])
         elif self.config.name.endswith("_inDelphi"):
             ds = ds.map(self.inDelphi_trans_func, batched=True, remove_columns=['ref1', 'ref2', 'cuts'])

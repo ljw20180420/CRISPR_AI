@@ -109,6 +109,7 @@ class CRISPRDiffuserModel(PreTrainedModel):
                 nn.SiLU(inplace=True)
             ))
         self.out_cov = nn.Conv2d(in_channels=self.config.channels[-2], out_channels=self.config.channels[-1], kernel_size=1)
+        self.initialize_weights()
 
     def initialize_weights(self):
         for m in self.modules():
