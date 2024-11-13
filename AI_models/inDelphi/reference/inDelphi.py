@@ -125,18 +125,18 @@ def __predict_dels(seq, cutsite):
   Js = del_lens.reshape(del_lens.shape[0], 1)
   unfq = np.exp(mh_scores - 0.25*Js)
 
-  # Add MH-less contribution at full MH deletion lengths
-  mh_vector = np.array(mh_len)
-  mhfull_contribution = np.zeros(mh_vector.shape)
-  for jdx in range(len(mh_vector)):
-    if del_lens[jdx] == mh_vector[jdx]:
-      dl = del_lens[jdx]
-      mhless_score = __nn_function(nn2_params, np.array(dl))
-      mhless_score = np.exp(mhless_score - 0.25*dl)
-      mask = np.concatenate([np.zeros(jdx,), np.ones(1,) * mhless_score, np.zeros(len(mh_vector) - jdx - 1,)])
-      mhfull_contribution = mhfull_contribution + mask
-  mhfull_contribution = mhfull_contribution.reshape(-1, 1)
-  unfq = unfq + mhfull_contribution
+  # # Add MH-less contribution at full MH deletion lengths
+  # mh_vector = np.array(mh_len)
+  # mhfull_contribution = np.zeros(mh_vector.shape)
+  # for jdx in range(len(mh_vector)):
+  #   if del_lens[jdx] == mh_vector[jdx]:
+  #     dl = del_lens[jdx]
+  #     mhless_score = __nn_function(nn2_params, np.array(dl))
+  #     mhless_score = np.exp(mhless_score - 0.25*dl)
+  #     mask = np.concatenate([np.zeros(jdx,), np.ones(1,) * mhless_score, np.zeros(len(mh_vector) - jdx - 1,)])
+  #     mhfull_contribution = mhfull_contribution + mask
+  # mhfull_contribution = mhfull_contribution.reshape(-1, 1)
+  # unfq = unfq + mhfull_contribution
 
   # Store predictions to combine with mh-less deletion preds
   pred_del_len = copy.copy(del_len)
@@ -147,25 +147,26 @@ def __predict_dels(seq, cutsite):
   ##### Predict MH and MH-less deletions
   #####
   # Predict MH-less deletions
-  mh_len, gc_frac, gt_pos, del_len = __featurize(seq, cutsite)
+  # mh_len, gc_frac, gt_pos, del_len = __featurize(seq, cutsite)
 
   unfq = list(unfq)
 
-  pred_mhless_d = defaultdict(list)
-  # Include MH-less contributions at non-full MH deletion lengths
-  nonfull_dls = []
-  for dl in range(1, 60):
-    if dl not in del_len:
-      nonfull_dls.append(dl)
-    elif del_len.count(dl) == 1:
-      idx = del_len.index(dl)
-      if mh_len[idx] != dl:
-        nonfull_dls.append(dl)
-    else:
-        nonfull_dls.append(dl)
+  # pred_mhless_d = defaultdict(list)
+  # # Include MH-less contributions at non-full MH deletion lengths
+  # nonfull_dls = []
+  # for dl in range(1, 60):
+  #   if dl not in del_len:
+  #     nonfull_dls.append(dl)
+  #   elif del_len.count(dl) == 1:
+  #     idx = del_len.index(dl)
+  #     if mh_len[idx] != dl:
+  #       nonfull_dls.append(dl)
+  #   else:
+  #       nonfull_dls.append(dl)
 
-  mh_vector = np.array(mh_len)
-  for dl in nonfull_dls:
+  # mh_vector = np.array(mh_len)
+  # for dl in nonfull_dls:
+  for dl in range(1, 60):
     mhless_score = __nn_function(nn2_params, np.array(dl))
     mhless_score = np.exp(mhless_score - 0.25*dl)
 

@@ -236,10 +236,10 @@ def inDelphi_original_benchmark(black_list: List, celltype: str): # Supported ce
     )
     bounds = [0] + (pred_df_all.index[pred_df_all['Inserted Bases'] == "G"] + 1).values.tolist()
 
-    likelihood, total_del_len_pearson = [], []
+    likelihood, genotype_pearson, total_del_len_pearson, mhless_pearson = [], [], [], []
     bi = 0
-    for batch, ob_examples in tqdm(
-        zip(test_dataloader, ds_ob.iter(batch_size=args.batch_size)),
+    for examples, batch, ob_examples in tqdm(
+        zip(ds.iter(batch_size=args.batch_size), test_dataloader, ds_ob.iter(batch_size=args.batch_size)),
         desc=f"inDelphi original {celltype}, likelihood",
         total=len(ds_ob) / args.batch_size
     ):
@@ -248,12 +248,11 @@ def inDelphi_original_benchmark(black_list: List, celltype: str): # Supported ce
             pred_df = pred_df_all[bounds[bi]:bounds[bi+1]]
             bi += 1
             pre_insert_1bp = np.empty(4)
-            pre_insert_1bp[[0,1,3,2]] = pred_df['Predicted frequency'][-4:]
+            pre_insert_1bp[[0,1,3,2]] = pred_df['Predicted frequency'][-4:] / 100
             pre_insert_probability = pre_insert_1bp.sum()
             pre_insert_1bp /= pre_insert_probability
-            pre_insert_probability /= 100
 
-            mh_gt_pos = pd.to_numeric(pred_df["Genotype position"], errors="coerce").dropna().values.astype(int).tolist()
+            mh_gt_pos = pred_df["Genotype position"][:-args.DELLEN_LIMIT+1-4].values.astype(int).tolist()
             mh_del_len = pred_df['Length'][:len(mh_gt_pos)].values.tolist()
             mh_mh_len = []
             for gp, dl in zip(mh_gt_pos, mh_del_len):
@@ -263,17 +262,48 @@ def inDelphi_original_benchmark(black_list: List, celltype: str): # Supported ce
                         break
                 mh_mh_len.append(sf)
 
-            mh_weight = torch.tensor(pred_df["Predicted frequency"][:len(mh_gt_pos)].values.tolist())
-            mhless_weight = torch.zeros(args.DELLEN_LIMIT - 1)
-            mhless_weight[pred_df["Length"][len(mh_gt_pos):-4].values - 1] = torch.from_numpy(pred_df["Predicted frequency"][len(mh_gt_pos):-4].values.astype(np.float32))
+            mh_weight = torch.from_numpy(pred_df["Predicted frequency"][:len(mh_gt_pos)].values.copy())
+            mhless_weight = torch.from_numpy(pred_df["Predicted frequency"][-args.DELLEN_LIMIT+1-4:-4].values.copy())
 
-            total_del_len_weight = mhless_weight.clone()
-            for dl, wt in zip(pred_df["Length"][:len(mh_gt_pos)], pred_df["Predicted frequency"][:len(mh_gt_pos)]):
-                total_del_len_weight[dl - 1] += wt
+            idx = pd.DataFrame({'mh_del_len': examples['mh_del_len'][i], 'mh_gt_pos': examples['mh_gt_pos'][i]}).sort_values(by=['mh_del_len', 'mh_gt_pos']).index.values
+
+            genotype_pearson.append(
+                (
+                    F.normalize(
+                        torch.cat([
+                            mh_weight,
+                            mhless_weight
+                        ]),
+                        p=2.0,
+                        dim=0
+                    ) *
+                    F.normalize(
+                        torch.cat([
+                            torch.tensor(examples['mh_count'][i])[idx],
+                            torch.tensor(examples['mhless_count'][i])
+                        ]).to(torch.float64),
+                        p=2.0,
+                        dim=0
+                    )
+                ).sum()
+            )            
+
+            total_del_len_weight = mhless_weight.clone().scatter_add(
+                dim=0,
+                index=torch.from_numpy(pred_df['Length'][:len(mh_gt_pos)].values - 1),
+                src=mh_weight
+            )
+
             total_del_len_pearson.append(
                 (
                     F.normalize(total_del_len_weight, p=2.0, dim=0) *
                     F.normalize(batch['total_del_len_count'][i], p=2.0, dim=0)
+                ).sum()
+            )
+            mhless_pearson.append(
+                (
+                    F.normalize(mhless_weight, p=2.0, dim=0) *
+                    F.normalize(torch.tensor(examples['mhless_count'][i], dtype=torch.float32), p=2.0, dim=0)
                 ).sum()
             )
 
@@ -288,7 +318,7 @@ def inDelphi_original_benchmark(black_list: List, celltype: str): # Supported ce
                 (observation * logit).sum().cpu().item()
             )
 
-    return likelihood, total_del_len_pearson
+    return likelihood, genotype_pearson, total_del_len_pearson, mhless_pearson, mhless_weight
 
 def FOREcasT_benchmark(black_list: List):
     from .FOREcasT.model import FOREcasTModel, FOREcasTConfig

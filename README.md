@@ -182,10 +182,7 @@ call_forward_reverse()
 
 TODO
 ```list
-modify original inDelphi to split mh and mhless
-give a scatter plot for inDelphi correlation
 clamp(-1000, torch.inf) to clamp_min(-1000)
-support multiple configuration file (with precedence and overwrite)
 more robust valid loss for CRISPR diffusion
 weight loss based on the observation count
 increase num_epochs of training CRISPR diffuser
