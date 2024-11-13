@@ -5,13 +5,14 @@ import logging
 import sys
 
 def get_config(config_file=None):
+    default_config_files = ['config.ini']
     if config_file:
-        parser = configargparse.ArgumentParser(
-            description="arguments for CRISPR DL models",
-            default_config_files=[config_file]
-        )
-    else:
-        parser.add_argument('--config', required=True, is_config_file=True, help='config file path')
+        default_config_files = default_config_files + [config_file]
+
+    parser = configargparse.ArgumentParser(
+        description="arguments for CRISPR DL models",
+        default_config_files=default_config_files
+    )    
     parser.add_argument("--output_dir", type=pathlib.Path, default="./CRISPR_results", help="output directory")
     parser.add_argument("--seed", type=int, default=63036, help="random seed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="device")
@@ -22,6 +23,11 @@ def get_config(config_file=None):
     parser_dataset.add_argument("--data_name", type=str, default="SX_spcas9", choices=["SX_spcas9", "SX_spymac", "SX_ispymac"])
     parser_dataset.add_argument("--test_ratio", type=float, default=0.05, help="proportion for test samples")
     parser_dataset.add_argument("--validation_ratio", type=float, default=0.05, help="proportion for validation samples")
+
+    parser_dataset.add_argument("--ref1len", type=int, default=127, help="length of reference 1")
+    parser_dataset.add_argument("--ref2len", type=int, default=127, help="length of reference 2")
+    parser_dataset.add_argument("--cut1", type=int, default=100, help="cut position of reference 1")
+    parser_dataset.add_argument("--cut2", type=int, default=27, help="cut position of reference 2")
 
     parser_dataloader = parser.add_argument_group(title="data loader", description="parameters for data loader")
     parser_dataloader.add_argument("--batch_size", type=int, default=100, help="batch size")
@@ -60,10 +66,6 @@ def get_config(config_file=None):
     parser_FOREcasT.add_argument("--FOREcasT_MAX_DEL_SIZE", type=int, default=30, help="max deletion size")
     parser_FOREcasT.add_argument("--FOREcasT_reg_const", type=float, default=0.01, help="regularization coefficient for deletion")
     parser_FOREcasT.add_argument("--FOREcasT_i1_reg_const", type=float, default=0.01, help="regularization coefficient for insertion")
-
-    parser_inference = parser.add_argument_group(title="inference", description="parameters for inference")
-    parser_inference.add_argument("--ref1len", type=int, default=127, help="length of reference 1")
-    parser_inference.add_argument("--ref2len", type=int, default=127, help="length of reference 2")
 
     return parser.parse_args()
 
