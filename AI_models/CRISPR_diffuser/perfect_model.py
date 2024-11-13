@@ -27,5 +27,5 @@ class PerfectModel(CRISPRDiffuserModel):
         q_rkm_1 = alpha_t[:, None] * x1t_one_hot + ((1 - alpha_t) * self.stationary_sampler1_probs[x1t])[:, None]
         q_rkm_2 = alpha_t[:, None] * x2t_one_hot + ((1 - alpha_t) * self.stationary_sampler2_probs[x2t])[:, None]
         return {
-             "p_theta_0_logit": (self.observation * q_rkm_1[:, None, :] * q_rkm_2[:, :, None]).log().clamp(-1000, torch.inf)
+             "p_theta_0_logit": (self.observation * q_rkm_1[:, None, :] * q_rkm_2[:, :, None]).log().clamp_min(-1000)
         }

@@ -202,8 +202,8 @@ class CRISPRDiffuserModel(PreTrainedModel):
             self.stationary_sampler2_probs[x2t] * g_theta_2_t.sum(dim = 1)
         )
 
-        log_g_theta_1_t = g_theta_1_t.log().clamp(-1000, torch.inf)
-        log_g_theta_2_t = g_theta_2_t.log().clamp(-1000, torch.inf)
+        log_g_theta_1_t = g_theta_1_t.log().clamp_min(-1000)
+        log_g_theta_2_t = g_theta_2_t.log().clamp_min(-1000)
 
         forward_negative_ELBO = common_negative_ELBO + (
             torch.inner(self.stationary_sampler1_probs, log_g_theta_1_t) +
