@@ -138,7 +138,7 @@ space(data_name="SX_spcas9")
 ```
 
 
-## CRISPR_diffuser
+## CRISPR diffuser
 ### Train
 ```python
 from AI_models.CRISPR_diffuser.train import train
@@ -174,6 +174,35 @@ call_forward_reverse()
 ```
 
 
+## CRISPR transformer
+### Train
+```python
+from AI_models.CRISPR_transformer.train import train
+train(data_name="SX_spcas9")
+```
+### Test and upload to huggingface
+```python
+from AI_models.CRISPR_transformer.test import test
+test(data_name="SX_spcas9")
+```
+### Inference
+```python
+from AI_models.CRISPR_transformer.inference import inference
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
+    pass
+```
+### App
+```python
+from AI_models.CRISPR_transformer.app import app
+app(data_name="SX_spcas9")
+```
+### Space
+```python
+from AI_models.CRISPR_transformer.space import space
+space(data_name="SX_spcas9")
+```
+
+
 
 # Input
 ```json
@@ -195,6 +224,9 @@ call_forward_reverse()
 
 TODO
 ```list
+improve app UI
+avoid change module when push pipeline
+use clip(max=3) to replace clip(0, 3)
 more robust valid loss for CRISPR diffusion
 put more weights on small steps
 optimize MCMC_corrector_factor

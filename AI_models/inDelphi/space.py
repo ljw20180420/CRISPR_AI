@@ -34,6 +34,12 @@ def space(data_name=args.data_name):
         path_or_fileobj="config.ini",
         path_in_repo="config.ini"
     )
+    api.upload_file(
+        repo_id=f"{args.owner}/{data_name}_{inDelphiConfig.model_type}",
+        repo_type="space",
+        path_or_fileobj="config_inDelphi.ini",
+        path_in_repo="config_inDelphi.ini"
+    )
 
     api.upload_file(
         repo_id=f"{args.owner}/{data_name}_{inDelphiConfig.model_type}",

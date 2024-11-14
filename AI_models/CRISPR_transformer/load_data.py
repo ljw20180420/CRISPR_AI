@@ -15,7 +15,7 @@ def data_collector(examples, outputs):
         observation[example['ob_ref2'], example['ob_ref1']] = torch.tensor(example['ob_val'], dtype=observation.dtype)
         return observation
 
-    ref1len, ref2len = len(examples[0]['ref1']), len(examples[0]['ref2'])
+    batch_size, ref1len, ref2len = len(examples), len(examples[0]['ref1']), len(examples[0]['ref2'])
     results = dict()
     if "refcode" in outputs:
         results["refcode"] = torch.stack([
@@ -27,7 +27,7 @@ def data_collector(examples, outputs):
             ).clamp_max(3).to(torch.int64)
             for example in examples
         ])
-        
+
     if "observation" in outputs:
         results["observation"] = torch.stack([
             get_observation(example)

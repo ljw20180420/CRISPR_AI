@@ -84,7 +84,7 @@ def train(data_name=args.data_name):
         except ValueError:
             trainers[model].train()
 
-    logger.info("push model")
+    logger.info("save model")
     for model in ["indel", "ins", "del"]:
         trainers[model].save_model()
         trainers[model].create_model_card()

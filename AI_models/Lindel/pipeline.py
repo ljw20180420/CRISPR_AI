@@ -1,5 +1,5 @@
 import torch
-from diffusers import DiffusionPipeline, __version__
+from diffusers import DiffusionPipeline
 import torch.nn.functional as F
 
 class LindelPipeline(DiffusionPipeline):

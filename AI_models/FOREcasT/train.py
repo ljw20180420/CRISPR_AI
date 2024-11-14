@@ -66,6 +66,6 @@ def train(data_name=args.data_name):
     except ValueError:
         trainer.train()
 
-    logger.info("push model")
+    logger.info("save model")
     trainer.save_model()
     trainer.create_model_card()

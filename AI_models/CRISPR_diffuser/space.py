@@ -31,6 +31,12 @@ def space(data_name=args.data_name):
     api.upload_file(
         repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
         repo_type="space",
+        path_or_fileobj="config.ini",
+        path_in_repo="config.ini"
+    )
+    api.upload_file(
+        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+        repo_type="space",
         path_or_fileobj="config_CRISPR_diffuser.ini",
         path_in_repo="config_CRISPR_diffuser.ini"
     )

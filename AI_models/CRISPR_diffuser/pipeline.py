@@ -1,4 +1,4 @@
-from diffusers import DiffusionPipeline, __version__
+from diffusers import DiffusionPipeline
 from torch.distributions import Categorical
 import torch
 from tqdm import tqdm

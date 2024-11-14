@@ -1,4 +1,4 @@
-from diffusers import DiffusionPipeline, __version__
+from diffusers import DiffusionPipeline
 import torch
 from sklearn.neighbors import KNeighborsRegressor
 import numpy as np

@@ -42,10 +42,10 @@ def get_config(config_file=None):
     parser_scheduler.add_argument("--warmup_ratio", type=float, default=0.05, help="Ratio of total training steps used for a linear warmup from 0 to learning_rate")
 
     parser_CRISPR_transformer = parser.add_argument_group(title="CRISPR transformer", description="parameters for CRISPR transformer")
-    parser_CRISPR_transformer.add_argument("--hidden_size", type=int, default=512, help="model embedding dimension")
-    parser_CRISPR_transformer.add_argument("--num_hidden_layers", type=int, default=6, help="number of EncoderLayer")
-    parser_CRISPR_transformer.add_argument("--num_attention_heads", type=int, default=8, help="number of attention heads")
-    parser_CRISPR_transformer.add_argument("--intermediate_size", type=int, default=2048, help="FeedForward intermediate dimension size")
+    parser_CRISPR_transformer.add_argument("--hidden_size", type=int, default=256, help="model embedding dimension")
+    parser_CRISPR_transformer.add_argument("--num_hidden_layers", type=int, default=3, help="number of EncoderLayer")
+    parser_CRISPR_transformer.add_argument("--num_attention_heads", type=int, default=4, help="number of attention heads")
+    parser_CRISPR_transformer.add_argument("--intermediate_size", type=int, default=1024, help="FeedForward intermediate dimension size")
     parser_CRISPR_transformer.add_argument("--hidden_dropout_prob", type=float, default=0.1, help="The dropout probability for all fully connected layers in the embeddings, encoder, and pooler")
     parser_CRISPR_transformer.add_argument("--attention_probs_dropout_prob", type=float, default=0.1, help="The dropout ratio for the attention probabilities")
 
