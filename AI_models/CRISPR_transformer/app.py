@@ -30,6 +30,7 @@ def app(data_name=args.data_name):
         probability = F.softmax(pipe(batch)["logit"].flatten()).tolist()
         ref2start = np.arange(args.ref2len + 1).repeat(args.ref1len + 1)
         ref1end = list(range(args.ref1len + 1)) * (args.ref2len + 1)
+        sequence = [ref[:rs] + ref[-args.ref2len+re:] for rs, re in zip(ref2start, ref1end)]
 
         fig, ax = plt.subplots()
         im = ax.imshow(
@@ -46,7 +47,8 @@ def app(data_name=args.data_name):
                 {
                     "ref1end": ref1end,
                     "ref2start": ref2start,
-                    "probability": probability
+                    "probability": probability,
+                    "sequence": sequence
                 }
             ),
             Image.open(bf)

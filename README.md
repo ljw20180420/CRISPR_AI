@@ -55,29 +55,29 @@ upload(do_test=True)
 ### Train
 ```python
 from AI_models.inDelphi.train import train_deletion, train_insertion
-train_deletion(data_name="SX_spcas9")
+train_deletion(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 train_insertion(data_name="SX_spcas9")
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.inDelphi.test import test
-test(data_name="SX_spcas9")
+test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Inference
 ```python
 from AI_models.inDelphi.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
     pass
 ```
 ### App
 ```python
 from AI_models.inDelphi.app import app
-app(data_name="SX_spcas9")
+app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Space
 ```python
 from AI_models.inDelphi.space import space
-space(data_name="SX_spcas9")
+space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 
 
@@ -85,56 +85,56 @@ space(data_name="SX_spcas9")
 ### Train
 ```python
 from AI_models.Lindel.train import train
-train(data_name="SX_spcas9")
+train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.Lindel.test import test
-test(data_name="SX_spcas9")
+test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Inference
 ```python
 from AI_models.Lindel.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
     pass
 ```
 ### App
 ```python
 from AI_models.Lindel.app import app
-app(data_name="SX_spcas9")
+app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Space
 ```python
 from AI_models.Lindel.space import space
-space(data_name="SX_spcas9")
+space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 
 ## FOREcasT
 ### Train
 ```python
 from AI_models.FOREcasT.train import train
-train(data_name="SX_spcas9")
+train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.FOREcasT.test import test
-test(data_name="SX_spcas9")
+test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Inference
 ```python
 from AI_models.FOREcasT.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
     pass
 ```
 ### App
 ```python
 from AI_models.FOREcasT.app import app
-app(data_name="SX_spcas9")
+app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Space
 ```python
 from AI_models.FOREcasT.space import space
-space(data_name="SX_spcas9")
+space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 
 
@@ -142,28 +142,28 @@ space(data_name="SX_spcas9")
 ### Train
 ```python
 from AI_models.CRISPR_diffuser.train import train
-train(data_name="SX_spcas9")
+train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.CRISPR_diffuser.test import test
-test(data_name="SX_spcas9")
+test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Inference
 ```python
 from AI_models.CRISPR_diffuser.inference import inference
-for x1ts, x2ts, ts in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
+for x1ts, x2ts, ts in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
     pass
 ```
 ### App
 ```python
 from AI_models.CRISPR_diffuser.app import app
-app(data_name="SX_spcas9")
+app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Space
 ```python
 from AI_models.CRISPR_diffuser.space import space
-space(data_name="SX_spcas9")
+space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Dynamics
 ```python
@@ -178,28 +178,28 @@ call_forward_reverse()
 ### Train
 ```python
 from AI_models.CRISPR_transformer.train import train
-train(data_name="SX_spcas9")
+train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Test and upload to huggingface
 ```python
 from AI_models.CRISPR_transformer.test import test
-test(data_name="SX_spcas9")
+test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Inference
 ```python
 from AI_models.CRISPR_transformer.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"):
+for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
     pass
 ```
 ### App
 ```python
 from AI_models.CRISPR_transformer.app import app
-app(data_name="SX_spcas9")
+app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Space
 ```python
 from AI_models.CRISPR_transformer.space import space
-space(data_name="SX_spcas9")
+space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 
 

@@ -28,11 +28,12 @@ def app(data_name=args.data_name):
             pipe.stationary_sampler1,
             pipe.stationary_sampler2
         )
-        x1t, x2t = pipe(batch, batch_size=args.batch_size, record_path=False)
+        x1ts, x2ts, ts = pipe(batch, batch_size=args.batch_size, record_path=True)
         return pd.DataFrame(
             {
-                "x1": x1t.tolist(),
-                "x2": x2t.tolist()
+                "x1": torch.cat(x1ts).tolist(),
+                "x2": torch.cat(x2ts).tolist(),
+                "t": ts * args.batch_size
             }
         )
 
