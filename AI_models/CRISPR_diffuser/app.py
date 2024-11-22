@@ -3,7 +3,6 @@ from diffusers import DiffusionPipeline
 import torch
 import pandas as pd
 from tempfile import mkstemp
-from PIL import Image
 from .inference import data_collector_inference
 from ..config import get_config, get_logger
 from .scheduler import scheduler
@@ -32,9 +31,9 @@ def app(data_name=args.data_name):
             pipe.stationary_sampler2
         )
         x1ts, x2ts, _ = pipe(batch, batch_size=args.batch_size, record_path=True)
-        filename = mkstemp()[1]
+        filename = mkstemp(suffix=".gif")[1]
         draw(x1ts, x2ts, filename, interval=120, pad=5)
-        sequence = [ref[:x10] + ref[-args.ref2len+x20:] for x10, x20 in zip(x1ts[0], x2ts[0])]
+        sequence = [ref[:x10] + ref[len(ref)-args.ref2len+x20:] for x10, x20 in zip(x1ts[-1], x2ts[-1])]
 
         return (
             pd.DataFrame(
@@ -42,7 +41,7 @@ def app(data_name=args.data_name):
                     "sequence": sequence
                 }
             ),
-            Image.open(filename)
+            filename
         )
 
     gr.Interface(

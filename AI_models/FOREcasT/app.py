@@ -24,6 +24,7 @@ def app(data_name=args.data_name):
         proba, left, right, ins_seq = pipe(batch).values()
         del_num = sum([ins == '' for ins in ins_seq])
         ins_num = len(ins_seq) - del_num
+        sequence = [ref[:le + cut] + ins + ref[ri + cut:] for le, ri, ins in zip(left, right, ins_seq)]
 
         return pd.DataFrame(
             {
@@ -31,9 +32,10 @@ def app(data_name=args.data_name):
                 "Genotype position": left.tolist(),
                 "Inserted Bases": ins_seq,
                 "Length": (right - left)[:del_num].tolist() + [len(ins) for ins in ins_seq[-ins_num:]],
-                "Predicted frequency": proba.tolist()
+                "Predicted frequency": proba.tolist(),
+                "sequence": sequence
             }
-        )
+        ).sort_values(by="Predicted frequency", ascending=False)
 
     gr.Interface(
         fn=gradio_fn,

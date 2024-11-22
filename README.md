@@ -224,9 +224,9 @@ space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 
 TODO
 ```list
-improve app UI
 avoid change module when push pipeline
-use clip(max=3) to replace clip(0, 3)
+train all models on all datasets
+upload all space
 more robust valid loss for CRISPR diffusion
 put more weights on small steps
 optimize MCMC_corrector_factor

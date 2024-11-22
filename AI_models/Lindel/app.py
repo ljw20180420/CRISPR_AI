@@ -25,7 +25,7 @@ def app(data_name=args.data_name):
         )
         del_proba, ins_proba, ins_base, ins_base_proba, dstart, dend, del_pos_proba = pipe(batch).values()
 
-        return pd.DataFrame(
+        df = pd.DataFrame(
             {
                 "Category": ["del"] * len(dstart) + ["ins"] * len(ins_base),
                 "Genotype position": dstart + [0] * len(ins_base),
@@ -34,6 +34,9 @@ def app(data_name=args.data_name):
                 "Predicted frequency": (del_proba[0] * del_pos_proba[0]).tolist() + (ins_proba[0] * ins_base_proba[0]).tolist()
             }
         )
+        df["sequence"] = [ref[:left+cut] + ins + ref[left+int(length)+cut:] for left, length, ins in zip(df["Genotype position"], df["Length"], df["Inserted Bases"]) if length != '>2'] + [""]
+
+        return df.sort_values(by="Predicted frequency", ascending=False)
 
     gr.Interface(
         fn=gradio_fn,

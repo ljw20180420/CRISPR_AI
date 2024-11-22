@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 def kmer2int(kmer):
-    return int("".join([str(i) for i in (np.frombuffer(kmer.encode(), dtype=np.int8) % 5).clip(0, 3)]), base=4)
+    return int("".join([str(i) for i in (np.frombuffer(kmer.encode(), dtype=np.int8) % 5).clip(max=3)]), base=4)
 
 outputs_train_deletion = ["mh_input", "mh_del_len", "genotype_count", "total_del_len_count"]
 outputs_train_insertion = ["mh_input", "mh_del_len", "onebp_feature", "m654", "insert_probability", "insert_1bp"]
@@ -41,7 +41,7 @@ def data_collector(examples, DELLEN_LIMIT, outputs, epsilon=1e-6):
         results["onebp_feature"] = torch.stack([
             torch.eye(4)[
                 torch.from_numpy(
-                    (np.frombuffer(example['ref'][example['cut'] - 1:example['cut'] + 1].encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+                    (np.frombuffer(example['ref'][example['cut'] - 1:example['cut'] + 1].encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
                 )
             ].flatten()
             for example in examples

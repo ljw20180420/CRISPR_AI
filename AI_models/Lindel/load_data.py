@@ -32,7 +32,7 @@ outputs_inference = {
 def data_collector(examples, Lindel_dlen, Lindel_mh_len, outputs):
     def onehotencoder(guide):
         guideVal = torch.from_numpy(
-            (np.frombuffer(guide.encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            (np.frombuffer(guide.encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
         )
         return torch.cat([
             F.one_hot(guideVal, num_classes=4).flatten(),

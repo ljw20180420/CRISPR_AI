@@ -98,7 +98,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             # 'ACGT' -> '0213'
             self.nuc_code = "".join(
                 str(i)
-                for i in (np.frombuffer("ACGT".encode(), dtype=np.int8) % 5).clip(0, 3)
+                for i in (np.frombuffer("ACGT".encode(), dtype=np.int8) % 5).clip(max=3)
             )
             self.base_idx = [
                 torch.tensor([
@@ -142,7 +142,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                             if len(insert) <= INSERT_LIMIT:
                                 insert_counts[
                                     self.base_cutoff[len(insert) - 1] +
-                                    int("".join(str(i) for i in (np.frombuffer(insert.encode(), dtype=np.int8) % 5).clip(0, 3)), base=base)
+                                    int("".join(str(i) for i in (np.frombuffer(insert.encode(), dtype=np.int8) % 5).clip(max=3)), base=base)
                                 ] += count
                             elif count_long_insertion:
                                 insert_count_long += count

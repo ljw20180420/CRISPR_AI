@@ -31,7 +31,7 @@ def app(data_name=args.data_name):
         _, _, mh_del_len, _, mh_gt_pos, _ = examples2[0].values()
         mh_weight, mhless_weight, _, pre_insert_probability, pre_insert_1bp = pipe(batch).values()
 
-        return pd.DataFrame(
+        df = pd.DataFrame(
             {
                 "Category": ["del"] * (mh_weight[0].shape[0] + mhless_weight.shape[0]) + ["ins"] * pre_insert_1bp.shape[0],
                 "Genotype position": [gt - dl for dl, gt in zip(mh_del_len, mh_gt_pos)] + [cut] * (mhless_weight.shape[0] + pre_insert_1bp.shape[0]),
@@ -49,6 +49,9 @@ def app(data_name=args.data_name):
                 ).tolist() + pre_insert_1bp.tolist()
             }
         )
+        df["sequence"] = [ref[:left] + ins + ref[left+length:] for left, length, ins in zip(df["Genotype position"], df["Length"], df["Inserted Bases"])]
+
+        return df.sort_values(by="Predicted frequency", ascending=False)
 
     gr.Interface(
         fn=gradio_fn,

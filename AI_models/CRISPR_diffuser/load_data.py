@@ -20,13 +20,13 @@ def data_collector(examples, noise_scheduler, stationary_sampler1, stationary_sa
         one_hot_cut[example['cut2'], example['cut1']] = 1.0
         one_hot_ref1 = F.one_hot(
             torch.from_numpy(
-                (np.frombuffer((example['ref1'] + "N").encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+                (np.frombuffer((example['ref1'] + "N").encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
             ),
             num_classes=4
         ).T[:, None, :].expand(-1, ref2len + 1, -1)
         one_hot_ref2 = F.one_hot(
             torch.from_numpy(
-                (np.frombuffer((example['ref2'] + "N").encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+                (np.frombuffer((example['ref2'] + "N").encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
             ),
             num_classes=4
         ).T[:, :, None].expand(-1, -1, ref1len + 1)

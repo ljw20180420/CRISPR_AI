@@ -66,6 +66,12 @@ def space(data_name=args.data_name):
         path_or_fileobj="AI_models/CRISPR_diffuser/scheduler.py",
         path_in_repo="AI_models/CRISPR_diffuser/scheduler.py"
     )
+    api.upload_file(
+        repo_id=f"{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}",
+        repo_type="space",
+        path_or_fileobj="AI_models/CRISPR_diffuser/dynamics.py",
+        path_in_repo="AI_models/CRISPR_diffuser/dynamics.py"
+    )
     
     with fs.open(f"spaces/{args.owner}/{data_name}_{CRISPRDiffuserConfig.model_type}/app.py", "w") as fd:
         fd.write(f"from AI_models.CRISPR_diffuser.app import app\n")

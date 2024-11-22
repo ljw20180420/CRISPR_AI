@@ -56,7 +56,7 @@ feature_InsLoc = torch.tensor(feature_InsLoc)
 def get_feature_LocalCutSiteSequence(ref, cut):
     return F.one_hot(
         torch.from_numpy(
-            (np.frombuffer(ref[cut - 5:cut + 4].encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+            (np.frombuffer(ref[cut - 5:cut + 4].encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
         ),
         num_classes=4
     ).flatten()
@@ -67,13 +67,13 @@ def get_feature_LocalCutSiteSeqMatches(ref, cut):
     return (
         F.one_hot(
             torch.from_numpy(
-                (np.frombuffer(offset1_bases.encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+                (np.frombuffer(offset1_bases.encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
             ),
             num_classes=4
         ).flatten() *
         F.one_hot(
             torch.from_numpy(
-                (np.frombuffer(offset2_bases.encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+                (np.frombuffer(offset2_bases.encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
             ),
             num_classes=4
         ).flatten()
@@ -85,13 +85,13 @@ def get_feature_LocalRelativeSequence(ref, cut, left, right, ins_seq):
     return torch.cat([
         F.one_hot(
             torch.from_numpy(
-                (np.frombuffer(ref[cut + left - 3:cut + left + 3].encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+                (np.frombuffer(ref[cut + left - 3:cut + left + 3].encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
             ),
             num_classes=4
         ).flatten(),
         F.one_hot(
             torch.from_numpy(
-                (np.frombuffer(ref[cut + right - 3:cut + right + 3].encode(), dtype=np.int8) % 5).clip(0, 3).astype(np.int64)
+                (np.frombuffer(ref[cut + right - 3:cut + right + 3].encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
             ),
             num_classes=4
         ).flatten()
