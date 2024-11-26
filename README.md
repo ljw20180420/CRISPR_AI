@@ -13,9 +13,18 @@ git clone https://github.com/ljw20180420/CRISPR_AI.git
 ```
 
 
+
 # Original inDelphi python environment
 ```bash
 conda env create --prefix AI_models/inDelphi/reference/.conda --file AI_models/inDelphi/reference/inDelphi.yaml
+```
+
+
+
+# Login
+```python
+from huggingface_hub import login
+login(add_to_git_credential=True, new_session=False, write_permission=True)
 ```
 
 
@@ -33,6 +42,7 @@ export MY_HF_DATASETS_DOWNLOAD_MANAGER_PROXY="socks5h://127.0.0.1:1080"
 ```
 
 
+
 # Dataset
 ## Test
 ```python
@@ -46,6 +56,13 @@ test()
 from AI_models.dataset.utils import upload
 upload(do_test=False)
 upload(do_test=True)
+```
+
+
+
+# Benchmark
+```bash
+./benchmark.py
 ```
 
 
@@ -224,12 +241,8 @@ space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 
 TODO
 ```list
-avoid change module when push pipeline
-train all models on all datasets
-upload all space
 more robust valid loss for CRISPR diffusion
 put more weights on small steps
-optimize MCMC_corrector_factor
 increase model parameters
 decrease model window size (128 -> 64 -> 32)
 for decreased window size, exact inference is possible

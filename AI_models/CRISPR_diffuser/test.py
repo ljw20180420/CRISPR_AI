@@ -89,6 +89,6 @@ def test(data_name=args.data_name):
                 path_in_repo=f"scheduler/scheduler.py"
             )
             break
-        except ConnectionError as err:
+        except Exception as err:
             print(err)
             print("retry")

@@ -47,14 +47,20 @@ def test(data_name=args.data_name):
     pipe.push_to_hub(f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}")
     from huggingface_hub import HfApi
     api = HfApi()
-    api.upload_file(
-        repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
-        path_or_fileobj="AI_models/FOREcasT/pipeline.py",
-        path_in_repo="pipeline.py"
-    )
-    api.upload_folder(
-        repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
-        folder_path=args.output_dir / FOREcasTConfig.model_type / f"{data_name}_{FOREcasTConfig.model_type}",
-        path_in_repo="FOREcasT_model",
-        ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]
-    )    
+    while True:
+        try:
+            api.upload_file(
+                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
+                path_or_fileobj="AI_models/FOREcasT/pipeline.py",
+                path_in_repo="pipeline.py"
+            )
+            api.upload_folder(
+                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
+                folder_path=args.output_dir / FOREcasTConfig.model_type / f"{data_name}_{FOREcasTConfig.model_type}",
+                path_in_repo="FOREcasT_model",
+                ignore_patterns=["_*", f"{PREFIX_CHECKPOINT_DIR}-*"]
+            )
+            break
+        except Exception as err:
+            print(err)
+            print("retry")    
