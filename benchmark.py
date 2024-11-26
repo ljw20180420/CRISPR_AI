@@ -13,10 +13,10 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
     all_benchmark(data_name, black_list)
 
     sns.pairplot(
-        pd.read_csv(f"AI_models/benchmark/{data_name}_accum.csv")
-    ).savefig(f"AI_models/benchmark/{data_name}_pair_correlation.png")
+        pd.read_csv(f"AI_models/benchmark/results/{data_name}_accum.csv")
+    ).savefig(f"AI_models/benchmark/results/{data_name}_pair_correlation.png")
 
-    benchmark_df = pd.read_csv(f"AI_models/benchmark/{data_name}_benchmark.csv")
+    benchmark_df = pd.read_csv(f"AI_models/benchmark/results/{data_name}_benchmark.csv")
 
     (
         ggplot(
@@ -24,7 +24,7 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
             aes('pearson_type', 'value', fill='model')
         ) +
         geom_col(position="dodge")
-    ).save(f"AI_models/benchmark/{data_name}_accum_correlation.png")
+    ).save(f"AI_models/benchmark/results/{data_name}_accum_correlation.png")
 
     (
         ggplot(
@@ -35,4 +35,4 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
             aes('model', 'value', fill='model')
         ) +
         geom_col()
-    ).save(f"AI_models/benchmark/{data_name}_likelihood.png")
+    ).save(f"AI_models/benchmark/results/{data_name}_likelihood.png")
