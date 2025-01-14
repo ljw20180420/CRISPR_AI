@@ -13,3 +13,6 @@ FOREcasT/indelmap/cmake_install.cmake
 FOREcasT/indelmap/CMakeCache.txt
 zshit
 AI_models/benchmark/results
+AI_models/dataset/README.md
+AI_models/inDelphi/reference/temp.csv
+AI_models/inDelphi/reference/temp.log
