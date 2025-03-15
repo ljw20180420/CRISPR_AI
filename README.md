@@ -184,10 +184,10 @@ space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```
 ### Dynamics
 ```python
-from AI_models.CRISPR_diffuser.dynamics import dynamics
-dynamics()
-from AI_models.CRISPR_diffuser.dynamics import call_forward_reverse
-call_forward_reverse()
+from AI_models.CRISPR_diffuser.dynamics import dynamics, draw
+x1ts, x2ts, x1ts_perfect, x2ts_perfect = dynamics(data_name="SX_spcas9", text_idx=0, batch_size=100, epoch=1)
+draw(x1ts, x2ts, filename="paper/dynamics/SX_spcas9_dynamics")
+draw(x1ts_perfect, x2ts_perfect, filename="paper/dynamics/SX_spcas9_dynamics_perfect")
 ```
 
 
@@ -217,6 +217,11 @@ app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
 ```python
 from AI_models.CRISPR_transformer.space import space
 space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
+```
+### Draw heatmap
+```python
+from AI_models.benchmark.bench_lib import virsualize_observation_and_prediction
+virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/spcas9", test_idx=0)
 ```
 
 

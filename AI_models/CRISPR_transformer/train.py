@@ -1,13 +1,7 @@
 #!/usr/bin/env python
 
 from datasets import load_dataset
-from torch.utils.data import DataLoader
-import datasets
-import torch
-import torch.nn.functional as F
 from transformers import Trainer, TrainingArguments
-import numpy as np
-import pickle
 from .model import CRISPRTransformerConfig, CRISPRTransformerModel
 from ..config import get_config, get_logger
 from .load_data import data_collector, outputs_train
