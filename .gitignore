@@ -16,3 +16,4 @@ AI_models/benchmark/results
 AI_models/dataset/README.md
 AI_models/inDelphi/reference/temp.csv
 AI_models/inDelphi/reference/temp.log
+.env

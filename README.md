@@ -27,22 +27,6 @@ from huggingface_hub import login
 login(add_to_git_credential=True, new_session=False, write_permission=True)
 ```
 
-
-
-# Proxy
-## huggingface_hub
-```python
-from AI_models.proxy import proxy
-proxy(url="socks5h://127.0.0.1:1080")
-```
-## datasets
-Add the following to `.bashrc`.
-```bash
-export MY_HF_DATASETS_DOWNLOAD_MANAGER_PROXY="socks5h://127.0.0.1:1080"
-```
-
-
-
 # Dataset
 ## Test
 ```python
@@ -246,6 +230,7 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+noise2noise explanation of prediction results
 more robust valid loss for CRISPR diffusion
 put more weights on small steps
 increase model parameters
