@@ -393,7 +393,7 @@ The ground truth of $q_0(x_0)$ is unknow, but can be approximated by selecting $
 \end{eqnarray*}
 implies a naive sampling of $x_{t-1}$ and $x_t$ given $x_0$, which is easy but unstable (larger variance).
 
-What about sampling nothing?
+What about sampling only $x_0$?
 \begin{eqnarray*}
   \mathbb{E}_{q_{0,t-1,t}(x_0,x_{t-1},x_t)}\log p_{t-1|t}^\theta(x_{t-1}|x_t) = \mathbb{E}_{q_0(x_0)}\iint q_{t-1,t|0}(x_{t-1},x_t|x_0)\log p_{t-1|t}^\theta(x_{t-1}|x_t) dx_{t-1}dx_t.
 \end{eqnarray*}
@@ -407,8 +407,8 @@ The middle way is to only sample $x_t$.
 For continuous space, the network predicts $x'_0$ but not its distribution. Thus,
 \begin{eqnarray*}
   &&\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) p_{0|t}^\theta(x'_0|x_t) dx'_0) dx_{t-1}\\
-  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) \delta(x_0^\theta) dx'_0) dx_{t-1}\\
-  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log q_{t-1|0,t}(x_{t-1}|x^\theta_0,x_t) dx_{t-1}.
+  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log \qty(\int q_{t-1|0,t}(x_{t-1}|x'_0,x_t) \delta\qty(x_0^\theta) dx'_0) dx_{t-1}\\
+  &&=\mathbb{E}_{q_{0,t}(x_0,x_t)}\int q_{t-1|0,t}(x_{t-1}|x_0,x_t)\log q_{t-1|0,t}\qty(x_{t-1}|x^\theta_0,x_t) dx_{t-1}.
 \end{eqnarray*}
 For discrete space,
 \begin{eqnarray}\label{EqDisSpaTarget}
@@ -427,7 +427,7 @@ Continuous-space discrete-time diffusion models has
 \end{eqnarray*}
 $p_{t-1|t}^\theta(x_{t-1}|x_t)$ is parameterized by
 \begin{eqnarray*}
-  p_{t-1|t}^\theta(x_{t-1}|x_t) \coloneq q\qty(x_{t-1}|x_t, x^\theta_0).
+  p_{t-1|t}^\theta(x_{t-1}|x_t) \coloneq q_{t-1|0,t}\qty(x_{t-1}|x^\theta_0, x_t).
 \end{eqnarray*}
 There are two ways to parameterize $x^\theta_0$ (https://arxiv.org/pdf/2402.04384). 
 
@@ -447,12 +447,16 @@ For discrete-space discrete-time diffusion models, thera are three parameterizat
   \item The network predicts $p^\theta_{t-1|t}(\cdot|x_t)$ directly, which does not reuse any known distribution from the forward process, and hence is less effective in practice.
   \item The network predicts $p^\theta_{0|t}(\cdot|x_t)$.
   \begin{enumerate}
-    \item Parameterize $p^\theta_{t-1|t}(x_{t-1}|x_t)$ as
+    \item $q_{t-1|0, t}(\cdot|x_0, x_t)$ has a closed form expression over the one-hot codes $\mathbf{x}_0$ and $\mathbf{x}_t$ of $x_0$ and $x_t$, {\it i.e.}
     \begin{eqnarray*}
-      p^\theta_{t-1|t}(x_{t-1}|x_t)\coloneq q_{t-1|0,t}\qty(\mathbf{x}_{t-1}\middle|p^\theta_{0|t}(\cdot|x_t),\mathbf{x}_t),
+      q_{t-1|0, t}(\cdot|x_0, x_t)=f\qty(\mathbf{x}_0, \mathbf{x}_t) 
     \end{eqnarray*}
-    where $\mathbf{x}_t$ is the one-hot vector of $x_t$. Some heuristics have been proposed in https://arxiv.org/pdf/2402.03701. However, those can have a large gap to the true $q_{t-1|t}(x_{t−1}|x_t)$, leading to an inaccurate sampling process.
-    \item Parameterize $p^\theta_{t-1|t}(x_{t-1}|x_t)$ as
+    Parameterize $q_{t-1|t}(\cdot|x_t)$ by $p^\theta_{t-1|t}(\cdot|x_t)$, which is defined as
+    \begin{eqnarray*}
+      p^\theta_{t-1|t}(\cdot|x_t)\coloneq f\qty(p^\theta_{0|t}(\cdot|x_t), \mathbf{x}_t).
+    \end{eqnarray*}
+    Some heuristics have been proposed in https://arxiv.org/pdf/2402.03701. However, those can have a large gap to the true $q_{t-1|t}(\cdot|x_t)$, leading to an inaccurate sampling process.
+    \item Parameterize $q_{t-1|t}(\cdot|x_t)$ by $p^\theta_{t-1|t}(\cdot|x_t)$, which is defined as
     \begin{eqnarray*}
       p^\theta_{t-1|t}(x_{t-1}|x_t)\coloneq \sum_{x_0}q_{t-1|0,t}\qty(x_{t-1}|x_0,x_t)p^\theta_{0|t}(x_0|x_t).
     \end{eqnarray*}
@@ -512,7 +516,7 @@ In https://arxiv.org/pdf/2205.14987, the author sample $x_k$, and expand the exp
 \end{eqnarray*}
 Thus,
 \begin{eqnarray*}
-  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = \sum_{k=0}^{K-1}L_k \\
+  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = \lim_{\Delta t\to 0}\sum_{k=0}^{K-1}L_k \\
   &&= - \int_0^T \mathbb{E}_{q_t(x)}\qty(\hat{R}_t^\theta(x|x) + \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y))dt + C\\
   &&=\int_0^T \mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y))dt + C\\
   &&=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}R_t(y|x)\log\hat{R}_t^\theta(x|y)) + C.
@@ -529,7 +533,7 @@ On the contrary, we sample $x_{k+1}$, and expand the expectation over $x_k$.
 \end{eqnarray*}
 Thus,
 \begin{eqnarray*}
-  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = \sum_{k=0}^{K-1}L_k \\
+  &&\mathcal{L}^\text{CT}(\theta) = \lim_{\Delta t\to 0}\mathcal{L}^\text{DT}(\theta) = \lim_{\Delta t\to 0}\sum_{k=0}^{K-1}L_k \\
   &&= - \int_0^T \mathbb{E}_{q_t(x)}\qty(\hat{R}_t^\theta(x|x) + \sum_{y\neq x}\hat{R}_t(y|x)\log\hat{R}_t^\theta(y|x))dt + C\\
   &&=\int_0^T \mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}\hat{R}_t(y|x)\log\hat{R}_t^\theta(y|x))dt + C\\
   &&=T\mathbb{E}_{\mathcal{U}(t;0,T)}\mathbb{E}_{q_t(x)}\qty(\sum_{y\neq x}\hat{R}_t^\theta(y|x) - \sum_{y\neq x}\hat{R}_t(y|x)\log\hat{R}_t^\theta(y|x)) + C.
