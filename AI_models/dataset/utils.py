@@ -1,46 +1,302 @@
-from huggingface_hub import HfApi
-from pathlib import Path
-from datasets.commands.test import TestCommand
-from ..config import get_config
+#!/usr/bin/env python
 
-args = get_config()
+import numpy as np
 
-def test():
-    test_command = TestCommand(
-        dataset="AI_models/dataset/CRISPR_data.py",
-        name=None,
-        cache_dir=None,
-        data_dir=None,
-        all_configs=True,
-        save_infos=True,
-        ignore_verifications=False,
-        force_redownload=False,
-        clear_cache=False,
-        num_proc=None,
-        trust_remote_code=True
-    )
-    test_command.run()
+# torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
+from torch.backends import opt_einsum
+from einops import repeat, rearrange
 
-def upload(do_test=False):
-    api = HfApi()
-    api.create_repo(
-        repo_id=f"{args.owner}/CRISPR_data",
-        repo_type="dataset",
-        exist_ok=True
-    )
-    api.upload_file(
-        path_or_fileobj=Path(__file__).parent / "CRISPR_data.py",
-        path_in_repo="CRISPR_data.py",
-        repo_id=f"{args.owner}/CRISPR_data",
-        repo_type="dataset"
-    )
 
-    if do_test:
-        test()
-        api.upload_file(
-            path_or_fileobj="AI_models/dataset/README.md",
-            path_in_repo="README.md",
-            repo_id=f"{args.owner}/CRISPR_data",
-            repo_type="dataset"
+def gc_content(DNA: str) -> float:
+    return (DNA.count("G") + DNA.count("C")) / len(DNA)
+
+
+class SeqTokenizer:
+    def __init__(self, alphabet: str) -> None:
+        self.ascii_code = np.frombuffer(alphabet.encode(), dtype=np.int8)
+        self.int2idx = np.empty(self.ascii_code.max() + 1, dtype=int)
+        for i, c in enumerate(self.ascii_code):
+            self.int2idx[c] = i
+
+    def __call__(self, seq: str) -> np.ndarray:
+        return self.int2idx[np.frombuffer(seq.encode(), dtype=np.int8)]
+
+
+class GetInsertionCount:
+    def __init__(self, alphabet: str, insert_uplimit: int) -> None:
+        self.insert_uplimit = insert_uplimit
+        self.alphabet = alphabet
+        self.base_cutoff = len(self.alphabet) ** np.arange(insert_uplimit + 1)
+        self.base_cutoff[0] = 0
+        self.base_cutoff = np.cumsum(self.base_cutoff)
+        # ACGT to 0123
+        self.DNA_tokenizer = SeqTokenizer("ACGT")
+
+    def DNA_to_idx(self, DNA: str) -> int:
+        vec = self.DNA_tokenizer(DNA) * np.arange(len(DNA) - 1, -1, -1)
+        return self.base_cutoff[len(DNA) - 1] + vec.sum()
+
+    def extract_insert_idx(
+        self,
+        ref1: str,
+        ref2: str,
+        cut1: int,
+        cut2: int,
+        ref1_end: int,
+        ref2_start: int,
+        random_insert: str,
+    ) -> int:
+        # base_cutoff[-1] = base + base^2 + base^3 + ... + base^insert_uplimit
+        if ref1_end < cut1 or ref2_start > cut2:  # deletion or indel
+            return -1
+        insert = ref1[cut1:ref1_end] + random_insert + ref2[ref2_start:cut2]
+        if not insert:  # wildtype
+            return -1
+        if len(insert) > self.insert_uplimit:  # insertion length beyond insert_uplimit
+            return self.base_cutoff[-1]
+        return self.DNA_to_idx(insert)
+
+    def __call__(self, ref1: str, ref2: str, cut: dict) -> tuple[np.ndarray, int]:
+        cut1, cut2, authors = cut["cut1"], cut["cut2"], cut["authors"]
+        insert_counts = np.zeros(self.base_cutoff[-1])
+        insert_count_long = 0
+        for author in authors:
+            for file in author["files"]:
+                for ref1_end, ref2_start, random_insert, count in zip(
+                    file["ref1_end"],
+                    file["ref2_start"],
+                    file["random_insert"],
+                    file["count"],
+                ):
+                    idx = self.extract_insert_idx(
+                        ref1, ref2, cut1, cut2, ref1_end, ref2_start, random_insert
+                    )
+                    if idx == -1:
+                        continue
+                    if idx < self.base_cutoff[-1]:
+                        insert_counts[idx] += count
+                    else:
+                        insert_count_long += count
+
+        return insert_counts, insert_count_long
+
+
+class GetObservation:
+    def __init__(self, ref1len: int, ref2len: int, random_insert_uplimit: int) -> None:
+        self.ref1len = ref1len
+        self.ref2len = ref2len
+        self.random_insert_uplimit = random_insert_uplimit
+
+    def __call__(self, ref1: str, ref2: str, cut: dict) -> np.ndarray:
+        assert (
+            len(ref1) == self.ref1len and len(ref2) == self.ref2len
+        ), "reference length does not fit"
+        authors = cut["authors"]
+        observations = np.zeros(
+            [self.random_insert_uplimit + 2, len(ref2) + 1, len(ref1) + 1],
+            dtype=float,
         )
-    
+        for author in authors:
+            for file in author["files"]:
+                observations[
+                    np.array(
+                        [len(random_insert) for random_insert in file["random_insert"]]
+                    ).clip(0, self.random_insert_uplimit + 1),
+                    np.array(file["ref2_start"]),
+                    np.array(file["ref1_end"]),
+                ] += np.array(file["count"])
+
+        return observations
+
+
+class GetMH:
+    def __init__(self, ref1len: int, ref2len: int) -> None:
+        self.ref1len = ref1len
+        self.ref2len = ref2len
+        # diag_indices example for ref2len = 3 and ref1len = 2:
+        # 6 9 11   row_indices 0 0 0   col_indices 0 1 2
+        # 3 7 10               1 1 1               0 1 2
+        # 1 4 8                2 2 2               0 1 2
+        # 0 2 5                3 3 3               0 1 2
+        # diag_indices = np.ravel_multi_index(
+        #     multi_index=(
+        #         tensor([3, 2, 3, 1, 2, 3, 0, 1, 2, 0, 1, 0]),
+        #         tensor([0, 0, 1, 0, 1, 2, 0, 1, 2, 1, 2, 2])
+        #     ),
+        #     dims=(4, 3),
+        # )
+        row_indices = repeat(
+            np.arange(self.ref2len + 1), "r2 -> r2 r1", r1=self.ref1len + 1
+        )
+        col_indices = repeat(
+            np.arange(self.ref1len + 1), "r1 -> r2 r1", r2=self.ref2len + 1
+        )
+        self.diag_indices = np.ravel_multi_index(
+            multi_index=(
+                # row index
+                np.concatenate(
+                    [
+                        row_indices.diagonal(offset)
+                        for offset in range(-ref2len, ref1len + 1)
+                    ]
+                ),
+                # col index
+                np.concatenate(
+                    [
+                        col_indices.diagonal(offset)
+                        for offset in range(-ref2len, ref1len + 1)
+                    ]
+                ),
+            ),
+            dims=(self.ref2len + 1, self.ref1len + 1),
+        )
+
+    def __call__(
+        self, ref1: str, ref2: str, cut1: int, cut2: int, ext1: int, ext2: int
+    ) -> tuple[np.ndarray]:
+        assert (
+            len(ref1) == self.ref1len and len(ref2) == self.ref2len
+        ), "reference length does not fit"
+        assert cut1 + ext1 <= len(ref1) and ext2 <= cut2, "extend too much"
+        mh_matrix = np.pad(
+            (
+                rearrange(
+                    np.frombuffer(ref1[: cut1 + ext1].encode(), dtype=np.int8),
+                    "r1 -> 1 r1",
+                )
+                == rearrange(
+                    np.frombuffer(ref2[cut2 - ext2 :].encode(), dtype=np.int8),
+                    "r2 -> r2 1",
+                )
+            ).astype(int),
+            pad_width=((cut2 - ext2, 1), (0, len(ref1) - cut1 - ext1 + 1)),
+        )
+        rep_num = np.diff(
+            np.concatenate(
+                (
+                    np.array([-1], dtype=int),
+                    np.where(np.diff(mh_matrix.flatten()[self.diag_indices]))[0],
+                    np.array([(len(ref1) + 1) * (len(ref2) + 1) - 1], dtype=int),
+                )
+            )
+        )
+        rep_val = rep_num.copy()
+        rep_val[0::2] = 0
+        rep_num[1::2] = rep_num[1::2] + 1
+        rep_num[2::2] = rep_num[2::2] - 1
+        mh_matrix = mh_matrix.flatten()
+        mh_matrix[self.diag_indices] = np.repeat(rep_val, rep_num)
+        cum_rep_num = rep_num.cumsum()
+        mh_idx_align_ref1 = self.diag_indices[cum_rep_num[1::2] - 1]
+        mh_idx_align_ref2 = self.diag_indices[cum_rep_num[0:-1:2]]
+        mh_rep_num = rep_num[1::2]
+        return mh_matrix, mh_idx_align_ref1, mh_idx_align_ref2, mh_rep_num
+
+    def correct_observation(
+        self, observations: np.ndarray, mh_matrix: np.ndarray, mh_rep_num: np.ndarray
+    ) -> tuple[np.ndarray]:
+        mh_mask = (mh_matrix > 0)[self.diag_indices]
+        corrected_observations = []
+        for i, observation in enumerate(observations):
+            observation = observation.flatten()
+            counts = np.zeros(len(mh_rep_num), dtype=int)
+            np.add.at(
+                counts,
+                np.repeat(np.arange(len(mh_rep_num)), mh_rep_num),
+                observation[self.diag_indices][mh_mask],
+            )
+            observation[self.diag_indices[mh_mask]] = np.repeat(counts, mh_rep_num)
+            observations[i] = observation.reshape(self.ref2len + 1, self.ref1len + 1)
+
+        return observations
+
+
+if __name__ == "__main__":
+    # test gc_content
+    print("test gc_content")
+    ref1 = "".join(np.random.choice(["A", "C", "G", "T"], size=127))
+    ref2 = "".join(np.random.choice(["A", "C", "G", "T"], size=127))
+    print(ref1)
+    print("gc content %f" % gc_content(DNA=ref1))
+    print(ref2)
+    print("gc content %f" % gc_content(DNA=ref2))
+    print()
+
+    # test SeqTokenizer
+    print("test SeqTokenizer")
+    DNA_tokenizer = SeqTokenizer(alphabet="ACGT")
+    print(ref1)
+    print("".join(str(i) for i in DNA_tokenizer(seq=ref1)))
+    print(ref2)
+    print("".join(str(i) for i in DNA_tokenizer(seq=ref2)))
+    print()
+
+    # test GetInsertionCount
+    print("test GetInsertionCount")
+    get_insertion_count = GetInsertionCount(alphabet="ACGT", insert_uplimit=2)
+    cut = {
+        "cut1": 100,
+        "cut2": 27,
+        "authors": [
+            {
+                "files": [
+                    {
+                        "file": "sx",
+                        "ref1_end": [
+                            102,
+                            100,
+                            103,
+                            101,
+                        ],
+                        "ref2_start": [
+                            27,
+                            26,
+                            28,
+                            24,
+                        ],
+                        "random_insert": [
+                            "",
+                            "A",
+                            "TG",
+                            "",
+                        ],
+                        "count": [
+                            3,
+                            6,
+                            2,
+                            9,
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+    insert_counts, insert_count_long = get_insertion_count(
+        ref1=ref1, ref2=ref2, cut=cut
+    )
+    print(insert_counts)
+    print(insert_count_long)
+    print()
+
+    # test GetObservation
+    print("test GetObservation")
+    get_observation = GetObservation(
+        ref1len=len(ref1), ref2len=len(ref2), random_insert_uplimit=0
+    )
+    observations = get_observation(ref1=ref1, ref2=ref2, cut=cut)
+    print(observations.nonzero())
+    print()
+
+    # test GetMH
+    print("test GetMH")
+    get_mh = GetMH(len(ref1), len(ref2))
+    mh_matrix, mh_idx_align_ref1, mh_idx_align_ref2, mh_rep_num = get_mh(
+        ref1=ref1, ref2=ref2, cut1=cut["cut1"], cut2=cut["cut2"], ext1=0, ext2=0
+    )
+    observations = get_mh.correct_observation(observations, mh_matrix, mh_rep_num)
+    print(mh_matrix.reshape(len(ref1) + 1, len(ref2) + 1))
+    print(mh_rep_num)
+    print(observations)
+    print(mh_idx_align_ref1)
+    print(mh_idx_align_ref2)
+    print()

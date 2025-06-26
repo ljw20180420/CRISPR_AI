@@ -176,7 +176,7 @@ $p^{\theta,(d)}_{s|t}$ is used to efficiently sample $x^{(d)}_s$ in the reverse 
 
 Assume that all dimensions are independent in the forward process. Then by https://arxiv.org/pdf/2402.03701,
 \begin{eqnarray}\label{EqDivParaHatR}
-  &&g^{(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}q^{(d)}_{0|t}\qty(y^{(d)}_0\middle| x^{(1:D)}),\\
+  &&g^{(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})\coloneq\sum_{x^{(d)}_0}\frac{q^{(d)}_{t|0}\qty(y^{(d)}\middle|x^{(d)}_0)}{q^{(d)}_{t|0}\qty(x^{(d)}\middle|x^{(d)}_0)}q^{(d)}_{0|t}\qty(x^{(d)}_0\middle| x^{(1:D)}),\\
   &&\hat{R}_t\qty(y^{(1:D)}\middle|x^{(1:D)})=\sum_{d=1}^D R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}} g^{(d)}_t\qty(y^{(d)}\middle|x^{(1:D)})=\sum_{d=1}^D \frac{R^{(d)}_t\qty(x^{(d)}\middle| y^{(d)})\delta_{x^{\setminus d},y^{\setminus d}}}{g^{(d)}_t\qty(x^{(d)}\middle|y^{(1:D)})}.
 \end{eqnarray}
 In https://arxiv.org/pdf/2402.03701, the author suggests to parameterize the negative ELBO by
@@ -328,14 +328,14 @@ where $a=b=5$ by defaults.
     \State
     {\color{blue}
     \begin{eqnarray*}
-      && g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\gets \frac{1}{\left\langle \mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle}\qty[\qty(1-\frac{\left\langle p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t),\mathbf{x}^{(d)}_t\right\rangle}{a^{(d)}_3})\mathbf{m}_d + \frac{\alpha_{t|0}}{1-\alpha_{t|0}}p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t)]\circ \qty(\mathbf{1}-\mathbf{x}^{(d)}_t) + \mathbf{x}^{(d)}_t, \\
+      && g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\gets \frac{1}{\left\langle \mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle}\qty[\qty(1-\frac{\left\langle p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t),\mathbf{x}^{(d)}_t\right\rangle}{a^{(d)}_3})\mathbf{m}_d + \frac{\alpha^{(d)}_{t|0}}{1-\alpha^{(d)}_{t|0}}p^{\theta,(d)}_{0|t}\qty(\cdot\middle|x^{(1:D)}_t)]\circ \qty(\mathbf{1}-\mathbf{x}^{(d)}_t) + \mathbf{x}^{(d)}_t, \\
       && \tilde{\mathcal{L}}^\text{CT}_t(\theta)\gets \sum_{d=1}^D\qty[\left\langle\mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle + \left\langle \mathbf{m}_d,\log g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle], \\
       && \mathcal{L}^\text{CT,rev}_t(\theta) \gets \sum_{d=1}^D\qty[ \left\langle\mathbf{x}^{(d)}_t,\mathbf{m}_d\right\rangle\left\langle\mathbf{1},g^{\theta,(d)}_t\qty(\cdot\middle|x^{(1:D)}_t)\right\rangle - \left\langle\mathbf{x}^{(d)}_t, \mathbf{m}_d\right\rangle \left\langle g_t^{(d)}\qty(\cdot \middle|x^{(1:D)}), \log g_t^{\theta, (d)}\qty(\cdot \middle|x^{(1:D)}) \right\rangle ].
     \end{eqnarray*}
     }
     \State
     \begin{eqnarray*}
-      &&q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|\cdot) \gets \alpha^{(d)}_t \mathbf{x}^{(d)}_t + \qty(1 - \alpha^{(d)}_t)\left\langle\mathbf{x}^{(d)}_t, \mathbf{m}_d\right\rangle\mathbf{1},\\
+      &&q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|\cdot) \gets \alpha^{(d)}_{t|0} \mathbf{x}^{(d)}_t + \qty(1 - \alpha^{(d)}_{t|0})\left\langle\mathbf{x}^{(d)}_t, \mathbf{m}_d\right\rangle\mathbf{1},\\
       &&q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t) \gets q_0\qty(x^{(1:D)}_0)\prod_{d=1}^D q^{(d)}_{t|0}\qty(x^{(d)}_t\middle|x^{(d)}_0),\\
       &&q_t\qty(x^{(1:D)}_t) \gets \sum_{x^{(1:D)}_0}q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t),\\
       &&q_{0|t}\qty(x^{(1:D)}_0\middle|x^{(1:D)}_t) \gets q_{0,t}\qty(x^{(1:D)}_0, x^{(1:D)}_t) / q_t\qty(x^{(1:D)}_t).
@@ -362,7 +362,7 @@ where $a=b=5$ by defaults.
     \For{$m$ from $1$ to $N$}
     \State Get $p^\theta_{0|t_{i-1}}\qty(\cdot\middle|x^{(1:D)}_{t_{i-1}})$ by network.
     \State $\bar{p}^{\theta,(d)}_{\Delta t}\qty(\cdot|x^{(1:D)}_{t_{i-1}})\gets \Delta t\qty[\qty(2-\frac{\left\langle p^{\theta,(d)}_{0|t_{i-1}}\qty(\cdot\middle|x^{(1:D)}_{t_{i-1}}),\mathbf{x}^{(d)}_{t_{i-1}}\right\rangle}{1+\qty(\qty(\alpha_{t|0})^{-1}-1)\left\langle \mathbf{x}^{(d)}_{t_{i-1}},\mathbf{m}_d\right\rangle})\mathbf{m}_d + \frac{\alpha_{t|0}}{1-\alpha_{t|0}}p^{\theta,(d)}_{0|t_{i-1}}\qty(\cdot\middle|x^{(1:D)}_{t_{i-1}})]\circ\qty(\mathbf{1}-\mathbf{x}^{(d)}_{t_{i-1}})$.
-    \State Draw $x^{(d)}_{t_{i-1}}\sim \bar{p}^{\theta,(d)}_{\Delta t}\qty(\cdot|x^{(1:D)}_{t_i}) + \qty(1-\sum_{y}\bar{p}^{\theta,(d)}_{\Delta t}\qty(y|x^{(1:D)}_{t_{i-1}}))\mathbf{x}^{(d)}_{t_{i-1}}$.
+    \State Draw $x^{(d)}_{t_{i-1}}\sim \bar{p}^{\theta,(d)}_{\Delta t}\qty(\cdot|x^{(1:D)}_{t_{i-1}}) + \qty(1-\sum_{y}\bar{p}^{\theta,(d)}_{\Delta t}\qty(y|x^{(1:D)}_{t_{i-1}}))\mathbf{x}^{(d)}_{t_{i-1}}$.
     \EndFor
     \EndIf
     \EndFor

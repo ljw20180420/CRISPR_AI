@@ -1,14 +1,12 @@
 #!/usr/bin/env python
-# A mixture of data from sx, lcy, sj, ljh, lier
 
 import re
 import datasets
 from typing import Callable
-import os
 import torch
 import torch.nn.functional as F
-from itertools import product
 import numpy as np
+from .utils import gc_content, GetInsertionCount, GetObservation, GetMH
 
 # TODO: Add BibTeX citation
 # Find for instance the citation on arxiv or on the dataset repo/website
@@ -21,34 +19,26 @@ import numpy as np
 # }
 # """
 
-# TODO: Add a link to an official homepage for the dataset here
-# _HOMEPAGE = ""
+_HOMEPAGE = "https://github.com/ljw20180420/CRISPRdata"
 
-# TODO: Add the licence for the dataset here if you can find it
-# _LICENSE = ""
-
-
-def gc_content(seq):
-    return (seq.count("G") + seq.count("C")) / len(seq)
+_LICENSE = "MIT"
 
 
 class CRISPRDataConfig(datasets.BuilderConfig):
     def __init__(
         self,
-        ref_filter: Callable | None = None,
-        cut_filter: Callable | None = None,
-        author_filter: Callable | None = None,
-        file_filter: Callable | None = None,
-        test_ratio: float = 0.05,
-        validation_ratio: float = 0.05,
-        seed: int = 63036,
-        features: datasets.Features = None,
-        ref1len: int = 127,
-        ref2len: int = 127,
-        DELLEN_LIMIT: int = 60,
-        Lindel_dlen: int = 30,
-        Lindel_mh_len: int = 4,
-        FOREcasT_MAX_DEL_SIZE: int = 30,
+        ref_filter: Callable | None,
+        cut_filter: Callable | None,
+        author_filter: Callable | None,
+        file_filter: Callable | None,
+        test_ratio: float,
+        validation_ratio: float,
+        seed: int,
+        features: datasets.Features,
+        ref1len: int,
+        ref2len: int,
+        random_insert_uplimit: int,
+        insert_uplimit: int,
         **kwargs
     ):
         """BuilderConfig for CRISPR_data.
@@ -64,10 +54,8 @@ class CRISPRDataConfig(datasets.BuilderConfig):
         features: include the data structure in config (for auto generation of model card when test dataset).
         ref1len: length of ref1.
         ref2len: length of ref2.
-        DELLEN_LIMIT: upper limit of inDelphi deletion size.
-        Lindel_dlen: upper limit of Lindel deletion size.
-        Lindel_mh_len: upper limit of Lindel micro-homology size (mh longer than Lindel_mh_len is not excluded, but cutoff to Lindel_mh_len).
-        FOREcasT_MAX_DEL_SIZE: upper limit of FOREcasT deletion size.
+        random_insert_uplimit: upper limit of random insertion size discriminated in observations.
+        insert_uplimit: upper limit of insertion. Insertion longer than insert_uplimit is count in insert_count_long.
         **kwargs: keyword arguments forwarded to super.
         """
         super().__init__(**kwargs)
@@ -81,169 +69,20 @@ class CRISPRDataConfig(datasets.BuilderConfig):
         self.features = features
         self.ref1len = ref1len
         self.ref2len = ref2len
-        self.DELLEN_LIMIT = DELLEN_LIMIT
-        self.Lindel_dlen = Lindel_dlen
-        self.Lindel_mh_len = Lindel_mh_len
-        self.FOREcasT_MAX_DEL_SIZE = FOREcasT_MAX_DEL_SIZE
+        self.random_insert_uplimit = random_insert_uplimit
+        self.insert_uplimit = insert_uplimit
 
 
 class CRISPRData(datasets.GeneratorBasedBuilder):
     def __init__(self, **kargs):
         super().__init__(**kargs)
-        with torch.no_grad():
-            # diag_indices example for ref2len = 3 and ref1len = 2:
-            # 6 9 11   row_indices 0 0 0   col_indices 0 1 2
-            # 3 7 10               1 1 1               0 1 2
-            # 1 4 8                2 2 2               0 1 2
-            # 0 2 5                3 3 3               0 1 2
-            # diag_indices = (
-            #     tensor([3, 2, 3, 1, 2, 3, 0, 1, 2, 0, 1, 0]),
-            #     tensor([0, 0, 1, 0, 1, 2, 0, 1, 2, 1, 2, 2])
-            # )
-            ref1len, ref2len = self.config.ref1len, self.config.ref2len
-            row_indices = torch.arange(ref2len + 1)[:, None].expand(-1, ref1len + 1)
-            col_indices = torch.arange(ref1len + 1).expand(ref2len + 1, -1)
-            self.diag_indices = (
-                # row index
-                torch.cat(
-                    [
-                        row_indices.diagonal(offset)
-                        for offset in range(-ref2len, ref1len + 1)
-                    ]
-                ),
-                # col index
-                torch.cat(
-                    [
-                        col_indices.diagonal(offset)
-                        for offset in range(-ref2len, ref1len + 1)
-                    ]
-                ),
-            )
-            # 'ACGT' -> '0213'
-            self.nuc_code = "".join(
-                str(i)
-                for i in (np.frombuffer("ACGT".encode(), dtype=np.int8) % 5).clip(max=3)
-            )
-            self.base_idx = [
-                torch.tensor(
-                    [
-                        int("".join(j), base=len(self.nuc_code))
-                        for j in product(*([self.nuc_code] * i))
-                    ]
-                )
-                for i in range(1, 3)
-            ]
-            self.base_cutoff = [0]
-            for bi in self.base_idx:
-                bi += self.base_cutoff[-1]
-                self.base_cutoff.append(self.base_cutoff[-1] + len(bi))
-            self.base_idx = torch.cat(self.base_idx)
-
-    # auxiliary methods
-    def get_observations(
-        self,
-        ref1,
-        ref2,
-        cut,
-        RANDOM_INSERT_LIMIT=99999,
-        INSERT_LIMIT=None,
-        count_long_insertion=False,
-    ):
-        assert (
-            len(ref1) == self.config.ref1len and len(ref2) == self.config.ref2len
-        ), "reference length does not fit"
-        observations = torch.zeros(len(ref2) + 1, len(ref1) + 1, dtype=torch.int64)
-        if INSERT_LIMIT is not None:
-            assert INSERT_LIMIT < len(self.base_cutoff), "INSERT_LIMIT is beyonded"
-            base = len(self.nuc_code)
-            total = (base ** (INSERT_LIMIT + 1) - base) // (base - 1)
-            insert_counts = torch.zeros(total, dtype=torch.int64)
-            if count_long_insertion:
-                insert_count_long = 0
-            cut1, cut2 = cut["cut1"], cut["cut2"]
-        for author in cut["authors"]:
-            for file in author["files"]:
-                mask = torch.tensor(
-                    [
-                        len(random_insert) <= RANDOM_INSERT_LIMIT
-                        for random_insert in file["random_insert"]
-                    ]
-                )
-                observations[
-                    torch.tensor(file["ref2_start"])[mask],
-                    torch.tensor(file["ref1_end"])[mask],
-                ] += torch.tensor(file["count"])[mask]
-                if INSERT_LIMIT is not None:
-                    for ref1_end, ref2_start, random_insert, count in zip(
-                        file["ref1_end"],
-                        file["ref2_start"],
-                        file["random_insert"],
-                        file["count"],
-                    ):
-                        if ref1_end < cut1 or ref2_start > cut2:
-                            continue
-                        insert = (
-                            ref1[cut1:ref1_end] + random_insert + ref2[ref2_start:cut2]
-                        )
-                        if len(insert) > 0:
-                            if len(insert) <= INSERT_LIMIT:
-                                insert_counts[
-                                    self.base_cutoff[len(insert) - 1]
-                                    + int(
-                                        "".join(
-                                            str(i)
-                                            for i in (
-                                                np.frombuffer(
-                                                    insert.encode(), dtype=np.int8
-                                                )
-                                                % 5
-                                            ).clip(max=3)
-                                        ),
-                                        base=base,
-                                    )
-                                ] += count
-                            elif count_long_insertion:
-                                insert_count_long += count
-        if INSERT_LIMIT is not None:
-            insert_counts = insert_counts[self.base_idx[:total]]
-            if count_long_insertion:
-                return observations, torch.cat(
-                    [
-                        insert_counts,
-                        torch.tensor([insert_count_long], dtype=torch.int64),
-                    ]
-                )
-            else:
-                return observations, insert_counts
-        return observations
-
-    def num2micro_homology(self, ref1, ref2, cut1, cut2, ext1=0, ext2=0):
-        assert (
-            len(ref1) == self.config.ref1len and len(ref2) == self.config.ref2len
-        ), "reference length does not fit"
-        mh_matrix = F.pad(
-            torch.from_numpy(
-                np.frombuffer(ref1[: cut1 + ext1].encode(), dtype=np.int8)[None, :]
-                == np.frombuffer(ref2[cut2 - ext2 :].encode(), dtype=np.int8)[:, None]
-            ).to(torch.int16),
-            pad=(0, len(ref1) - cut1 - ext1 + 1, cut2 - ext2, 1),
-            value=0,
+        self.get_insertion_count = GetInsertionCount("ACGT", self.config.insert_uplimit)
+        self.get_observations = GetObservation(
+            self.config.ref1len,
+            self.config.ref2len,
+            self.config.random_insert_uplimit,
         )
-        rep_num = torch.cat(
-            (
-                torch.tensor([-1], dtype=torch.int64),
-                torch.where(mh_matrix[self.diag_indices].diff())[0],
-                torch.tensor(
-                    [(len(ref1) + 1) * (len(ref2) + 1) - 1], dtype=torch.int64
-                ),
-            )
-        ).diff()
-        rep_val = rep_num.clone()
-        rep_val[0::2] = 0
-        rep_num[1::2] = rep_num[1::2] + 1
-        rep_num[2::2] = rep_num[2::2] - 1
-        rep_val = rep_val.repeat_interleave(rep_num)
-        return mh_matrix, rep_num, rep_val
+        self.get_mh = GetMH(self.config.ref1len, self.config.ref2len)
 
     def get_input(self, ref1, ref2, cut1, cut2, mh_matrix, rep_num, rep_val, model):
         if model != "FOREcasT":
@@ -307,8 +146,21 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         return None
 
     # trans_funcs
-    def CRISPR_transformer_trans_func(self, examples):
-        ref1s, ref2s, ob_ref1s, ob_ref2s, ob_vals = [], [], [], [], []
+    def trans_func(self, examples):
+        (
+            ref1s,
+            ref2s,
+            cut1s,
+            cut2s,
+            mh_idxs,
+            mh_vals,
+            mh_idx_align_ref1s,
+            mh_idx_align_ref2s,
+            ob_idxs,
+            ob_vals,
+            insert_countss,
+            insert_count_longs,
+        ) = ([], [], [], [], [], [], [], [], [], [], [], [], [])
         for ref1, ref2, cuts in zip(
             examples["ref1"], examples["ref2"], examples["cuts"]
         ):
@@ -316,78 +168,47 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 # ref
                 ref1s.append(ref1)
                 ref2s.append(ref2)
-                # output
-                observations = self.get_observations(ref1, ref2, cut)
-                ob_ref2, ob_ref1 = observations.nonzero(as_tuple=True)
-                ob_ref1s.append(ob_ref1)
-                ob_ref2s.append(ob_ref2)
-                ob_vals.append(observations[ob_ref2, ob_ref1])
-        return {
-            "ref1": ref1s,
-            "ref2": ref2s,
-            "ob_ref1": ob_ref1s,
-            "ob_ref2": ob_ref2s,
-            "ob_val": ob_vals,
-        }
-
-    def CRISPR_diffuser_trans_func(self, examples):
-        (
-            ref1s,
-            ref2s,
-            cut1s,
-            cut2s,
-            mh_ref1s,
-            mh_ref2s,
-            mh_vals,
-            ob_ref1s,
-            ob_ref2s,
-            ob_vals,
-        ) = ([], [], [], [], [], [], [], [], [], [])
-        for ref1, ref2, cuts in zip(
-            examples["ref1"], examples["ref2"], examples["cuts"]
-        ):
-            for cut in cuts:
-                # ref and cut
-                ref1s.append(ref1)
-                ref2s.append(ref2)
-                cut1, cut2 = cut["cut1"], cut["cut2"]
-                cut1s.append(cut1)
-                cut2s.append(cut2)
-                # input
-                mh_matrix, rep_num, rep_val = self.num2micro_homology(
-                    ref1, ref2, cut1, cut2
+                # cut
+                cut1s.append(cut["cut1"])
+                cut2s.append(cut["cut2"])
+                # mh
+                mh_matrix, mh_idx_align_ref1, mh_idx_align_ref2, mh_rep_num = (
+                    self.get_mh(ref1, ref2, cut["cut1"], cut["cut2"], ext1=0, ext2=0)
                 )
-                mh_matrix = self.get_input(
-                    ref1,
-                    ref2,
-                    cut1,
-                    cut2,
-                    mh_matrix,
-                    rep_num,
-                    rep_val,
-                    "CRISPR_diffuser",
+                mh_idx = mh_matrix.nonzero()
+                mh_idxs.append(mh_idx)
+                mh_vals.append(mh_matrix(mh_idx))
+                mh_idx_align_ref1s.append(mh_idx_align_ref1)
+                mh_idx_align_ref2s.append(mh_idx_align_ref2)
+                # observe
+                observations = self.get_observations(ref1, ref2, cut).flatten()
+                observations = self.get_mh.correct_observation(
+                    observations, mh_matrix, mh_rep_num
                 )
-                mh_ref2, mh_ref1 = mh_matrix.nonzero(as_tuple=True)
-                mh_ref1s.append(mh_ref1)
-                mh_ref2s.append(mh_ref2)
-                mh_vals.append(mh_matrix[mh_ref2, mh_ref1])
-                # output
-                observations = self.get_observations(ref1, ref2, cut)
-                ob_ref2, ob_ref1 = observations.nonzero(as_tuple=True)
-                ob_ref1s.append(ob_ref1)
-                ob_ref2s.append(ob_ref2)
-                ob_vals.append(observations[ob_ref2, ob_ref1])
+                (ob_idx,) = observations.nonzero()
+                ob_idxs.append(ob_idx)
+                ob_vals.append(observations[ob_idx])
+                # insert
+                insert_counts, insert_count_long = self.get_insertion_count(
+                    ref1, ref2, cut
+                )
+                insert_countss.append(insert_counts)
+                insert_count_longs.append(insert_count_long)
         return {
             "ref1": ref1s,
             "ref2": ref2s,
             "cut1": cut1s,
             "cut2": cut2s,
-            "mh_ref1": mh_ref1s,
-            "mh_ref2": mh_ref2s,
+            "mh_idx": mh_idxs,
             "mh_val": mh_vals,
-            "ob_ref1": ob_ref1s,
-            "ob_ref2": ob_ref2s,
+            "mh_idx_align_ref1": mh_idx_align_ref1s,
+            "mh_idx_align_ref2": mh_idx_align_ref2s,
+            "random_insert_uplimit": [self.config.random_insert_uplimit]
+            * len(examples["ref1"]),
+            "ob_idx": ob_idx,
             "ob_val": ob_vals,
+            "insert_count": insert_countss,
+            "insert_count_long": insert_count_longs,
         }
 
     def inDelphi_trans_func(self, examples):
@@ -439,9 +260,9 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                     ]
                 )
                 # output
-                observations, insert_counts = self.get_observations(
-                    ref1, ref2, cut, INSERT_LIMIT=1
-                )
+                observations = self.get_observations(ref1, ref2, cut)
+                insert_counts, _ = self.get_insertion_count(ref1, ref2, cut)
+                insert_counts = insert_counts[:4]
                 insert_1bpss.append(insert_counts)
                 counts = self.get_output(observations, rep_num, rep_val, "inDelphi")
                 counts = counts[mask_del]
@@ -512,10 +333,11 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 del_lens_list.append(del_lens)
                 mh_lens_list.append(mh_lens)
                 # output
-                observations, insert_counts = self.get_observations(
-                    ref1, ref2, cut, INSERT_LIMIT=2, count_long_insertion=True
+                observations = self.get_observations(ref1, ref2, cut)
+                insert_counts, insert_count_long = self.get_insertion_count(
+                    ref1, ref2, cut
                 )
-                ins_counts.append(insert_counts)
+                ins_counts.append(np.append(insert_counts, insert_count_long))
                 counts = self.get_output(observations, rep_num, rep_val, "Lindel")
                 del_counts.append(counts[mask_del_len])
         return {
@@ -552,9 +374,9 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                     .logical_and(dstarts + del_lens >= 0)
                 )
                 # output
-                observations, insert_counts = self.get_observations(
-                    ref1, ref2, cut, RANDOM_INSERT_LIMIT=0, INSERT_LIMIT=2
-                )
+                observations = self.get_observations(ref1, ref2, cut)
+                insert_counts, _ = self.get_insertion_count(ref1, ref2, cut)
+
                 counts = self.get_output(observations, rep_num, rep_val, "FOREcasT")
                 total_counts.append(torch.cat([counts[mask_del_len], insert_counts]))
         return {"ref": refs, "cut": cut_list, "count": total_counts}
@@ -570,216 +392,85 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
     # You will be able to load one or the other configurations in the following list with
     # data = datasets.load_dataset('path_to_CRISPR_data', 'config_name')
 
-    features_CRISPR_transformer = datasets.Features(
+    features = datasets.Features(
         {
             "ref1": datasets.Value("string"),
             "ref2": datasets.Value("string"),
-            "ob_ref1": datasets.Sequence(datasets.Value("int16")),
-            "ob_ref2": datasets.Sequence(datasets.Value("int16")),
+            "cut1": datasets.Value("int64"),
+            "cut2": datasets.Value("int64"),
+            "mh_idx": datasets.Sequence(datasets.Value("int64")),
+            "mh_val": datasets.Sequence(datasets.Value("int64")),
+            "mh_idx_align_ref1": datasets.Sequence(datasets.Value("int64")),
+            "mh_idx_align_ref2": datasets.Sequence(datasets.Value("int64")),
+            "random_insert_uplimit": datasets.Value("int64"),
+            "ob_idx": datasets.Sequence(datasets.Value("int64")),
             "ob_val": datasets.Sequence(datasets.Value("int64")),
+            "insert_count": datasets.Sequence(datasets.Value("int64")),
+            "insert_count_long": datasets.Value("int64"),
         }
     )
 
-    features_CRISPR_diffuser = datasets.Features(
-        {
-            "ref1": datasets.Value("string"),
-            "ref2": datasets.Value("string"),
-            "cut1": datasets.Value("int16"),
-            "cut2": datasets.Value("int16"),
-            "mh_ref1": datasets.Sequence(datasets.Value("int16")),
-            "mh_ref2": datasets.Sequence(datasets.Value("int16")),
-            "mh_val": datasets.Sequence(datasets.Value("int16")),
-            "ob_ref1": datasets.Sequence(datasets.Value("int16")),
-            "ob_ref2": datasets.Sequence(datasets.Value("int16")),
-            "ob_val": datasets.Sequence(datasets.Value("int64")),
-        }
-    )
-
-    features_inDelphi = datasets.Features(
-        {
-            "ref": datasets.Value("string"),
-            "cut": datasets.Value("int16"),
-            "mh_gt_pos": datasets.Sequence(datasets.Value("int16")),
-            "mh_del_len": datasets.Sequence(datasets.Value("int16")),
-            "mh_mh_len": datasets.Sequence(datasets.Value("int16")),
-            "mh_gc_frac": datasets.Sequence(datasets.Value("float32")),
-            "mh_count": datasets.Sequence(datasets.Value("int64")),
-            "mhless_count": datasets.Sequence(datasets.Value("int64")),
-            "insert_1bp": datasets.Sequence(datasets.Value("int64")),
-        }
-    )
-
-    features_Lindel = datasets.Features(
-        {
-            "ref": datasets.Value("string"),
-            "cut": datasets.Value("int16"),
-            "del_count": datasets.Sequence(datasets.Value("int64")),
-            "ins_count": datasets.Sequence(datasets.Value("int64")),
-        }
-    )
-
-    features_FOREcasT = datasets.Features(
-        {
-            "ref": datasets.Value("string"),
-            "cut": datasets.Value("int16"),
-            "count": datasets.Sequence(datasets.Value("float32")),
-        }
-    )
-
-    VERSION = datasets.Version("1.0.0")
+    VERSION = datasets.Version("1.0.1")
 
     BUILDER_CONFIG_CLASS = CRISPRDataConfig
 
     BUILDER_CONFIGS = [
         CRISPRDataConfig(
+            ref_filter=None,
+            cut_filter=None,
             author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
             file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
                 re.search("^(A2-|A7-|D2-)", file)
             ),
-            features=features_CRISPR_transformer,
-            name="SX_spcas9_CRISPR_transformer",
+            test_ratio=0.05,
+            valid_ratio=0.05,
+            seed=63036,
+            features=features,
+            ref1len=127,
+            ref2len=127,
+            random_insert_uplimit=0,
+            insert_uplimit=2,
+            name="SX_spcas9",
             version=VERSION,
-            description="Data of spcas9 protein of sx and lcy for CRISPR transformer training",
+            description="Data of spcas9",
         ),
         CRISPRDataConfig(
+            ref_filter=None,
+            cut_filter=None,
             author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
             file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
                 re.search("^(X-|x-|B2-|36t-)", file)
             ),
-            features=features_CRISPR_transformer,
-            name="SX_spymac_CRISPR_transformer",
+            test_ratio=0.05,
+            valid_ratio=0.05,
+            seed=63036,
+            features=features,
+            ref1len=127,
+            ref2len=127,
+            random_insert_uplimit=0,
+            insert_uplimit=2,
+            name="SX_spymac",
             version=VERSION,
-            description="Data of spymac protein of sx and lcy for CRISPR transformer training",
+            description="Data of spymac",
         ),
         CRISPRDataConfig(
+            ref_filter=None,
+            cut_filter=None,
             author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
             file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
                 re.search("^(i10t-|i83-)", file)
             ),
-            features=features_CRISPR_transformer,
-            name="SX_ispymac_CRISPR_transformer",
+            test_ratio=0.05,
+            valid_ratio=0.05,
+            seed=63036,
+            features=features,
+            ref1len=127,
+            ref2len=127,
+            random_insert_uplimit=0,
+            insert_uplimit=2,
+            name="SX_ispymac",
             version=VERSION,
-            description="Data of ispymac protein of sx and lcy for CRISPR transformer training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(A2-|A7-|D2-)", file)
-            ),
-            features=features_CRISPR_diffuser,
-            name="SX_spcas9_CRISPR_diffuser",
-            version=VERSION,
-            description="Data of spcas9 protein of sx and lcy for CRISPR diffuser training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(X-|x-|B2-|36t-)", file)
-            ),
-            features=features_CRISPR_diffuser,
-            name="SX_spymac_CRISPR_diffuser",
-            version=VERSION,
-            description="Data of spymac protein of sx and lcy for CRISPR diffuser training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(i10t-|i83-)", file)
-            ),
-            features=features_CRISPR_diffuser,
-            name="SX_ispymac_CRISPR_diffuser",
-            version=VERSION,
-            description="Data of ispymac protein of sx and lcy for CRISPR diffuser training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(A2-|A7-|D2-)", file)
-            ),
-            features=features_inDelphi,
-            name="SX_spcas9_inDelphi",
-            version=VERSION,
-            description="Data of spcas9 protein of sx and lcy for inDelphi training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(X-|x-|B2-|36t-)", file)
-            ),
-            features=features_inDelphi,
-            name="SX_spymac_inDelphi",
-            version=VERSION,
-            description="Data of spymac protein of sx and lcy for inDelphi training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(i10t-|i83-)", file)
-            ),
-            features=features_inDelphi,
-            name="SX_ispymac_inDelphi",
-            version=VERSION,
-            description="Data of ispymac protein of sx and lcy for inDelphi training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(A2-|A7-|D2-)", file)
-            ),
-            features=features_Lindel,
-            name="SX_spcas9_Lindel",
-            version=VERSION,
-            description="Data of spcas9 protein of sx and lcy for Lindel training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(X-|x-|B2-|36t-)", file)
-            ),
-            features=features_Lindel,
-            name="SX_spymac_Lindel",
-            version=VERSION,
-            description="Data of spymac protein of sx and lcy for Lindel training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(i10t-|i83-)", file)
-            ),
-            features=features_Lindel,
-            name="SX_ispymac_Lindel",
-            version=VERSION,
-            description="Data of ispymac protein of sx and lcy for Lindel training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(A2-|A7-|D2-)", file)
-            ),
-            features=features_FOREcasT,
-            name="SX_spcas9_FOREcasT",
-            version=VERSION,
-            description="Data of spcas9 protein of sx and lcy for FOREcasT training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(X-|x-|B2-|36t-)", file)
-            ),
-            features=features_FOREcasT,
-            name="SX_spymac_FOREcasT",
-            version=VERSION,
-            description="Data of spymac protein of sx and lcy for FOREcasT training",
-        ),
-        CRISPRDataConfig(
-            author_filter=lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            file_filter=lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(i10t-|i83-)", file)
-            ),
-            features=features_FOREcasT,
-            name="SX_ispymac_FOREcasT",
-            version=VERSION,
-            description="Data of ispymac protein of sx and lcy for FOREcasT training",
+            description="Data of ispymac",
         ),
     ]
 
@@ -797,9 +488,9 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             # specify them. They'll be used if as_supervised=True in builder.as_dataset.
             # supervised_keys=("sentence", "label"),
             # Homepage of the dataset for documentation
-            # homepage=_HOMEPAGE,
+            homepage=_HOMEPAGE,
             # License for the dataset if available
-            # license=_LICENSE,
+            license=_LICENSE,
             # Citation for the dataset
             # citation=_CITATION,
         )
