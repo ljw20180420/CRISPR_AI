@@ -1,119 +1,135 @@
 import torch.nn.functional as F
 import numpy as np
 import torch
-from ..config import get_config
 
-args = get_config(config_file="config_FOREcasT.ini")
 
-lefts = np.concatenate(
-    [np.arange(-DEL_SIZE, 1) for DEL_SIZE in range(args.FOREcasT_MAX_DEL_SIZE, -1, -1)]
-    + [np.zeros(20, np.int64)]
-)
-rights = np.concatenate(
-    [
-        np.arange(0, DEL_SIZE + 1)
-        for DEL_SIZE in range(args.FOREcasT_MAX_DEL_SIZE, -1, -1)
+def pre_calculation(MAX_DEL_SIZE: int):
+    lefts = np.concatenate(
+        [np.arange(-DEL_SIZE, 1) for DEL_SIZE in range(MAX_DEL_SIZE, -1, -1)]
+        + [np.zeros(20, np.int64)]
+    )
+    rights = np.concatenate(
+        [np.arange(0, DEL_SIZE + 1) for DEL_SIZE in range(MAX_DEL_SIZE, -1, -1)]
+        + [np.zeros(20, np.int64)]
+    )
+    inss = (MAX_DEL_SIZE + 2) * (MAX_DEL_SIZE + 1) // 2 * [""] + [
+        "A",
+        "C",
+        "G",
+        "T",
+        "AA",
+        "AC",
+        "AG",
+        "AT",
+        "CA",
+        "CC",
+        "CG",
+        "CT",
+        "GA",
+        "GC",
+        "GG",
+        "GT",
+        "TA",
+        "TC",
+        "TG",
+        "TT",
     ]
-    + [np.zeros(20, np.int64)]
-)
-inss = (args.FOREcasT_MAX_DEL_SIZE + 2) * (args.FOREcasT_MAX_DEL_SIZE + 1) // 2 * [
-    ""
-] + [
-    "A",
-    "C",
-    "G",
-    "T",
-    "AA",
-    "AC",
-    "AG",
-    "AT",
-    "CA",
-    "CC",
-    "CG",
-    "CT",
-    "GA",
-    "GC",
-    "GG",
-    "GT",
-    "TA",
-    "TC",
-    "TG",
-    "TT",
-]
 
-feature_DelSize = []
-for left, right, ins_seq in zip(lefts, rights, inss):
-    dsize = right - left
-    feature_DelSize.append(
-        (len(ins_seq) == 0)
-        & torch.tensor(
+    feature_DelSize = []
+    for left, right, ins_seq in zip(lefts, rights, inss):
+        dsize = right - left
+        feature_DelSize.append(
+            (len(ins_seq) == 0)
+            & torch.tensor(
+                [
+                    True,
+                    dsize == 1,
+                    dsize >= 2 and dsize < 4,
+                    dsize >= 4 and dsize < 8,
+                    dsize >= 8 and dsize < 13,
+                    dsize >= 13,
+                ]
+            )
+        )
+    feature_DelSize = torch.stack(feature_DelSize)
+
+    feature_InsSize = torch.tensor(
+        [[len(ins_seq) > 0, len(ins_seq) == 1, len(ins_seq) == 2] for ins_seq in inss]
+    )
+
+    feature_DelLoc = []
+    for left, right, ins_seq in zip(lefts, rights, inss):
+        if len(ins_seq) > 0:
+            feature_DelLoc.append([False] * 18)
+            continue
+        feature_DelLoc.append(
             [
-                True,
-                dsize == 1,
-                dsize >= 2 and dsize < 4,
-                dsize >= 4 and dsize < 8,
-                dsize >= 8 and dsize < 13,
-                dsize >= 13,
+                left == 0,
+                left == -1,
+                left == -2,
+                left > -2 and left <= -5,
+                left > -5 and left <= -9,
+                left > -9 and left <= -14,
+                left > -14 and left <= -29,
+                left < -29,
+                left >= 1,
+                right == 0,
+                right == 1,
+                right == 2,
+                right > 2 and right <= 5,
+                right > 5 and right <= 9,
+                right > 9 and right <= 14,
+                right > 14 and right <= 29,
+                right < 0,
+                right > 30,
             ]
         )
-    )
-feature_DelSize = torch.stack(feature_DelSize)
+    feature_DelLoc = torch.tensor(feature_DelLoc)
 
-feature_InsSize = torch.tensor(
-    [[len(ins_seq) > 0, len(ins_seq) == 1, len(ins_seq) == 2] for ins_seq in inss]
-)
-
-feature_DelLoc = []
-for left, right, ins_seq in zip(lefts, rights, inss):
-    if len(ins_seq) > 0:
-        feature_DelLoc.append([False] * 18)
-        continue
-    feature_DelLoc.append(
+    feature_InsSeq = torch.cat(
         [
-            left == 0,
-            left == -1,
-            left == -2,
-            left > -2 and left <= -5,
-            left > -5 and left <= -9,
-            left > -9 and left <= -14,
-            left > -14 and left <= -29,
-            left < -29,
-            left >= 1,
-            right == 0,
-            right == 1,
-            right == 2,
-            right > 2 and right <= 5,
-            right > 5 and right <= 9,
-            right > 9 and right <= 14,
-            right > 14 and right <= 29,
-            right < 0,
-            right > 30,
+            torch.full(
+                (
+                    (MAX_DEL_SIZE + 2) * (MAX_DEL_SIZE + 1) // 2,
+                    20,
+                ),
+                False,
+            ),
+            torch.eye(20, dtype=torch.bool),
         ]
     )
-feature_DelLoc = torch.tensor(feature_DelLoc)
 
-feature_InsSeq = torch.cat(
-    [
-        torch.full(
-            (
-                (args.FOREcasT_MAX_DEL_SIZE + 2)
-                * (args.FOREcasT_MAX_DEL_SIZE + 1)
-                // 2,
-                20,
-            ),
-            False,
-        ),
-        torch.eye(20, dtype=torch.bool),
-    ]
-)
+    feature_InsLoc = []
+    for left, ins_seq in zip(lefts, inss):
+        if len(ins_seq) == 0:
+            feature_InsLoc.append([False] * 5)
+            continue
+        feature_InsLoc.append([left == 0, left == -1, left == -2, left < -2, left >= 1])
+    feature_InsLoc = torch.tensor(feature_InsLoc)
 
-feature_InsLoc = []
-for left, ins_seq in zip(lefts, inss):
-    if len(ins_seq) == 0:
-        feature_InsLoc.append([False] * 5)
-        continue
-    feature_InsLoc.append([left == 0, left == -1, left == -2, left < -2, left >= 1])
-feature_InsLoc = torch.tensor(feature_InsLoc)
+    feature_fix = torch.cat(
+        [
+            features_pairwise(feature_DelSize, feature_DelLoc),
+            feature_InsSize,
+            feature_DelSize,
+            feature_DelLoc,
+            feature_InsLoc,
+            feature_InsSeq,
+        ],
+        dim=-1,
+    ).unsqueeze(0)
+
+    return (
+        lefts,
+        rights,
+        inss,
+        feature_DelSize,
+        feature_InsSize,
+        feature_DelLoc,
+        feature_InsSeq,
+        feature_InsLoc,
+        feature_fix,
+    )
 
 
 def get_feature_LocalCutSiteSequence(ref, cut):
@@ -291,38 +307,56 @@ def features_pairwise(features1, features2):
     return (features1.unsqueeze(-1) * features2.unsqueeze(-2)).flatten(start_dim=-2)
 
 
-feature_fix = (
-    torch.cat(
-        [
-            features_pairwise(feature_DelSize, feature_DelLoc),
-            feature_InsSize,
-            feature_DelSize,
-            feature_DelLoc,
-            feature_InsLoc,
-            feature_InsSeq,
-        ],
-        dim=-1,
-    )
-    .to(torch.float32)
-    .unsqueeze(0)
-)
-feature_InsSize_DelSize = torch.cat([feature_InsSize, feature_DelSize], dim=-1).to(
-    torch.float32
-)
-feature_DelSize_DelLoc = torch.cat([feature_DelSize, feature_DelLoc], dim=-1).to(
-    torch.float32
-)
-
-
 @torch.no_grad()
-def data_collector(examples, output_count=True):
-    features_var = []
-    if output_count:
-        counts = []
+def data_collator(
+    examples: list[dict],
+    pre_calculated_features: tuple,
+) -> dict:
+    (
+        lefts,
+        rights,
+        inss,
+        feature_DelSize,
+        feature_InsSize,
+        feature_DelLoc,
+        feature_InsSeq,
+        feature_fix,
+    ) = pre_calculated_features
+
+    features_var, counts = [], []
     for example in examples:
         cut = example["cut1"]
         ref = example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
-        # count =
+        # construct observations
+        observations = torch.zeros(
+            (example["random_insert_uplimit"] + 2)
+            * (len(example["ref2"]) + 1)
+            * (len(example["ref1"]) + 1),
+            dtype=torch.float64,
+        )
+        observations[example["ob_idx"]] = example["ob_val"]
+        # cumulate observations for all random insertion size
+        observation = (
+            observations.reshape(
+                example["random_insert_uplimit"] + 2,
+                len(example["ref2"]) + 1,
+                len(example["ref1"]) + 1,
+            )
+            .sum(axis=0)
+            .flatten()
+        )
+        # distribute count to all positions in single micro-homology diagonal
+        observation[example["mh_idx"]] = observation[example["mh_idx"]] / (
+            example["mh_val"] + 1
+        )
+        observation = observation.reshape(
+            len(example["ref2"]) + 1, len(example["ref1"]) + 1
+        )
+        count = torch.cat(
+            observation[rights + example["cut2"], lefts + example["cut1"]],
+            torch.tensor(example["insert_count"]),
+            dim=0,
+        )
 
         (
             feature_I1or2Rpt,
@@ -335,25 +369,19 @@ def data_collector(examples, output_count=True):
         for left, right, ins_seq in zip(lefts, rights, inss):
             feature_I1or2Rpt.append(get_feature_I1or2Rpt(ref, cut, left, ins_seq))
             feature_LocalCutSiteSequence.append(
-                get_feature_LocalCutSiteSequence(example["ref"], example["cut"])
+                get_feature_LocalCutSiteSequence(ref, cut)
             )
             feature_LocalCutSiteSeqMatches.append(
-                get_feature_LocalCutSiteSeqMatches(example["ref"], example["cut"])
+                get_feature_LocalCutSiteSeqMatches(ref, cut)
             )
             feature_LocalRelativeSequence.append(
-                get_feature_LocalRelativeSequence(
-                    example["ref"], example["cut"], left, right, ins_seq
-                )
+                get_feature_LocalRelativeSequence(ref, cut, left, right, ins_seq)
             )
             feature_SeqMatches.append(
-                get_feature_SeqMatches(
-                    example["ref"], example["cut"], left, right, ins_seq
-                )
+                get_feature_SeqMatches(ref, cut, left, right, ins_seq)
             )
             feature_microhomology.append(
-                get_feature_microhomology(
-                    example["ref"], example["cut"], left, right, ins_seq
-                )
+                get_feature_microhomology(ref, cut, left, right, ins_seq)
             )
         feature_I1or2Rpt = torch.stack(feature_I1or2Rpt)
         feature_LocalCutSiteSequence = torch.stack(feature_LocalCutSiteSequence)
@@ -365,14 +393,18 @@ def data_collector(examples, output_count=True):
             torch.cat(
                 [
                     features_pairwise(
-                        feature_LocalCutSiteSequence, feature_InsSize_DelSize
+                        feature_LocalCutSiteSequence,
+                        torch.cat([feature_InsSize, feature_DelSize], dim=-1),
                     ),
                     features_pairwise(
                         torch.cat(
                             [feature_microhomology, feature_LocalRelativeSequence],
                             dim=-1,
                         ),
-                        feature_DelSize_DelLoc,
+                        torch.cat(
+                            [feature_DelSize, feature_DelLoc],
+                            dim=-1,
+                        ),
                     ),
                     features_pairwise(
                         torch.cat(
@@ -401,11 +433,8 @@ def data_collector(examples, output_count=True):
                 dim=-1,
             ).to(torch.float32)
         )
-        if output_count:
-            counts.append(example["count"])
+        counts.append(count)
     features = torch.cat(
         [feature_fix.expand(len(examples), -1, -1), torch.stack(features_var)], dim=-1
     )
-    if output_count:
-        return {"feature": features, "count": torch.tensor(counts)}
-    return {"feature": features}
+    return {"feature": features, "count": torch.stack(counts)}

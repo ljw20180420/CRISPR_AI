@@ -4,7 +4,6 @@ import re
 import datasets
 from typing import Callable
 import torch
-import torch.nn.functional as F
 import numpy as np
 from .utils import gc_content, GetInsertionCount, GetObservation, GetMH
 
@@ -21,7 +20,17 @@ from .utils import gc_content, GetInsertionCount, GetObservation, GetMH
 
 _HOMEPAGE = "https://github.com/ljw20180420/CRISPRdata"
 
-_LICENSE = "MIT"
+_LICENSE = """
+MIT License
+
+Copyright (c) 2025 Jingwei Li
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+"""
 
 
 class CRISPRDataConfig(datasets.BuilderConfig):
@@ -160,7 +169,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             ob_vals,
             insert_countss,
             insert_count_longs,
-        ) = ([], [], [], [], [], [], [], [], [], [], [], [], [])
+        ) = ([], [], [], [], [], [], [], [], [], [], [], [])
         for ref1, ref2, cuts in zip(
             examples["ref1"], examples["ref2"], examples["cuts"]
         ):
@@ -177,14 +186,14 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 )
                 mh_idx = mh_matrix.nonzero()
                 mh_idxs.append(mh_idx)
-                mh_vals.append(mh_matrix(mh_idx))
+                mh_vals.append(mh_matrix[mh_idx])
                 mh_idx_align_ref1s.append(mh_idx_align_ref1)
                 mh_idx_align_ref2s.append(mh_idx_align_ref2)
                 # observe
-                observations = self.get_observations(ref1, ref2, cut).flatten()
+                observations = self.get_observations(ref1, ref2, cut)
                 observations = self.get_mh.correct_observation(
                     observations, mh_matrix, mh_rep_num
-                )
+                ).flatten()
                 (ob_idx,) = observations.nonzero()
                 ob_idxs.append(ob_idx)
                 ob_vals.append(observations[ob_idx])
@@ -205,7 +214,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "mh_idx_align_ref2": mh_idx_align_ref2s,
             "random_insert_uplimit": [self.config.random_insert_uplimit]
             * len(examples["ref1"]),
-            "ob_idx": ob_idx,
+            "ob_idx": ob_idxs,
             "ob_val": ob_vals,
             "insert_count": insert_countss,
             "insert_count_long": insert_count_longs,
@@ -404,7 +413,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "mh_idx_align_ref2": datasets.Sequence(datasets.Value("int64")),
             "random_insert_uplimit": datasets.Value("int64"),
             "ob_idx": datasets.Sequence(datasets.Value("int64")),
-            "ob_val": datasets.Sequence(datasets.Value("int64")),
+            "ob_val": datasets.Sequence(datasets.Value("float64")),
             "insert_count": datasets.Sequence(datasets.Value("int64")),
             "insert_count_long": datasets.Value("int64"),
         }
@@ -423,7 +432,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 re.search("^(A2-|A7-|D2-)", file)
             ),
             test_ratio=0.05,
-            valid_ratio=0.05,
+            validation_ratio=0.05,
             seed=63036,
             features=features,
             ref1len=127,
@@ -442,7 +451,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 re.search("^(X-|x-|B2-|36t-)", file)
             ),
             test_ratio=0.05,
-            valid_ratio=0.05,
+            validation_ratio=0.05,
             seed=63036,
             features=features,
             ref1len=127,
@@ -461,7 +470,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 re.search("^(i10t-|i83-)", file)
             ),
             test_ratio=0.05,
-            valid_ratio=0.05,
+            validation_ratio=0.05,
             seed=63036,
             features=features,
             ref1len=127,
@@ -503,28 +512,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         # It can accept any type or nested list/dict and will give back the same structure with the url replaced with path to local files.
         # By default the archives will be extracted and a path to a cached folder where they are extracted is returned instead of the archive
 
-        # # https://github.com/huggingface/datasets/issues/5080
-        # # https://discuss.huggingface.co/t/download-data-is-slow-from-github-lfs/118294
-        # proxy_url = os.environ.get("MY_HF_DATASETS_DOWNLOAD_MANAGER_PROXY")
-        # if proxy_url:
-        #     from datasets.download.download_manager import (
-        #         DownloadManager,
-        #         DownloadConfig,
-        #     )
-
-        #     dl_manager_proxy = DownloadManager(
-        #         download_config=DownloadConfig(
-        #             proxies={"http": proxy_url, "https": proxy_url}
-        #         )
-        #     )
-        #     downloaded_files = dl_manager_proxy.download(
-        #         "https://github.com/ljw20180420/CRISPRdata/raw/refs/heads/main/dataset.json.gz"
-        #     )
-        # else:
-        #     downloaded_files = dl_manager.download(
-        #         "https://github.com/ljw20180420/CRISPRdata/raw/refs/heads/main/dataset.json.gz"
-        #     )
-
         downloaded_files = dl_manager.download(
             "https://github.com/ljw20180420/CRISPRdata/raw/refs/heads/main/dataset.json.gz"
         )
@@ -540,8 +527,8 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                     "cuts": [
                         datasets.Features(
                             {
-                                "cut1": datasets.Value("int16"),
-                                "cut2": datasets.Value("int16"),
+                                "cut1": datasets.Value("int64"),
+                                "cut2": datasets.Value("int64"),
                                 "authors": [
                                     datasets.Features(
                                         {
@@ -553,10 +540,10 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                                                             "string"
                                                         ),
                                                         "ref1_end": datasets.Sequence(
-                                                            datasets.Value("int16")
+                                                            datasets.Value("int64")
                                                         ),
                                                         "ref2_start": datasets.Sequence(
-                                                            datasets.Value("int16")
+                                                            datasets.Value("int64")
                                                         ),
                                                         "random_insert": datasets.Sequence(
                                                             datasets.Value("string")
@@ -577,34 +564,11 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             ),
         )
         ds = ds.map(self.filter_refs, batched=True)
-        if self.config.name.endswith("_CRISPR_transformer"):
-            ds = ds.map(
-                self.CRISPR_transformer_trans_func,
-                batched=True,
-                remove_columns=["cuts"],
-            )
-        elif self.config.name.endswith("_CRISPR_diffuser"):
-            ds = ds.map(
-                self.CRISPR_diffuser_trans_func, batched=True, remove_columns=["cuts"]
-            )
-        elif self.config.name.endswith("_inDelphi"):
-            ds = ds.map(
-                self.inDelphi_trans_func,
-                batched=True,
-                remove_columns=["ref1", "ref2", "cuts"],
-            )
-        elif self.config.name.endswith("_Lindel"):
-            ds = ds.map(
-                self.Lindel_trans_func,
-                batched=True,
-                remove_columns=["ref1", "ref2", "cuts"],
-            )
-        elif self.config.name.endswith("_FOREcasT"):
-            ds = ds.map(
-                self.FOREcasT_trans_func,
-                batched=True,
-                remove_columns=["ref1", "ref2", "cuts"],
-            )
+        ds = ds.map(
+            self.trans_func,
+            batched=True,
+            remove_columns=["cuts"],
+        )
         ds = self.split_train_valid_test(ds)
         return [
             datasets.SplitGenerator(

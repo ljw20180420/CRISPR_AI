@@ -196,7 +196,6 @@ class GetMH:
         self, observations: np.ndarray, mh_matrix: np.ndarray, mh_rep_num: np.ndarray
     ) -> tuple[np.ndarray]:
         mh_mask = (mh_matrix > 0)[self.diag_indices]
-        corrected_observations = []
         for i, observation in enumerate(observations):
             observation = observation.flatten()
             counts = np.zeros(len(mh_rep_num), dtype=int)

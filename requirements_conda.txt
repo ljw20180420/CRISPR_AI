@@ -1,0 +1,11 @@
+conda-forge::configargparse
+conda-forge::datasets
+conda-forge::diffusers
+conda-forge::transformers
+conda-forge::accelerate
+conda-forge::evaluate
+conda-forge::tensorboard
+conda-forge::opt_einsum
+conda-forge::einops
+conda-forge::optuna
+conda-forge::lightgbm

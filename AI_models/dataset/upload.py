@@ -3,13 +3,13 @@
 # path/to/upload.py [test]
 
 from huggingface_hub import HfApi
-from pathlib import Path
+import pathlib
 from datasets.commands.test import TestCommand
 import os
 import sys
 
 # Change to the directory of the script
-os.chdir(Path(__file__).parent)
+os.chdir(pathlib.Path(__file__).parent)
 
 
 def test():
@@ -32,15 +32,9 @@ def test():
 if __name__ == "__main__":
     api = HfApi()
     api.create_repo(
-        repo_id="%s/CRISPR_data" % os.environ["HUGGINGFACE_REPO"],
+        repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
         repo_type="dataset",
         exist_ok=True,
-    )
-    api.upload_file(
-        path_or_fileobj="CRISPR_data.py",
-        path_in_repo="CRISPR_data.py",
-        repo_id="%s/CRISPR_data" % os.environ["HUGGINGFACE_REPO"],
-        repo_type="dataset",
     )
 
     if len(sys.argv) > 1 and sys.argv[1] == "test":
@@ -48,6 +42,13 @@ if __name__ == "__main__":
         api.upload_file(
             path_or_fileobj="README.md",
             path_in_repo="README.md",
-            repo_id="%s/CRISPR_data" % os.environ["HUGGINGFACE_REPO"],
+            repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
             repo_type="dataset",
         )
+
+    api.upload_file(
+        path_or_fileobj="CRISPR_data.py",
+        path_in_repo="CRISPR_data.py",
+        repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
+        repo_type="dataset",
+    )
