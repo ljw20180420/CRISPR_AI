@@ -1,73 +1,90 @@
 from huggingface_hub import HfApi
 from huggingface_hub import HfFileSystem
 from .model import FOREcasTConfig
-from ..config import get_config
 
-args = get_config(config_file="config_FOREcasT.ini")
 
-def space(data_name=args.data_name):
+def space(
+    data_name: str,
+    ref1len: int,
+    ref2len: int,
+    owner: str,
+    device: str,
+):
     api = HfApi()
     fs = HfFileSystem()
     while True:
         try:
             api.create_repo(
-                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
+                repo_id="%s/%s_%s" % (owner, data_name, FOREcasTConfig.model_type),
                 repo_type="space",
                 exist_ok=True,
-                space_sdk="gradio"
+                space_sdk="gradio",
             )
 
             api.upload_file(
-                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
+                repo_id="%s/%s_%s" % (owner, data_name, FOREcasTConfig.model_type),
                 repo_type="space",
-                path_or_fileobj="AI_models/FOREcasT/app.py",
-                path_in_repo="AI_models/FOREcasT/app.py"
+                path_or_fileobj="FOREcasT/app.py",
+                path_in_repo="FOREcasT/app.py",
             )
 
             api.upload_file(
-                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
+                repo_id="%s/%s_%s" % (owner, data_name, FOREcasTConfig.model_type),
                 repo_type="space",
-                path_or_fileobj="AI_models/config.py",
-                path_in_repo="AI_models/config.py"
+                path_or_fileobj="FOREcasT/model.py",
+                path_in_repo="FOREcasT/model.py",
             )
             api.upload_file(
-                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
+                repo_id="%s/%s_%s" % (owner, data_name, FOREcasTConfig.model_type),
                 repo_type="space",
-                path_or_fileobj="config.ini",
-                path_in_repo="config.ini"
+                path_or_fileobj="FOREcasT/inference.py",
+                path_in_repo="FOREcasT/inference.py",
             )
             api.upload_file(
-                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
+                repo_id="%s/%s_%s" % (owner, data_name, FOREcasTConfig.model_type),
                 repo_type="space",
-                path_or_fileobj="config_FOREcasT.ini",
-                path_in_repo="config_FOREcasT.ini"
+                path_or_fileobj="FOREcasT/load_data.py",
+                path_in_repo="FOREcasT/load_data.py",
             )
 
-            api.upload_file(
-                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
-                repo_type="space",
-                path_or_fileobj="AI_models/FOREcasT/inference.py",
-                path_in_repo="AI_models/FOREcasT/inference.py"
-            )
-            api.upload_file(
-                repo_id=f"{args.owner}/{data_name}_{FOREcasTConfig.model_type}",
-                repo_type="space",
-                path_or_fileobj="AI_models/FOREcasT/load_data.py",
-                path_in_repo="AI_models/FOREcasT/load_data.py"
-            )
-            
-            with fs.open(f"spaces/{args.owner}/{data_name}_{FOREcasTConfig.model_type}/app.py", "w") as fd:
-                fd.write(f"from AI_models.FOREcasT.app import app\n")
-                fd.write(f'''app(data_name="{data_name}")\n''')
-            with fs.open(f"spaces/{args.owner}/{data_name}_{FOREcasTConfig.model_type}/requirements.txt", "w") as fd:
+            with fs.open(
+                "space/%s/%s_%s/app.py" % (owner, data_name, FOREcasTConfig.model_type),
+                "w",
+            ) as fd:
+                fd.write("")
                 fd.write(
-                    "\n".join([
-                        "accelerate",
-                        "ConfigArgParse",
-                        "transformers",
-                        "diffusers",
-                        "torch"
-                    ])
+                    """
+from FOREcasT.app import app
+app(
+    data_name=%s,
+    ref1len=%d,
+    ref2len=%d,
+    owner=%s,
+    device=%s,
+)
+                    """
+                    % (
+                        data_name,
+                        ref1len,
+                        ref2len,
+                        owner,
+                        device,
+                    )
+                )
+            with fs.open(
+                "space/%s/%s_%s/requirements.txt"
+                % (owner, data_name, FOREcasTConfig.model_type),
+                "w",
+            ) as fd:
+                fd.write(
+                    "\n".join(
+                        [
+                            "accelerate",
+                            "transformers",
+                            "diffusers",
+                            "torch",
+                        ]
+                    )
                 )
             break
         except Exception as err:

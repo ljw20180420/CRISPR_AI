@@ -8,7 +8,7 @@ from .model import FOREcasTConfig, FOREcasTModel
 from .load_data import data_collator
 
 
-def train(
+def train_FOREcasT(
     data_name: str,
     test_ratio: float,
     validation_ratio: float,
@@ -17,22 +17,23 @@ def train(
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
+    max_del_size: int,
     reg_const: float,
     i1_reg_const: float,
     batch_size: int,
-    pre_calculated_features: tuple,
     optimizer: str,
     learning_rate: float,
     scheduler: str,
     num_epochs: float,
     warmup_ratio: float,
     output_dir: pathlib.Path,
+    device: str,
     seed: int,
     logger: logging.Logger,
 ) -> None:
     logger.info("loading data")
     ds = load_dataset(
-        path="%s/CRISPR_data" % owner,
+        path=f"{owner}/CRISPR_data",
         name=data_name,
         trust_remote_code=True,
         test_ratio=test_ratio,
@@ -49,6 +50,7 @@ def train(
     FOREcasTModel.register_for_auto_class()
     FOREcasT_model = FOREcasTModel(
         FOREcasTConfig(
+            max_del_size=max_del_size,
             reg_const=reg_const,
             i1_reg_const=i1_reg_const,
             seed=seed,
@@ -57,11 +59,12 @@ def train(
 
     logger.info("train model")
     training_args = TrainingArguments(
-        output_dir=output_dir / FOREcasTConfig.model_type / data_name,
+        output_dir=output_dir / "FOREcasT/FOREcasT" / data_name,
         seed=seed,
         logging_strategy="epoch",
         eval_strategy="epoch",
         save_strategy="epoch",
+        use_cpu=True if device == "cpu" else False,
         load_best_model_at_end=True,
         remove_unused_columns=False,
         label_names=FOREcasTConfig.label_names,
@@ -84,8 +87,8 @@ def train(
         args=training_args,
         train_dataset=ds["train"],
         eval_dataset=ds["validation"],
-        data_collator=lambda examples, pre_calculated_features=pre_calculated_features: data_collator(
-            examples, pre_calculated_features
+        data_collator=lambda examples, pre_calculated_features=FOREcasT_model.pre_calculated_features, output_count=True: data_collator(
+            examples, pre_calculated_features, output_count
         ),
     )
     try:

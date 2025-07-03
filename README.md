@@ -230,9 +230,23 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+models have initividual configs
+add --model to config, remove unnecessary import of model to get model_type
+add model name and data name when saving pipeline
+roll back to fstring
+split common methods such as upload, space etc
+write loss to pipeline folder when test
+unify pipeline output as proba, rpos1, rpos2, with optional random_ins, loss and sample_num
+
+parallel data_collator, especially for FOREcasT
+early stopping
+model interpretable
+hyperparameter choice
+
 noise2noise explanation of prediction results
+to use uniform time-step sampling in 0~T, diffusion model need to modify alpha_t
 more robust valid loss for CRISPR diffusion
-put more weights on small steps
+put more weights on small steps of diffusion
 increase model parameters
 decrease model window size (128 -> 64 -> 32)
 for decreased window size, exact inference is possible

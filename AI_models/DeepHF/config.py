@@ -10,7 +10,7 @@ def get_config(config_files):
     For example, if  config_files=['config_default.ini', 'config_custom.ini'], then settings in config_custom.ini will override settings in config_default.ini. A good practice is to put default settings in config_default.ini (do not modify config_default.ini), and then override default behaviors in config_custom.ini.
     """
     parser = configargparse.ArgumentParser(
-        description="arguments of FOREcasT",
+        description="arguments of DeepHF",
         default_config_files=config_files,
         auto_env_var_prefix="CRISPR_AI_",
         config_file_parser_class=configargparse.ConfigparserConfigFileParser,
@@ -32,8 +32,8 @@ def get_config(config_files):
         "--model",
         type=str,
         required=True,
-        choices=["FOREcast"],
-        help="Model to train.",
+        choices=["DeepHF", "CNN", "MLP", "XGBoost", "Ridge", "Linear"],
+        help="Which model to train.",
     )
 
     # common parameters
@@ -203,27 +203,94 @@ def get_config(config_files):
         help="Ratio of total training steps used for a linear warmup from 0 to learning_rate.",
     )
 
-    parser_FOREcasT = parser.add_argument_group(
-        title="FOREcasT",
-        description="Parameters for FOREcasT.",
+    parser_DeepHF = parser.add_argument_group(
+        title="DeepHF",
+        description="Parameters of DeepHF.",
     )
-    parser_FOREcasT.add_argument(
-        "--max_del_size",
+    parser_DeepHF.add_argument(
+        "--seq_length",
         type=int,
         required=True,
-        help="Maximal deletion size.",
+        help="Input sequence length.",
     )
-    parser_FOREcasT.add_argument(
-        "--reg_const",
+    parser_DeepHF.add_argument(
+        "--em_drop",
         type=float,
         required=True,
-        help="Regularization coefficient for deletion.",
+        help="Dropout probability of embedding.",
     )
-    parser_FOREcasT.add_argument(
-        "--i1_reg_const",
+    parser_DeepHF.add_argument(
+        "--fc_drop",
         type=float,
         required=True,
-        help="Regularization coefficient for insertion.",
+        help="Dropout probability of fully connected layer.",
+    )
+    parser_DeepHF.add_argument(
+        "--initializer",
+        type=str,
+        required=True,
+        choices=[
+            "lecun_uniform",
+            "normal",
+            "he_normal",
+            "he_uniform",
+        ],
+        help="Initializer method of DeepHF.",
+    )
+    parser_DeepHF.add_argument(
+        "--em_dim",
+        type=int,
+        required=True,
+        help="Embedding dimension.",
+    )
+    parser_DeepHF.add_argument(
+        "--rnn_units",
+        type=int,
+        required=True,
+        help="BiLSTM output dimension.",
+    )
+    parser_DeepHF.add_argument(
+        "--fc_num_hidden_layers",
+        type=int,
+        required=True,
+        help="Number of output fully connected layers.",
+    )
+    parser_DeepHF.add_argument(
+        "--fc_num_units",
+        type=int,
+        required=True,
+        help="Hidden dimension of output fully connected layers.",
+    )
+    parser_DeepHF.add_argument(
+        "--fc_activation",
+        type=str,
+        required=True,
+        choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+        help="Activation function of output fully connected layers.",
+    )
+    parser_DeepHF.add_argument(
+        "--ext1_up",
+        type=int,
+        required=True,
+        help="Upstream limit of the resection of the upstream end.",
+    )
+    parser_DeepHF.add_argument(
+        "--ext1_down",
+        type=int,
+        required=True,
+        help="Downstream limit of the templated insertion of the upstream end.",
+    )
+    parser_DeepHF.add_argument(
+        "--ext2_up",
+        type=int,
+        required=True,
+        help="Upstream limit of the templated insertion of the downstream end.",
+    )
+    parser_DeepHF.add_argument(
+        "--ext2_down",
+        type=int,
+        required=True,
+        help="Downstream limit of the resection of the downstream end.",
     )
 
     return parser.parse_args()

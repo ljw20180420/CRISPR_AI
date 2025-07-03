@@ -52,3 +52,10 @@ if __name__ == "__main__":
         repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
         repo_type="dataset",
     )
+
+    api.upload_file(
+        path_or_fileobj="utils.py",
+        path_in_repo="utils.py",
+        repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
+        repo_type="dataset",
+    )
