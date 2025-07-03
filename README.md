@@ -231,12 +231,13 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 TODO
 ```list
 models have initividual configs
-add --model to config, remove unnecessary import of model to get model_type
-add model name and data name when saving pipeline
+add --model_name to config
+assert consistency of model_name and model_type
+add model name and data name when saving
 roll back to fstring
-split common methods such as upload, space etc
-write loss to pipeline folder when test
-unify pipeline output as proba, rpos1, rpos2, with optional random_ins, loss and sample_num
+split common methods
+unify pipeline output as sample_idx, proba, rpos1, rpos2, with optional random_ins, loss and sample_num
+write test resutls to pipeline folder when test
 
 parallel data_collator, especially for FOREcasT
 early stopping

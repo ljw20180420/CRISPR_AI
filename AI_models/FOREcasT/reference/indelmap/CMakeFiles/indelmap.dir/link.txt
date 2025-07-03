@@ -1,1 +1,0 @@
-/usr/bin/c++ -rdynamic CMakeFiles/indelmap.dir/indel.cpp.o CMakeFiles/indelmap.dir/oligo.cpp.o CMakeFiles/indelmap.dir/readmap.cpp.o CMakeFiles/indelmap.dir/gen.cpp.o CMakeFiles/indelmap.dir/indelmap.cpp.o -o indelmap 

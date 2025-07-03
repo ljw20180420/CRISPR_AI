@@ -1,3 +1,3 @@
-AI_models/inDelphi/reference/model-sklearn-0.20.0/* filter=lfs diff=lfs merge=lfs -text
-AI_models/inference.json.gz filter=lfs diff=lfs merge=lfs -text
-AI_models/dataset/test.json.gz filter=lfs diff=lfs merge=lfs -text
+AI/inDelphi/reference/model-sklearn-0.20.0/* filter=lfs diff=lfs merge=lfs -text
+AI/inference.json.gz filter=lfs diff=lfs merge=lfs -text
+AI/dataset/test.json.gz filter=lfs diff=lfs merge=lfs -text
