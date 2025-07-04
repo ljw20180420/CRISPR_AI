@@ -200,17 +200,3 @@ class FOREcasTModel(PreTrainedModel):
             )
             + logit.shape[0] * (self.reg_coff * (self.linear.weight**2)).sum()
         )
-
-
-def get_model(model_name: str, model_parameters: dict, seed: int) -> PreTrainedModel:
-    if model_name == "FOREcasT":
-        FOREcasTConfig.register_for_auto_class()
-        FOREcasTModel.register_for_auto_class()
-        model = FOREcasTModel(
-            FOREcasTConfig(
-                **model_parameters,
-                seed=seed,
-            )
-        )
-    assert model_name == model.config.model_type, "model name is not consistent"
-    return model

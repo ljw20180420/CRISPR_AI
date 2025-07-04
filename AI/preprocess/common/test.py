@@ -8,14 +8,13 @@ from datasets import load_dataset
 import datasets
 import torch
 from torch.utils.data import DataLoader
-from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
-from diffusers import DiffusionPipeline
+import importlib
 
 
 @torch.no_grad()
 def test(
     preprocess: str,
-    pipe: DiffusionPipeline,
+    model_name: str,
     data_name: str,
     test_ratio: float,
     validation_ratio: float,
@@ -30,6 +29,21 @@ def test(
     seed: int,
     logger: logging.Logger,
 ) -> None:
+    logger.info("load model")
+    model_module = importlib.import_module(
+        f"..{preprocess}.model", package="preprocess.common"
+    )
+    model = getattr(model_module, f"{model_name}Model").from_pretrained(
+        output_dir / preprocess / model_name / data_name
+    )
+    assert model_name == model.config.model_type, "model name is not consistent"
+    model.__module__ = "model"
+
+    logger.info("setup pipeline")
+    pipeline_module = importlib.import_module(
+        f"..{preprocess}.pipeline", package="preprocess.common"
+    )
+    pipe = getattr(pipeline_module, f"{model_name}Pipeline")(model)
     pipe.core_model.to(device)
 
     logger.info("load test data")

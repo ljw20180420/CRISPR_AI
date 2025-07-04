@@ -49,9 +49,18 @@ def train(
     ).DataCollator(**data_collator_parameters)
 
     logger.info("initialize model")
-    model = importlib.import_module(
+    model_module = importlib.import_module(
         f"..{preprocess}.model", package="preprocess.common"
-    ).get_model(model_name, model_parameters, seed)
+    )
+    getattr(model_module, f"{model_name}Model").register_for_auto_class()
+    getattr(model_module, f"{model_name}Config").register_for_auto_class()
+    model = getattr(model_module, f"{model_name}Model")(
+        getattr(model_module, f"{model_name}Config")(
+            **model_parameters,
+            seed=seed,
+        )
+    )
+    assert model_name == model.config.model_type, "model name is not consistent"
 
     logger.info("train model")
     training_args = TrainingArguments(

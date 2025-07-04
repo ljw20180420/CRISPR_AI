@@ -55,9 +55,10 @@ if args.command == "train":
 
 
 elif args.command == "test":
-    from preprocess.FOREcasT.test import test
+    from preprocess.common.test import test
 
     test(
+        preprocess="FOREcasT",
         model_name=args.model_name,
         data_name=args.data_name,
         test_ratio=args.test_ratio,
