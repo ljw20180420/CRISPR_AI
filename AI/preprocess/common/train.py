@@ -1,14 +1,15 @@
 import pathlib
 import logging
 from datasets import load_dataset
-from transformers import PreTrainedModel, Trainer, TrainingArguments
-from typing import Callable
+import importlib
+from transformers import Trainer, TrainingArguments
 
 
 def train(
     preprocess: str,
-    model: PreTrainedModel,
-    data_collator: Callable,
+    model_name: str,
+    model_parameters: dict,
+    data_collator_parameters: dict,
     data_name: str,
     test_ratio: float,
     validation_ratio: float,
@@ -41,6 +42,16 @@ def train(
         random_insert_uplimit=random_insert_uplimit,
         insert_uplimit=insert_uplimit,
     )
+
+    logger.info("construct data collator")
+    data_collator = importlib.import_module(
+        f"..{preprocess}.load_data", package="preprocess.common"
+    ).DataCollator(**data_collator_parameters)
+
+    logger.info("initialize model")
+    model = importlib.import_module(
+        f"..{preprocess}.model", package="preprocess.common"
+    ).get_model(model_name, model_parameters, seed)
 
     logger.info("train model")
     training_args = TrainingArguments(

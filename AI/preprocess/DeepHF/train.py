@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import pathlib
 import logging
 from datasets import load_dataset

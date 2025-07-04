@@ -34,11 +34,11 @@ def space(
                     f"""
 from common.app import app
 app(
-    preprocess={preprocess},
-    model_name={model_name},
-    data_name={data_name},
-    owner={owner},
-    device={device},
+    preprocess="{preprocess}",
+    model_name="{model_name}",
+    data_name="{data_name}",
+    owner="{owner}",
+    device="{device}",
 )
                     """
                 )
@@ -53,6 +53,7 @@ app(
                             "transformers",
                             "diffusers",
                             "torch",
+                            "einops",
                         ]
                     )
                 )

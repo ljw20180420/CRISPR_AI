@@ -29,7 +29,7 @@ def get_config(config_files):
         help="What to do. The order is: train -> test -> upload -> inference -> app -> space.",
     )
     parser_command.add_argument(
-        "--model",
+        "--model_name",
         type=str,
         required=True,
         choices=["DeepHF", "CNN", "MLP", "XGBoost", "Ridge", "Linear"],

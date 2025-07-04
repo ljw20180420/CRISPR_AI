@@ -16,17 +16,23 @@ args = get_config(
 )
 
 if args.command == "train":
-    from preprocess.FOREcasT.train import train
+    from preprocess.common.train import train
 
     if args.model_name == "FOREcasT":
-        model_paramters = {
+        model_parameters = {
             "max_del_size": args.max_del_size,
             "reg_const": args.reg_const,
             "i1_reg_const": args.i1_reg_const,
         }
+        data_collator_parameters = {
+            "max_del_size": args.max_del_size,
+            "output_count": True,
+        }
     train(
+        preprocess="FOREcasT",
         model_name=args.model_name,
-        model_parameters=model_paramters,
+        model_parameters=model_parameters,
+        data_collator_parameters=data_collator_parameters,
         data_name=args.data_name,
         test_ratio=args.test_ratio,
         validation_ratio=args.validation_ratio,
