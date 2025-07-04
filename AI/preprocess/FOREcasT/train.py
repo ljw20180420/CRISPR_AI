@@ -38,20 +38,17 @@ def train(
         )
     assert model_name == model.config.model_type, "model name is not consistent"
 
-    logger.info("construct data collator")
-    from .load_data import data_collator
-
-    data_collator_bind = lambda examples, pre_calculated_features=model.pre_calculated_features: data_collator(
-        examples, pre_calculated_features, output_count=True
-    )
-
-    logger.info("train model")
+    logger.info("process common train")
+    from .load_data import DataCollator
     from ..common.train import train
 
     train(
         preprocess="FOREcasT",
         model=model,
-        data_collator=data_collator_bind,
+        data_collator=DataCollator(
+            max_del_size=model.config.max_del_size,
+            output_count=True,
+        ),
         data_name=data_name,
         test_ratio=test_ratio,
         validation_ratio=validation_ratio,

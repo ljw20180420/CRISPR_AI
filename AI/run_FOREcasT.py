@@ -49,7 +49,7 @@ if args.command == "train":
 
 
 elif args.command == "test":
-    from FOREcasT.test import test
+    from preprocess.FOREcasT.test import test
 
     test(
         model_name=args.model_name,
@@ -69,7 +69,7 @@ elif args.command == "test":
     )
 
 elif args.command == "upload":
-    from common.upload import upload
+    from preprocess.common.upload import upload
 
     upload(
         preprocess="FOREcasT",
@@ -80,15 +80,14 @@ elif args.command == "upload":
     )
 
 elif args.command == "inference":
-    from FOREcasT.inference import inference
+    from preprocess.common.inference import inference
 
     inference(
+        preprocess="FOREcasT",
         model_name=args.model_name,
         data_name=args.data_name,
         inference_data=args.inference_data,
         inference_output=args.inference_output,
-        ref1len=args.ref1len,
-        ref2len=args.ref2len,
         owner=args.owner,
         batch_size=args.batch_size,
         device=args.device,
@@ -96,23 +95,23 @@ elif args.command == "inference":
     )
 
 elif args.command == "app":
-    from FOREcasT.app import app
+    from preprocess.common.app import app
 
     app(
+        preprocess="FOREcasT",
+        model_name=args.model_name,
         data_name=args.data_name,
-        ref1len=args.ref1len,
-        ref2len=args.ref2len,
         owner=args.owner,
         device=args.device,
     )
 
 elif args.command == "space":
-    from FOREcasT.space import space
+    from preprocess.common.space import space
 
     space(
+        preprocess="FOREcasT",
+        model_name=args.model_name,
         data_name=args.data_name,
-        ref1len=args.ref1len,
-        ref2len=args.ref2len,
         owner=args.owner,
         device=args.device,
     )

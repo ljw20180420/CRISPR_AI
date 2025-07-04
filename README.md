@@ -10,6 +10,13 @@ If your want to train, test and upload models by yourself, please set `owner` in
 # Install
 ```bash
 git clone https://github.com/ljw20180420/CRISPR_AI.git
+cd CRISPR_AI
+conda install --file requirements_conda.txt
+pip install -r requirements_pip.txt
+```
+If you have problem with gradio, upgrade it.
+```bash
+pip install --upgrade gradio
 ```
 
 
@@ -230,14 +237,20 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
-models have initividual configs
+@torch.no_grad() instead of @torch.no_grad
+use class callable data collator
+move the data collator into pipeline
+unify pipeline output as sample_idx, proba, rpos1, rpos2, [random_ins], [loss, loss_num]
+use core_model instead of model as pipeline component
+add type hint
+remove unnecessary shebang
+models have individual configs
 add --model_name to config
 assert consistency of model_name and model_type
 add model name and data name when saving
 roll back to fstring
 split common methods
-unify pipeline output as sample_idx, proba, rpos1, rpos2, with optional random_ins, loss and sample_num
-write test resutls to pipeline folder when test
+write test results to pipeline folder when test
 
 parallel data_collator, especially for FOREcasT
 early stopping

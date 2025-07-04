@@ -1,4 +1,3 @@
-import numpy as np
 from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
@@ -165,7 +164,6 @@ class FOREcasTModel(PreTrainedModel):
         super().__init__(config)
         # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
         self.generator = torch.Generator().manual_seed(config.seed)
-        self.pre_calculated_features = self.pre_calculation()
         is_delete = torch.tensor(
             ["I" not in label for label in FOREcasTModel.get_feature_label()]
         )
@@ -186,7 +184,7 @@ class FOREcasTModel(PreTrainedModel):
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, ref, cut, feature, count=None) -> torch.Tensor:
-        logit = self.linear(feature).squeeze()
+        logit = self.linear(feature).flatten(start_dim=1)
         if count is not None:
             return {"logit": logit, "loss": self.kl_divergence(logit, count)}
         return {"logit": logit}
@@ -201,152 +199,4 @@ class FOREcasTModel(PreTrainedModel):
                 reduction="sum",
             )
             + logit.shape[0] * (self.reg_coff * (self.linear.weight**2)).sum()
-        )
-
-    @torch.no_grad
-    def pre_calculation(self):
-        def features_pairwise(features1, features2):
-            return (features1.unsqueeze(-1) * features2.unsqueeze(-2)).flatten(
-                start_dim=-2
-            )
-
-        lefts = np.concatenate(
-            [
-                np.arange(-DEL_SIZE, 1)
-                for DEL_SIZE in range(self.config.max_del_size, -1, -1)
-            ]
-            + [np.zeros(20, np.int64)]
-        )
-        rights = np.concatenate(
-            [
-                np.arange(0, DEL_SIZE + 1)
-                for DEL_SIZE in range(self.config.max_del_size, -1, -1)
-            ]
-            + [np.zeros(20, np.int64)]
-        )
-        inss = (self.config.max_del_size + 2) * (self.config.max_del_size + 1) // 2 * [
-            ""
-        ] + [
-            "A",
-            "C",
-            "G",
-            "T",
-            "AA",
-            "AC",
-            "AG",
-            "AT",
-            "CA",
-            "CC",
-            "CG",
-            "CT",
-            "GA",
-            "GC",
-            "GG",
-            "GT",
-            "TA",
-            "TC",
-            "TG",
-            "TT",
-        ]
-
-        feature_DelSize = []
-        for left, right, ins_seq in zip(lefts.tolist(), rights.tolist(), inss):
-            dsize = right - left
-            feature_DelSize.append(
-                (len(ins_seq) == 0)
-                & torch.tensor(
-                    [
-                        True,
-                        dsize == 1,
-                        dsize >= 2 and dsize < 4,
-                        dsize >= 4 and dsize < 8,
-                        dsize >= 8 and dsize < 13,
-                        dsize >= 13,
-                    ]
-                )
-            )
-        feature_DelSize = torch.stack(feature_DelSize)
-
-        feature_InsSize = torch.tensor(
-            [
-                [len(ins_seq) > 0, len(ins_seq) == 1, len(ins_seq) == 2]
-                for ins_seq in inss
-            ]
-        )
-
-        feature_DelLoc = []
-        for left, right, ins_seq in zip(lefts.tolist(), rights.tolist(), inss):
-            if len(ins_seq) > 0:
-                feature_DelLoc.append([False] * 18)
-                continue
-            feature_DelLoc.append(
-                [
-                    left == 0,
-                    left == -1,
-                    left == -2,
-                    left > -2 and left <= -5,
-                    left > -5 and left <= -9,
-                    left > -9 and left <= -14,
-                    left > -14 and left <= -29,
-                    left < -29,
-                    left >= 1,
-                    right == 0,
-                    right == 1,
-                    right == 2,
-                    right > 2 and right <= 5,
-                    right > 5 and right <= 9,
-                    right > 9 and right <= 14,
-                    right > 14 and right <= 29,
-                    right < 0,
-                    right > 30,
-                ]
-            )
-        feature_DelLoc = torch.tensor(feature_DelLoc)
-
-        feature_InsSeq = torch.cat(
-            [
-                torch.full(
-                    (
-                        (self.config.max_del_size + 2)
-                        * (self.config.max_del_size + 1)
-                        // 2,
-                        20,
-                    ),
-                    False,
-                ),
-                torch.eye(20, dtype=torch.bool),
-            ]
-        )
-
-        feature_InsLoc = []
-        for left, ins_seq in zip(lefts.tolist(), inss):
-            if len(ins_seq) == 0:
-                feature_InsLoc.append([False] * 5)
-                continue
-            feature_InsLoc.append(
-                [left == 0, left == -1, left == -2, left < -2, left >= 1]
-            )
-        feature_InsLoc = torch.tensor(feature_InsLoc)
-
-        feature_fix = torch.cat(
-            [
-                features_pairwise(feature_DelSize, feature_DelLoc),
-                feature_InsSize,
-                feature_DelSize,
-                feature_DelLoc,
-                feature_InsLoc,
-                feature_InsSeq,
-            ],
-            dim=-1,
-        )
-
-        return (
-            lefts,
-            rights,
-            inss,
-            feature_DelSize,
-            feature_InsSize,
-            feature_DelLoc,
-            feature_InsSeq,
-            feature_fix,
         )
