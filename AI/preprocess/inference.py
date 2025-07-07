@@ -12,9 +12,9 @@ import pandas as pd
 def inference(
     preprocess: str,
     model_name: str,
-    data_name: str,
     inference_data: pathlib.Path,
     inference_output: pathlib.Path,
+    data_name: str,
     owner: str,
     batch_size: int,
     device: str,

@@ -2,20 +2,29 @@ from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+from typing import Optional
 
 
 class FOREcasTConfig(PretrainedConfig):
     model_type = "FOREcasT"
     label_names = ["count"]
 
+    # Config must have default value to prevent error in Trainer.
     def __init__(
         self,
-        max_del_size=30,  # maximal deletion size
-        reg_const=0.01,  # regularization coefficient for insertion
-        i1_reg_const=0.01,  # regularization coefficient for deletion
-        seed=63036,  # random seed for intialization
+        max_del_size: Optional[int] = None,
+        reg_const: Optional[float] = None,
+        i1_reg_const: Optional[float] = None,
+        seed: Optional[int] = None,
         **kwargs,
-    ):
+    ) -> None:
+        """FOREcasT arguments.
+
+        Args:
+            max_del_size: maximal deletion size.
+            reg_const: regularization coefficient for insertion.
+            i1_reg_const: regularization coefficient for deletion.
+        """
         self.max_del_size = max_del_size
         self.reg_const = reg_const
         self.i1_reg_const = i1_reg_const
@@ -25,6 +34,22 @@ class FOREcasTConfig(PretrainedConfig):
 
 class FOREcasTModel(PreTrainedModel):
     config_class = FOREcasTConfig
+
+    def __init__(self, config: FOREcasTConfig) -> None:
+        super().__init__(config)
+        # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
+        self.generator = torch.Generator().manual_seed(config.seed)
+        is_delete = torch.tensor(
+            ["I" not in label for label in FOREcasTModel.get_feature_label()]
+        )
+        self.register_buffer(
+            "reg_coff",
+            (is_delete * config.reg_const + ~is_delete * config.i1_reg_const),
+        )
+        self.linear = nn.Linear(
+            in_features=len(self.reg_coff), out_features=1, bias=False
+        )
+        self.initialize_weights()
 
     @staticmethod
     def get_feature_label():
@@ -159,22 +184,6 @@ class FOREcasTModel(PreTrainedModel):
             + feature_SeqMatches_label
             + feature_microhomology_label
         )
-
-    def __init__(self, config) -> None:
-        super().__init__(config)
-        # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.generator = torch.Generator().manual_seed(config.seed)
-        is_delete = torch.tensor(
-            ["I" not in label for label in FOREcasTModel.get_feature_label()]
-        )
-        self.register_buffer(
-            "reg_coff",
-            (is_delete * config.reg_const + ~is_delete * config.i1_reg_const),
-        )
-        self.linear = nn.Linear(
-            in_features=len(self.reg_coff), out_features=1, bias=False
-        )
-        self.initialize_weights()
 
     def initialize_weights(self):
         for m in self.modules():

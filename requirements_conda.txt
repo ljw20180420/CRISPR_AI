@@ -1,4 +1,4 @@
-conda-forge::configargparse
+conda-forge::jsonargparse
 conda-forge::datasets
 conda-forge::diffusers
 conda-forge::transformers

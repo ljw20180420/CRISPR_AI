@@ -4,7 +4,7 @@ import torch
 
 
 class DataCollator:
-    def __init__(self, max_del_size: int, output_count: bool) -> None:
+    def __init__(self, max_del_size: int, output_label: bool) -> None:
         self.max_del_size = max_del_size
         (
             self.lefts,
@@ -16,7 +16,7 @@ class DataCollator:
             self.feature_InsSeq,
             self.feature_fix,
         ) = self.pre_calculation()
-        self.output_count = output_count
+        self.output_label = output_label
 
     def features_pairwise(
         self, features1: torch.Tensor, features2: torch.Tensor
@@ -337,7 +337,7 @@ class DataCollator:
         ]
 
     def data_collator_single_example(self, example: dict) -> tuple:
-        if self.output_count:
+        if self.output_label:
             # construct observations
             observations = torch.zeros(
                 (example["random_insert_uplimit"] + 2)
@@ -455,7 +455,7 @@ class DataCollator:
             dim=-1,
         ).to(torch.float32)
         feature = torch.cat([self.feature_fix, feature_var], dim=-1)
-        if self.output_count:
+        if self.output_label:
             return ref, cut, feature, count
         return ref, cut, feature
 
@@ -465,19 +465,19 @@ class DataCollator:
         examples: list[dict],
     ) -> dict:
         refs, cuts, features = [], [], []
-        if self.output_count:
+        if self.output_label:
             counts = []
         for example in examples:
-            if self.output_count:
+            if self.output_label:
                 ref, cut, feature, count = self.data_collator_single_example(example)
             else:
                 ref, cut, feature = self.data_collator_single_example(example)
             refs.append(ref)
             cuts.append(cut)
             features.append(feature)
-            if self.output_count:
+            if self.output_label:
                 counts.append(count)
-        if self.output_count:
+        if self.output_label:
             return {
                 "ref": refs,
                 "cut": cuts,
@@ -495,7 +495,7 @@ class DataCollator:
         self,
         examples: list[dict],
     ) -> dict:
-        assert not self.output_count, "inference cannot output count"
+        assert not self.output_label, "inference cannot output count"
         for example in examples:
             ref, cut = example.pop("ref"), example.pop("cut")
             assert (

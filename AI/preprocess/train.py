@@ -18,15 +18,15 @@ def train(
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
-    batch_size: int,
     optimizer: str,
     learning_rate: float,
     scheduler: str,
     num_epochs: float,
     warmup_ratio: float,
     output_dir: pathlib.Path,
-    device: str,
+    batch_size: int,
     seed: int,
+    device: str,
     logger: logging.Logger,
 ) -> None:
     logger.info("loading data")
@@ -57,7 +57,6 @@ def train(
     model = getattr(model_module, f"{model_name}Model")(
         getattr(model_module, f"{model_name}Config")(
             **model_parameters,
-            seed=seed,
         )
     )
     assert model_name == model.config.model_type, "model name is not consistent"

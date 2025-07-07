@@ -1,4 +1,4 @@
-import configargparse
+import jsonargparse
 import pathlib
 import logging
 import sys

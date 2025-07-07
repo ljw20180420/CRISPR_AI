@@ -23,10 +23,10 @@ def test(
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
-    batch_size: int,
     output_dir: pathlib.Path,
-    device: str,
+    batch_size: int,
     seed: int,
+    device: str,
     logger: logging.Logger,
 ) -> None:
     logger.info("load model")

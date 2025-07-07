@@ -19,12 +19,12 @@ class FOREcasTPipeline(DiffusionPipeline):
         self.register_modules(core_model=core_model)
         self.data_collator = DataCollator(
             max_del_size=core_model.config.max_del_size,
-            output_count=True,
+            output_label=True,
         )
 
     @torch.no_grad()
     def __call__(self, examples: list, output_label: bool) -> dict:
-        self.data_collator.output_count = output_label
+        self.data_collator.output_label = output_label
         batch = self.data_collator(examples)
         if output_label:
             result = self.core_model(
@@ -105,7 +105,7 @@ class FOREcasTPipeline(DiffusionPipeline):
 
     @torch.no_grad()
     def inference(self, examples: list) -> dict:
-        self.data_collator.output_count = False
+        self.data_collator.output_label = False
         return self.__call__(
             examples=self.data_collator.inference(examples),
             output_label=False,
