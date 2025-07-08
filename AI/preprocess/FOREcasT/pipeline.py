@@ -23,7 +23,7 @@ class FOREcasTPipeline(DiffusionPipeline):
         )
 
     @torch.no_grad()
-    def __call__(self, examples: list, output_label: bool) -> dict:
+    def __call__(self, examples: list[dict], output_label: bool) -> dict:
         self.data_collator.output_label = output_label
         batch = self.data_collator(examples)
         if output_label:
@@ -96,11 +96,7 @@ class FOREcasTPipeline(DiffusionPipeline):
             }
         )
         if output_label:
-            return (
-                df,
-                result["loss"],
-                batch_size,
-            )
+            return df, result["loss"], batch_size
         return df
 
     @torch.no_grad()

@@ -24,9 +24,3 @@ scheduler:
   scheduler: linear # linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup, inverse_sqrt, reduce_lr_on_plateau, cosine_with_min_lr, warmup_stable_decay
   num_epochs: 30.0
   warmup_ratio: 0.05
-
-FOREcasT:
-  FOREcasT:
-    max_del_size: 30
-    reg_const: 0.01
-    i1_reg_const: 0.01

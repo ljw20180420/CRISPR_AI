@@ -9,3 +9,4 @@ conda-forge::opt_einsum
 conda-forge::einops
 conda-forge::optuna
 conda-forge::lightgbm
+bioconda::viennarna

@@ -1,0 +1,5 @@
+{
+    "cmake.ignoreCMakeListsMissing": true,
+    "r.rpath.linux": "${workspaceFolder}/.conda/bin/R",
+    "r.rterm.linux": "${workspaceFolder}/.conda/bin/R"
+}

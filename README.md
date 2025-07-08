@@ -237,6 +237,7 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+train use float32
 sk2torch transforms scikitlearn model to pytorch model
 @torch.no_grad() instead of @torch.no_grad
 use class callable data collator

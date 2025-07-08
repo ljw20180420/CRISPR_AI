@@ -343,10 +343,10 @@ class DataCollator:
                 (example["random_insert_uplimit"] + 2)
                 * (len(example["ref2"]) + 1)
                 * (len(example["ref1"]) + 1),
-                dtype=torch.float64,
+                dtype=torch.float32,
             )
             observations[example["ob_idx"]] = torch.tensor(
-                example["ob_val"], dtype=torch.float64
+                example["ob_val"], dtype=torch.float32
             )
             # cumulate observations for all random insertion size
             observation = (
@@ -372,7 +372,7 @@ class DataCollator:
                         self.rights[:-20] + example["cut2"],
                         self.lefts[:-20] + example["cut1"],
                     ],
-                    torch.tensor(example["insert_count"][:20], dtype=torch.float64),
+                    torch.tensor(example["insert_count"][:20], dtype=torch.float32),
                 ],
                 dim=0,
             )
@@ -491,10 +491,7 @@ class DataCollator:
         }
 
     @torch.no_grad()
-    def inference(
-        self,
-        examples: list[dict],
-    ) -> dict:
+    def inference(self, examples: list[dict]) -> dict:
         assert not self.output_label, "inference cannot output count"
         for example in examples:
             ref, cut = example.pop("ref"), example.pop("cut")

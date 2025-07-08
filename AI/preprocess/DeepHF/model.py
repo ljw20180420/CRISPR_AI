@@ -2,6 +2,7 @@ from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+from typing import Literal, Optional
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -15,22 +16,43 @@ class DeepHFConfig(PretrainedConfig):
 
     def __init__(
         self,
-        seq_length: int,
-        em_drop: float,
-        fc_drop: float,
-        initializer: str,
-        em_dim: int,
-        rnn_units: int,
-        fc_num_hidden_layers: int,
-        fc_num_units: int,
-        fc_activation: str,
-        ext1_up: int,
-        ext1_down: int,
-        ext2_up: int,
-        ext2_down: int,
-        seed: int,  # random seed for intialization
+        seq_length: Optional[int] = None,
+        em_drop: Optional[float] = None,
+        fc_drop: Optional[float] = None,
+        initializer: Optional[
+            Literal["lecun_uniform", "normal", "he_normal", "he_uniform"]
+        ] = None,
+        em_dim: Optional[int] = None,
+        rnn_units: Optional[int] = None,
+        fc_num_hidden_layers: Optional[int] = None,
+        fc_num_units: Optional[int] = None,
+        fc_activation: Optional[
+            Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"]
+        ] = None,
+        ext1_up: Optional[int] = None,
+        ext1_down: Optional[int] = None,
+        ext2_up: Optional[int] = None,
+        ext2_down: Optional[int] = None,
+        seed: Optional[int] = None,
         **kwargs,
     ) -> None:
+        """DeepHF arguments.
+
+        Args:
+            seq_length: input sequence length.
+            em_drop: dropout probability of embedding.
+            fc_drop: dropout probability of fully connected layer.
+            initializer: initializer method of DeepHF.
+            em_dim: embedding dimension.
+            rnn_units: BiLSTM output dimension.
+            fc_num_hidden_layers: number of output fully connected layers.
+            fc_num_units: hidden dimension of output fully connected layers.
+            fc_activation: activation function of output fully connected layers.
+            ext1_up: upstream limit of the resection of the upstream end.
+            ext1_down: downstream limit of the templated insertion of the upstream end.
+            ext2_up: upstream limit of the templated insertion of the downstream end.
+            ext2_down: downstream limit of the resection of the downstream end.
+        """
         self.seq_length = seq_length
         self.em_drop = em_drop
         self.fc_drop = fc_drop
@@ -64,19 +86,17 @@ class DeepHFModel(PreTrainedModel):
         self.dropout1d = nn.Dropout1d(p=self.config.em_drop)
 
         # According to https://stackoverflow.com/questions/56915567/keras-vs-pytorch-lstm-different-results, the output of pytorch lstm need activation to resemble the lstm of keras. The default activation is tanh.
-        self.lstm = nn.Sequential(
-            [
-                nn.LSTM(
-                    input_size=self.config.em_dim,
-                    hidden_size=self.config.rnn_units,
-                    num_layers=1,
-                    bias=True,
-                    batch_first=True,
-                    bidirectional=True,
-                ),
-                nn.Tanh(),
-                Rearrange("b l e -> b (l e)"),
-            ]
+        self.lstm = nn.LSTM(
+            input_size=self.config.em_dim,
+            hidden_size=self.config.rnn_units,
+            num_layers=1,
+            bias=True,
+            batch_first=True,
+            bidirectional=True,
+        )
+        self.lstm_ac = nn.Sequential(
+            nn.Tanh(),
+            Rearrange("b l e -> b (l e)"),
         )
 
         if self.config.fc_activation == "elu":
@@ -94,17 +114,15 @@ class DeepHFModel(PreTrainedModel):
             self.fc_activation = nn.Hardsigmoid()
 
         self.fc1 = nn.Sequential(
-            [
-                nn.Linear(
-                    self.config.seq_length * self.config.rnn_units + 11,
-                    self.config.fc_num_units,
-                ),
-                self.fc_activation,
-                nn.Dropout(self.config.fc_drop),
-            ]
+            nn.Linear(
+                self.config.seq_length * self.config.rnn_units * 2 + 11,
+                self.config.fc_num_units,
+            ),
+            self.fc_activation,
+            nn.Dropout(self.config.fc_drop),
         )
         self.fcs = nn.Sequential(
-            sum(
+            *sum(
                 [
                     [
                         nn.Linear(self.config.fc_num_units, self.config.fc_num_units),
@@ -150,6 +168,7 @@ class DeepHFModel(PreTrainedModel):
         X = self.embedding(X)
         X = self.dropout1d(X)
         X, _ = self.lstm(X)
+        X = self.lstm_ac(X)
         X = self.fc1(
             torch.cat(
                 [

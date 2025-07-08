@@ -23,8 +23,8 @@ def space(
             api.upload_file(
                 repo_id=f"{owner}/{preprocess}_{model_name}_{data_name}",
                 repo_type="space",
-                path_or_fileobj="preprocess/common/app.py",
-                path_in_repo="common/app.py",
+                path_or_fileobj="preprocess/app.py",
+                path_in_repo="preprocess/app.py",
             )
 
             with fs.open(
@@ -32,7 +32,7 @@ def space(
             ) as fd:
                 fd.write(
                     f"""
-from common.app import app
+from preprocess.app import app
 app(
     preprocess="{preprocess}",
     model_name="{model_name}",

@@ -101,6 +101,7 @@ class Scheduler:
 
 preprocess_to_model = {
     "FOREcasT": ["FOREcasT"],
+    "DeepHF": ["DeepHF"],
 }
 
 
@@ -159,17 +160,24 @@ def get_config() -> jsonargparse.Namespace:
     parser.add_argument("--optimizer", type=Optimizer)
     parser.add_argument("--scheduler", type=Scheduler)
 
+    parser_subcommands = parser.add_subcommands(required=False, dest="preprocess")
     for preprocess, model_names in preprocess_to_model.items():
-        preprocess_command = jsonargparse.ArgumentParser()
-        parser.add_subcommands(required=True, dest="preprocess").add_subcommand(
-            preprocess, preprocess_command
+        preprocess_command = jsonargparse.ArgumentParser(
+            description=f"preprocess {preprocess}.",
+        )
+        parser_subcommands.add_subcommand(preprocess, preprocess_command)
+        preprocess_subcommands = preprocess_command.add_subcommands(
+            required=False, dest="model_name"
         )
         for model_name in model_names:
-            model_commond = jsonargparse.ArgumentParser()
-            preprocess_command.add_subcommands(
-                required=True, dest="model_name"
-            ).add_subcommand(model_name, model_commond)
-
+            model_commond = jsonargparse.ArgumentParser(
+                description=f"model {model_name} of preprocess {preprocess}.",
+                default_config_files=[
+                    f"preprocess/{preprocess}/configs/{model_name}.yaml"
+                ],
+            )
+            preprocess_subcommands.add_subcommand(model_name, model_commond)
+            model_commond.add_argument("--config", action="config")
             # Construct dynamic function from model config class
             theclass = getattr(
                 importlib.import_module(f".{preprocess}.model", package="preprocess"),
@@ -192,6 +200,7 @@ def get_config() -> jsonargparse.Namespace:
                 pass
 
             dynamic_func.__signature__ = signature
+            dynamic_func.__doc__ = theclass.__init__.__doc__
             model_commond.add_function_arguments(
                 function=dynamic_func,
                 skip={"seed"},

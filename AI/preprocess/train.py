@@ -45,13 +45,11 @@ def train(
 
     logger.info("construct data collator")
     data_collator = importlib.import_module(
-        f"..{preprocess}.load_data", package="preprocess.common"
+        f"preprocess.{preprocess}.load_data",
     ).DataCollator(**data_collator_parameters)
 
     logger.info("initialize model")
-    model_module = importlib.import_module(
-        f"..{preprocess}.model", package="preprocess.common"
-    )
+    model_module = importlib.import_module(f"preprocess.{preprocess}.model")
     getattr(model_module, f"{model_name}Model").register_for_auto_class()
     getattr(model_module, f"{model_name}Config").register_for_auto_class()
     model = getattr(model_module, f"{model_name}Model")(

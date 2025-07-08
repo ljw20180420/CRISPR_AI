@@ -11,7 +11,11 @@ os.chdir(pathlib.Path(__file__).parent)
 from preprocess.config import get_config, get_logger
 
 args = get_config()
+if not args.preprocess:
+    raise ReferenceError("No preprocess")
 model_name = args[args.preprocess].model_name
+if not model_name:
+    raise ReferenceError("No model name")
 
 if args.train:
     from preprocess.train import train
@@ -25,6 +29,7 @@ if args.train:
             ),
             model_name,
         ).items()
+        if param not in ["config", "__default_config__"]
     }
     model_parameters["seed"] = args.seed
 

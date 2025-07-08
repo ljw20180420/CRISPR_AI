@@ -5,6 +5,7 @@ import datasets
 from typing import Callable
 import torch
 import numpy as np
+from typing import Optional
 from .utils import gc_content, GetInsertionCount, GetObservation, GetMH
 
 # TODO: Add BibTeX citation
@@ -36,10 +37,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 class CRISPRDataConfig(datasets.BuilderConfig):
     def __init__(
         self,
-        ref_filter: Callable | None,
-        cut_filter: Callable | None,
-        author_filter: Callable | None,
-        file_filter: Callable | None,
+        ref_filter: Optional[Callable],
+        cut_filter: Optional[Callable],
+        author_filter: Optional[Callable],
+        file_filter: Optional[Callable],
         test_ratio: float,
         validation_ratio: float,
         seed: int,
@@ -51,21 +52,22 @@ class CRISPRDataConfig(datasets.BuilderConfig):
         **kwargs
     ):
         """BuilderConfig for CRISPR_data.
+
         Args:
-        trans_func: *function*, transform function applied after filter.
-        ref_filter: *function*, ref_filter(ref1, ref2) -> bool.
-        cut_filter: *function*, cut_filter(cut1, cut2, ref1[optional], ref2[optional]) -> bool.
-        author_filter: *function*, author_filter(author, ref1[optional], ref2[optional], cut1[optional], cut2[optional]) -> bool.
-        file_filter: *function*, file_filter(file, ref1[optional], ref2[optional], cut1[optional], cut2[optional], author[optional]) -> bool.
-        test_ratio: *float*, the ratio of data for test.
-        validation_ratio: *float*, the ratio of data for validation.
-        seed: *int*, the random seed.
-        features: include the data structure in config (for auto generation of model card when test dataset).
-        ref1len: length of ref1.
-        ref2len: length of ref2.
-        random_insert_uplimit: upper limit of random insertion size discriminated in observations.
-        insert_uplimit: upper limit of insertion. Insertion longer than insert_uplimit is count in insert_count_long.
-        **kwargs: keyword arguments forwarded to super.
+            trans_func: *function*, transform function applied after filter.
+            ref_filter: *function*, ref_filter(ref1, ref2) -> bool.
+            cut_filter: *function*, cut_filter(cut1, cut2, ref1[optional], ref2[optional]) -> bool.
+            author_filter: *function*, author_filter(author, ref1[optional], ref2[optional], cut1[optional], cut2[optional]) -> bool.
+            file_filter: *function*, file_filter(file, ref1[optional], ref2[optional], cut1[optional], cut2[optional], author[optional]) -> bool.
+            test_ratio: *float*, the ratio of data for test.
+            validation_ratio: *float*, the ratio of data for validation.
+            seed: *int*, the random seed.
+            features: include the data structure in config (for auto generation of model card when test dataset).
+            ref1len: length of ref1.
+            ref2len: length of ref2.
+            random_insert_uplimit: upper limit of random insertion size discriminated in observations.
+            insert_uplimit: upper limit of insertion. Insertion longer than insert_uplimit is count in insert_count_long.
+            **kwargs: keyword arguments forwarded to super.
         """
         super().__init__(**kwargs)
         self.ref_filter = ref_filter
@@ -92,6 +94,8 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             self.config.random_insert_uplimit,
         )
         self.get_mh = GetMH(self.config.ref1len, self.config.ref2len)
+        self.GGscaffold = "GTTTTAGAGCTAGAAATAGCAAGTTAAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG"
+        self.AAscaffold = "GTTTCAGAGCTATGCTGGAAACAGCATAGCAAGTTGAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG"
 
     def get_input(self, ref1, ref2, cut1, cut2, mh_matrix, rep_num, rep_val, model):
         if model != "FOREcasT":
@@ -154,6 +158,21 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             return counts
         return None
 
+    def determine_scaffold(self, cut: dict) -> str:
+        for author in cut["authors"]:
+            if author["author"] == "SX":
+                for file in author["files"]:
+                    if re.search("^(A2-|A7-|D2-)", file["file"]):
+                        return self.GGscaffold
+                    elif re.search("^(X-|x-|B2-|36t-)", file["file"]) or re.search(
+                        "^(i10t-|i83-)", file["file"]
+                    ):
+                        return self.AAscaffold
+                    break
+            break
+
+        raise Exception("Unable to determine scaffold")
+
     # trans_funcs
     def trans_func(self, examples):
         (
@@ -161,6 +180,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             ref2s,
             cut1s,
             cut2s,
+            scaffolds,
             mh_idxs,
             mh_vals,
             mh_idx_align_ref1s,
@@ -169,7 +189,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             ob_vals,
             insert_countss,
             insert_count_longs,
-        ) = ([], [], [], [], [], [], [], [], [], [], [], [])
+        ) = ([], [], [], [], [], [], [], [], [], [], [], [], [])
         for ref1, ref2, cuts in zip(
             examples["ref1"], examples["ref2"], examples["cuts"]
         ):
@@ -180,6 +200,8 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 # cut
                 cut1s.append(cut["cut1"])
                 cut2s.append(cut["cut2"])
+                # scaffold
+                scaffolds.append(self.determine_scaffold(cut))
                 # mh
                 mh_matrix, mh_idx_align_ref1, mh_idx_align_ref2, mh_rep_num = (
                     self.get_mh(ref1, ref2, cut["cut1"], cut["cut2"], ext1=0, ext2=0)
@@ -208,6 +230,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "ref2": ref2s,
             "cut1": cut1s,
             "cut2": cut2s,
+            "scaffold": scaffolds,
             "mh_idx": mh_idxs,
             "mh_val": mh_vals,
             "mh_idx_align_ref1": mh_idx_align_ref1s,
@@ -359,37 +382,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "mh_len": mh_lens_list,
         }
 
-    def FOREcasT_trans_func(self, examples):
-        refs, cut_list, total_counts = [], [], []
-        for ref1, ref2, cuts in zip(
-            examples["ref1"], examples["ref2"], examples["cuts"]
-        ):
-            for cut in cuts:
-                # ref and cut
-                cut1, cut2 = cut["cut1"], cut["cut2"]
-                refs.append(ref1[:cut1] + ref2[cut2:])
-                cut_list.append(cut["cut1"])
-                # input
-                mh_matrix, rep_num, rep_val = self.num2micro_homology(
-                    ref1, ref2, cut1, cut2
-                )
-                del_lens, dstarts = self.get_input(
-                    ref1, ref2, cut1, cut2, mh_matrix, rep_num, rep_val, "FOREcasT"
-                )
-                mask_del_len = (
-                    (del_lens >= 0)
-                    .logical_and(del_lens <= self.config.FOREcasT_MAX_DEL_SIZE)
-                    .logical_and(dstarts <= 0)
-                    .logical_and(dstarts + del_lens >= 0)
-                )
-                # output
-                observations = self.get_observations(ref1, ref2, cut)
-                insert_counts, _ = self.get_insertion_count(ref1, ref2, cut)
-
-                counts = self.get_output(observations, rep_num, rep_val, "FOREcasT")
-                total_counts.append(torch.cat([counts[mask_del_len], insert_counts]))
-        return {"ref": refs, "cut": cut_list, "count": total_counts}
-
     # This is an example of a dataset with multiple configurations.
     # If you don't want/need to define several sub-sets in your dataset,
     # just remove the BUILDER_CONFIG_CLASS and the BUILDER_CONFIGS attributes.
@@ -407,6 +399,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "ref2": datasets.Value("string"),
             "cut1": datasets.Value("int64"),
             "cut2": datasets.Value("int64"),
+            "scaffold": datasets.Value("string"),
             "mh_idx": datasets.Sequence(datasets.Value("int64")),
             "mh_val": datasets.Sequence(datasets.Value("int64")),
             "mh_idx_align_ref1": datasets.Sequence(datasets.Value("int64")),

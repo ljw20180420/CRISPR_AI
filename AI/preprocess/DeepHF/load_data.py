@@ -2,6 +2,12 @@ import numpy as np
 import torch
 import more_itertools
 import Bio.SeqUtils.MeltingTemp as Tm
+import subprocess
+import os
+
+# torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
+from torch.backends import opt_einsum
+from einops import repeat
 
 
 class SeqTokenizer:
@@ -17,7 +23,7 @@ class SeqTokenizer:
 
 class TwoMerEnergy:
     def __init__(self) -> None:
-        self.seq_tokenizer = SeqTokenizer("ACGT")
+        self.seq_tokenizer = SeqTokenizer("ACGU")
         self.energy = np.array(
             [
                 [-0.2, -1.1, -0.9, -0.9],
@@ -30,132 +36,168 @@ class TwoMerEnergy:
     def __call__(self, seq: str) -> float:
         seq = seq.upper()
         return self.energy[
-            self.seq_tokenizer[seq[:-1]],
-            self.seq_tokenizer[seq[1:]],
+            self.seq_tokenizer(seq[:-1]),
+            self.seq_tokenizer(seq[1:]),
         ].sum()
 
 
-def get_energy(rnafold_sgRNA_files, rnafold_sgRNA_scaffold_files):
-    (
-        sgRNAs,
-        stems,
-        dGs,
-        dG_binding_20s,
-        dG_binding_7to20s,
-    ) = ([], [], [], [], [])
-    two_mer_energy = TwoMerEnergy()
-    ext_stem = "(((((((((.((((....))))...)))))))"
-    for rnafold_sgRNA_file in rnafold_sgRNA_files:
-        with open(rnafold_sgRNA_file, "r") as fd:
-            for _, sgRNA, second_energy in more_itertools.batched(fd, 3):
-                sgRNAs.append(sgRNA)
-                dGs.append(float(second_energy.split(" (")[1][:-2].strip()))
-                dG_binding_20s.append(two_mer_energy(sgRNA))
-                dG_binding_7to20s.append(two_mer_energy(sgRNA[7:]))
+class DataCollator:
+    def __init__(
+        self,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        output_label: bool,
+    ) -> None:
+        os.makedirs("preprocess/DeepHF/rnafold", exist_ok=True)
+        self.ext1_up = ext1_up
+        self.ext1_down = ext1_down
+        self.ext2_up = ext2_up
+        self.ext2_down = ext2_down
+        self.seq_tokenizer = SeqTokenizer("PSACGT")
+        self.two_mer_energy = TwoMerEnergy()
+        self.energy_records = {}
+        self.output_label = output_label
+        self.ext_stem = "(((((((((.((((....))))...)))))))"
 
-    for rnafold_sgRNA_scaffold_file in rnafold_sgRNA_scaffold_files:
-        with open(rnafold_sgRNA_scaffold_file, "r") as fd:
-            for _, _, second_energy in more_itertools.batched(fd, 3):
-                align_seq = second_energy.split(" (")[0]
-                if align_seq[18 : 18 + len(ext_stem)] == ext_stem:
-                    stems.append(1.0)
-                else:
-                    stems.append(0.0)
-
-    return {
-        sgRNA: [stem, dG, dG_binding_20, dG_binding_7to20]
-        for sgRNA, stem, dG, dG_binding_20, dG_binding_7to20 in zip(
-            sgRNAs,
-            stems,
-            dGs,
-            dG_binding_20s,
-            dG_binding_7to20s,
+    def get_energy(self, examples: list[dict]) -> None:
+        sp = subprocess.Popen(
+            "RNAfold --noPS",
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
         )
-    }
+        fa_lines = []
+        for example in examples:
+            ref1 = example["ref1"]
+            cut1 = example["cut1"]
+            sgRNA = ref1[cut1 - 17 : cut1 + 3]
+            sgRNA_scaffold = sgRNA + example["scaffold"]
+            if sgRNA_scaffold not in self.energy_records:
+                fa_lines.append(f">{len(fa_lines) // 2}")
+                fa_lines.append(sgRNA)
+                fa_lines.append(f">{len(fa_lines) // 2}")
+                fa_lines.append(sgRNA_scaffold)
+        stdout, _ = sp.communicate(input="\n".join(fa_lines).encode())
+        for (
+            _,
+            sgRNA,
+            sgRNA_energy,
+            _,
+            sgRNA_scaffold,
+            sgRNA_scaffold_energy,
+        ) in more_itertools.batched(stdout.decode().splitlines(), 6):
+            dG = float(sgRNA_energy.split(" (")[1][:-2].strip())
+            dG_binding_20 = self.two_mer_energy(sgRNA)
+            dG_binding_7to20 = self.two_mer_energy(sgRNA[7:])
+            align_seq = sgRNA_scaffold_energy.split(" (")[0]
+            if align_seq[18 : 18 + len(self.ext_stem)] == self.ext_stem:
+                stem = 1.0
+            else:
+                stem = 0.0
+            self.energy_records[sgRNA_scaffold.replace("U", "T")] = [
+                stem,
+                dG,
+                dG_binding_20,
+                dG_binding_7to20,
+            ]
 
+    @torch.no_grad()
+    def __call__(self, examples: list[dict]) -> dict:
+        self.get_energy(examples)
 
-@torch.no_grad()
-def data_collator(
-    examples: list[dict],
-    ext1_up: int,
-    ext1_down: int,
-    ext2_up: int,
-    ext2_down: int,
-    energy_records: dict,
-    seq_tokenizer: SeqTokenizer,
-    output_observation: bool,
-) -> dict:
-    Xs, biological_inputs = [], []
-    if output_observation:
-        observations = []
+        Xs, biological_inputs = [], []
+        if self.output_label:
+            observation_list = []
 
-    for example in examples:
-        if output_observation:
-            # construct observations
-            observations = torch.zeros(
-                (example["random_insert_uplimit"] + 2)
-                * (len(example["ref2"]) + 1)
-                * (len(example["ref1"]) + 1),
-                dtype=torch.float64,
-            )
-            observations[example["ob_idx"]] = torch.tensor(
-                example["ob_val"], dtype=torch.float64
-            )
-            # cumulate observations for all random insertion size
-            observation = (
-                observations.reshape(
-                    example["random_insert_uplimit"] + 2,
-                    len(example["ref2"]) + 1,
-                    len(example["ref1"]) + 1,
+        for example in examples:
+            if self.output_label:
+                # construct observations
+                observations = torch.zeros(
+                    (example["random_insert_uplimit"] + 2)
+                    * (len(example["ref2"]) + 1)
+                    * (len(example["ref1"]) + 1),
+                    dtype=torch.float32,
                 )
-                .sum(axis=0)
-                .flatten()
+                observations[example["ob_idx"]] = torch.tensor(
+                    example["ob_val"], dtype=torch.float32
+                )
+                # cumulate observations for all random insertion size
+                observation = (
+                    observations.reshape(
+                        example["random_insert_uplimit"] + 2,
+                        len(example["ref2"]) + 1,
+                        len(example["ref1"]) + 1,
+                    )
+                    .sum(axis=0)
+                    .flatten()
+                )
+                # distribute count to all positions in single micro-homology diagonal
+                observation[example["mh_idx"]] = observation[example["mh_idx"]] / (
+                    torch.tensor(example["mh_val"]) + 1
+                )
+                observation = observation.reshape(
+                    len(example["ref2"]) + 1, len(example["ref1"]) + 1
+                )
+                # take the observation region based on model extension limits
+                observation = observation[
+                    example["cut2"]
+                    - self.ext2_up : example["cut2"]
+                    + self.ext2_down
+                    + 1,
+                    example["cut1"]
+                    - self.ext1_up : example["cut1"]
+                    + self.ext1_down
+                    + 1,
+                ]
+                observation_list.append(observation)
+
+            sgRNA21mer = example["ref1"][example["cut1"] - 17 : example["cut1"] + 4]
+            Xs.append(self.seq_tokenizer("S" + sgRNA21mer))
+
+            gc_count = sgRNA21mer[:20].count("G") + sgRNA21mer[:20].count("C")
+            gc_above_10 = float(gc_count > 10)
+            gc_below_10 = float(gc_count < 10)
+            Tm_global = Tm.Tm_NN(sgRNA21mer)
+            Tm_5mer_end = Tm.Tm_NN(sgRNA21mer[15:21])
+            Tm_8mer_middle = Tm.Tm_NN(sgRNA21mer[4:13])
+            Tm_4mer_start = Tm.Tm_NN(sgRNA21mer[0:4])
+
+            biological_inputs.append(
+                self.energy_records[sgRNA21mer[:20] + example["scaffold"]]
+                + [
+                    gc_above_10,
+                    gc_below_10,
+                    gc_count,
+                    Tm_global,
+                    Tm_5mer_end,
+                    Tm_8mer_middle,
+                    Tm_4mer_start,
+                ]
             )
-            # distribute count to all positions in single micro-homology diagonal
-            observation[example["mh_idx"]] = observation[example["mh_idx"]] / (
-                torch.tensor(example["mh_val"]) + 1
-            )
-            observation = observation.reshape(
-                len(example["ref2"]) + 1, len(example["ref1"]) + 1
-            )
-            # take the observation region based on model extension limits
-            observation = observation[
-                example["cut2"] - ext2_up : example["cut2"] + ext2_down,
-                example["cut1"] - ext1_up : example["cut1"] + ext1_down,
-            ]
-            observations.append(observation)
 
-        sgRNA21mer = example["ref1"][example["cut1"] - 17 : example["cut1"] + 4]
-        Xs.append(seq_tokenizer("S" + sgRNA21mer))
-
-        gc_count = sgRNA21mer[:20].count("G") + sgRNA21mer[:20].count("C")
-        gc_above_10 = float(gc_count > 10)
-        gc_below_10 = float(gc_count < 10)
-        Tm_global = Tm.Tm_staluc(sgRNA21mer, rna=False)
-        Tm_5mer_end = Tm.Tm_staluc(sgRNA21mer[15:21], rna=False)
-        Tm_8mer_middle = Tm.Tm_staluc(sgRNA21mer[4:13], rna=False)
-        Tm_4mer_start = Tm.Tm_staluc(sgRNA21mer[0:4], rna=False)
-
-        biological_inputs.append(
-            energy_records[sgRNA21mer[:20]]
-            + [
-                gc_above_10,
-                gc_below_10,
-                gc_count,
-                Tm_global,
-                Tm_5mer_end,
-                Tm_8mer_middle,
-                Tm_4mer_start,
-            ]
-        )
-
-    if output_observation:
+        if self.output_label:
+            return {
+                "X": torch.from_numpy(np.stack(Xs)),
+                "biological_input": torch.tensor(
+                    biological_inputs, dtype=torch.float32
+                ),
+                "observation": torch.stack(observation_list),
+            }
         return {
             "X": torch.from_numpy(np.stack(Xs)),
-            "biological_input": torch.tensor(biological_inputs),
-            "observation": torch.stack(observations),
+            "biological_input": torch.tensor(biological_inputs, dtype=torch.float32),
         }
-    return {
-        "X": torch.from_numpy(np.stack(Xs)),
-        "biological_input": torch.tensor(biological_inputs),
-    }
+
+    def inference(self, examples: list[dict]) -> dict:
+        assert not self.output_label, "inference cannot output count"
+        for example in examples:
+            ref, cut = example.pop("ref"), example.pop("cut")
+            assert (
+                cut >= 17 and len(ref) - cut >= 4
+            ), f"ref is too short to contain 21mer"
+            assert "scaffold" in example, "scaffold not provided"
+            example["ref1"], example["cut1"] = ref, cut
+        return examples

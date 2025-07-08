@@ -30,32 +30,35 @@ def test():
 
 
 if __name__ == "__main__":
+    owner = os.environ["CRISPR_AI_DATASET__OWNER"]
     api = HfApi()
     api.create_repo(
-        repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
+        repo_id=f"{owner}/CRISPR_data",
         repo_type="dataset",
         exist_ok=True,
     )
 
     if len(sys.argv) > 1 and sys.argv[1] == "test":
+        # test() always appends contents to README.md, so remove it before new test().
+        os.remove("README.md")
         test()
         api.upload_file(
             path_or_fileobj="README.md",
             path_in_repo="README.md",
-            repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
+            repo_id=f"{owner}/CRISPR_data",
             repo_type="dataset",
         )
 
     api.upload_file(
         path_or_fileobj="CRISPR_data.py",
         path_in_repo="CRISPR_data.py",
-        repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
+        repo_id=f"{owner}/CRISPR_data",
         repo_type="dataset",
     )
 
     api.upload_file(
         path_or_fileobj="utils.py",
         path_in_repo="utils.py",
-        repo_id="%s/CRISPR_data" % os.environ["CRISPR_AI_OWNER"],
+        repo_id=f"{owner}/CRISPR_data",
         repo_type="dataset",
     )
