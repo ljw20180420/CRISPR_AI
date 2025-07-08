@@ -54,6 +54,8 @@ app(
                             "diffusers",
                             "torch",
                             "einops",
+                            "ViennaRNA",
+                            "scikit-learn",
                         ]
                     )
                 )
