@@ -18,8 +18,6 @@ def test(
     data_name: str,
     test_ratio: float,
     validation_ratio: float,
-    ref1len: int,
-    ref2len: int,
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
@@ -56,8 +54,6 @@ def test(
             test_ratio=test_ratio,
             validation_ratio=validation_ratio,
             seed=seed,
-            ref1len=ref1len,
-            ref2len=ref2len,
             random_insert_uplimit=random_insert_uplimit,
             insert_uplimit=insert_uplimit,
         ),
@@ -65,40 +61,52 @@ def test(
         collate_fn=lambda examples: examples,
     )
 
-    logger.info("test pipeline")
-    os.makedirs(
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}",
-        exist_ok=True,
-    )
-    dfs, total_loss, total_loss_num, accum_sample_idx = [], 0, 0, 0
-    for examples in tqdm(dl):
-        current_batch_size = len(examples)
-        df, loss, loss_num = pipe(examples, output_label=True)
-        df["sample_idx"] = df["sample_idx"] + accum_sample_idx
-        accum_sample_idx += current_batch_size
-        dfs.append(df)
-        total_loss += loss
-        total_loss_num += loss_num
-    with open(
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/mean_test_loss.txt",
-        "w",
-    ) as fd:
-        fd.write(f"{total_loss / total_loss_num}\n")
-    pd.concat(dfs).to_csv(
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/test_result.csv",
-        index=False,
-    )
+    # logger.info("test pipeline")
+    # os.makedirs(
+    #     f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}",
+    #     exist_ok=True,
+    # )
+    # dfs, total_loss, total_loss_num, accum_sample_idx = [], 0, 0, 0
+    # for examples in tqdm(dl):
+    #     current_batch_size = len(examples)
+    #     df, loss, loss_num = pipe(examples, output_label=True)
+    #     df["sample_idx"] = df["sample_idx"] + accum_sample_idx
+    #     accum_sample_idx += current_batch_size
+    #     dfs.append(df)
+    #     total_loss += loss
+    #     total_loss_num += loss_num
+    # with open(
+    #     f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/mean_test_loss.txt",
+    #     "w",
+    # ) as fd:
+    #     fd.write(f"{total_loss / total_loss_num}\n")
+    # pd.concat(dfs).to_csv(
+    #     f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/test_result.csv",
+    #     index=False,
+    # )
 
     logger.info("save pipeline")
     pipe.save_pretrained(
         save_directory=f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}"
     )
 
-    for file in ["pipeline.py", "load_data.py"]:
-        shutil.copyfile(
-            f"preprocess/{preprocess}/{file}",
-            f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/{file}",
-        )
+    shutil.copyfile(
+        f"preprocess/{preprocess}/pipeline.py",
+        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/pipeline.py",
+    )
+    # Merge utils.py into load_data.py. Also suppress the import of utils.py in load_data.py.
+    with open(
+        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/load_data.py",
+        "w",
+    ) as wd:
+        with open(f"preprocess/utils.py", "r") as rd:
+            wd.write(rd.read())
+        wd.write("\n")
+        with open(f"preprocess/{preprocess}/load_data.py", "r") as rd:
+            for line in rd:
+                if line.startswith("from ..utils import "):
+                    continue
+                wd.write(line)
 
     for component in pipe.components.keys():
         file_stem = pipe.config[component][0].split(".")[-1]

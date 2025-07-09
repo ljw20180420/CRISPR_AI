@@ -6,7 +6,7 @@ from typing import Callable
 import torch
 import numpy as np
 from typing import Optional
-from .utils import gc_content, GetInsertionCount, GetObservation, GetMH
+from .utils import gc_content, GetInsertionCount, GetObservation
 
 # TODO: Add BibTeX citation
 # Find for instance the citation on arxiv or on the dataset repo/website
@@ -45,8 +45,6 @@ class CRISPRDataConfig(datasets.BuilderConfig):
         validation_ratio: float,
         seed: int,
         features: datasets.Features,
-        ref1len: int,
-        ref2len: int,
         random_insert_uplimit: int,
         insert_uplimit: int,
         **kwargs
@@ -63,8 +61,6 @@ class CRISPRDataConfig(datasets.BuilderConfig):
             validation_ratio: *float*, the ratio of data for validation.
             seed: *int*, the random seed.
             features: include the data structure in config (for auto generation of model card when test dataset).
-            ref1len: length of ref1.
-            ref2len: length of ref2.
             random_insert_uplimit: upper limit of random insertion size discriminated in observations.
             insert_uplimit: upper limit of insertion. Insertion longer than insert_uplimit is count in insert_count_long.
             **kwargs: keyword arguments forwarded to super.
@@ -78,8 +74,6 @@ class CRISPRDataConfig(datasets.BuilderConfig):
         self.validation_ratio = validation_ratio
         self.seed = seed
         self.features = features
-        self.ref1len = ref1len
-        self.ref2len = ref2len
         self.random_insert_uplimit = random_insert_uplimit
         self.insert_uplimit = insert_uplimit
 
@@ -88,12 +82,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
     def __init__(self, **kargs):
         super().__init__(**kargs)
         self.get_insertion_count = GetInsertionCount("ACGT", self.config.insert_uplimit)
-        self.get_observations = GetObservation(
-            self.config.ref1len,
-            self.config.ref2len,
-            self.config.random_insert_uplimit,
-        )
-        self.get_mh = GetMH(self.config.ref1len, self.config.ref2len)
+        self.get_observations = GetObservation(self.config.random_insert_uplimit)
         self.GGscaffold = "GTTTTAGAGCTAGAAATAGCAAGTTAAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG"
         self.AAscaffold = "GTTTCAGAGCTATGCTGGAAACAGCATAGCAAGTTGAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG"
 
@@ -181,15 +170,11 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             cut1s,
             cut2s,
             scaffolds,
-            mh_idxs,
-            mh_vals,
-            mh_idx_align_ref1s,
-            mh_idx_align_ref2s,
             ob_idxs,
             ob_vals,
             insert_countss,
             insert_count_longs,
-        ) = ([], [], [], [], [], [], [], [], [], [], [], [], [])
+        ) = ([], [], [], [], [], [], [], [], [])
         for ref1, ref2, cuts in zip(
             examples["ref1"], examples["ref2"], examples["cuts"]
         ):
@@ -202,19 +187,9 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 cut2s.append(cut["cut2"])
                 # scaffold
                 scaffolds.append(self.determine_scaffold(cut))
-                # mh
-                mh_matrix, mh_idx_align_ref1, mh_idx_align_ref2, mh_rep_num = (
-                    self.get_mh(ref1, ref2, cut["cut1"], cut["cut2"], ext1=0, ext2=0)
-                )
-                mh_idx = mh_matrix.nonzero()
-                mh_idxs.append(mh_idx)
-                mh_vals.append(mh_matrix[mh_idx])
-                mh_idx_align_ref1s.append(mh_idx_align_ref1)
-                mh_idx_align_ref2s.append(mh_idx_align_ref2)
                 # observe
-                observations = self.get_observations(ref1, ref2, cut)
-                observations = self.get_mh.correct_observation(
-                    observations, mh_matrix, mh_rep_num
+                observations = self.get_observations(
+                    ref1, ref2, cut["authors"]
                 ).flatten()
                 (ob_idx,) = observations.nonzero()
                 ob_idxs.append(ob_idx)
@@ -231,10 +206,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "cut1": cut1s,
             "cut2": cut2s,
             "scaffold": scaffolds,
-            "mh_idx": mh_idxs,
-            "mh_val": mh_vals,
-            "mh_idx_align_ref1": mh_idx_align_ref1s,
-            "mh_idx_align_ref2": mh_idx_align_ref2s,
             "random_insert_uplimit": [self.config.random_insert_uplimit]
             * len(examples["ref1"]),
             "ob_idx": ob_idxs,
@@ -292,7 +263,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                     ]
                 )
                 # output
-                observations = self.get_observations(ref1, ref2, cut)
+                observations = self.get_observations(ref1, ref2, cut["authors"])
                 insert_counts, _ = self.get_insertion_count(ref1, ref2, cut)
                 insert_counts = insert_counts[:4]
                 insert_1bpss.append(insert_counts)
@@ -365,7 +336,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
                 del_lens_list.append(del_lens)
                 mh_lens_list.append(mh_lens)
                 # output
-                observations = self.get_observations(ref1, ref2, cut)
+                observations = self.get_observations(ref1, ref2, cut["authors"])
                 insert_counts, insert_count_long = self.get_insertion_count(
                     ref1, ref2, cut
                 )
@@ -400,10 +371,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "cut1": datasets.Value("int64"),
             "cut2": datasets.Value("int64"),
             "scaffold": datasets.Value("string"),
-            "mh_idx": datasets.Sequence(datasets.Value("int64")),
-            "mh_val": datasets.Sequence(datasets.Value("int64")),
-            "mh_idx_align_ref1": datasets.Sequence(datasets.Value("int64")),
-            "mh_idx_align_ref2": datasets.Sequence(datasets.Value("int64")),
             "random_insert_uplimit": datasets.Value("int64"),
             "ob_idx": datasets.Sequence(datasets.Value("int64")),
             "ob_val": datasets.Sequence(datasets.Value("float64")),
@@ -428,8 +395,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             validation_ratio=0.05,
             seed=63036,
             features=features,
-            ref1len=127,
-            ref2len=127,
             random_insert_uplimit=0,
             insert_uplimit=2,
             name="SX_spcas9",
@@ -447,8 +412,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             validation_ratio=0.05,
             seed=63036,
             features=features,
-            ref1len=127,
-            ref2len=127,
             random_insert_uplimit=0,
             insert_uplimit=2,
             name="SX_spymac",
@@ -466,8 +429,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             validation_ratio=0.05,
             seed=63036,
             features=features,
-            ref1len=127,
-            ref2len=127,
             random_insert_uplimit=0,
             insert_uplimit=2,
             name="SX_ispymac",

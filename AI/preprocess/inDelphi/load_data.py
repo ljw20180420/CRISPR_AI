@@ -18,8 +18,12 @@ class DataCollator:
                 for DEL_SIZE in range(self.DELLEN_LIMIT - 1, -1, 0)
             ]
         )
+        self.del_lens = self.rights - self.lefts
 
     def __call__(self, examples: list[dict]) -> dict:
+        max_mh_genotype = max(
+            [len(example["mh_idx_align_ref1"]) for example in examples]
+        )
         for example in examples:
             if self.output_label:
                 # construct observations
@@ -53,7 +57,27 @@ class DataCollator:
                     (len(example["ref2"]) + 1) * (len(example["ref1"]) + 1), False
                 )
                 mh_idx_align_ref1_2D[example["mh_idx_align_ref1"]] = True
-                # get mhless_count
+                # mh_counts
+                del_end_mask = mh_idx_align_ref1_2D[
+                    self.rights + example["cut2"],
+                    self.lefts + example["cut1"],
+                ]
+                all_counts = observations[
+                    self.rights + example["cut2"],
+                    self.lefts + example["cut1"],
+                ]
+                mh_counts = all_counts[del_end_mask]
+                # mhless_counts
+                all_mh_lens = mh_len_2D[
+                    self.rights + example["cut2"],
+                    self.lefts + example["cut1"],
+                ]
+                mhless_counts = all_counts[all_mh_lens == 0]
+                # mh_del_lens
+                mh_del_lens = self.del_lens[del_end_mask]
+                # mh_mh_lens
+                mh_mh_lens = all_mh_lens[del_end_mask]
+
             ref = (
                 example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
             )

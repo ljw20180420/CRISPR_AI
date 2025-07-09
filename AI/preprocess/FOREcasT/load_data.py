@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 import numpy as np
 import torch
+from ..utils import GetMH
 
 
 class DataCollator:
@@ -16,6 +17,7 @@ class DataCollator:
             self.feature_InsSeq,
             self.feature_fix,
         ) = self.pre_calculation()
+        self.get_mh = None
         self.output_label = output_label
 
     def features_pairwise(
@@ -337,48 +339,69 @@ class DataCollator:
         ]
 
     def data_collator_single_example(self, example: dict) -> tuple:
+        cut = example["cut1"]
+        ref = example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+        self.assert_reference_length_and_cut(ref, cut)
         if self.output_label:
+            if (
+                not self.get_mh
+                or self.get_mh.ref1len != len(example["ref1"])
+                or self.get_mh.ref2len != len(example["ref2"])
+            ):
+                self.get_mh = GetMH(
+                    ref1len=len(example["ref1"]),
+                    ref2len=len(example["ref2"]),
+                )
+            mh_matrix, _, _, mh_rep_num = self.get_mh(
+                example["ref1"],
+                example["ref2"],
+                example["cut1"],
+                example["cut2"],
+                ext1=0,
+                ext2=0,
+            )
+            mh_idx = mh_matrix.nonzero()
+            mh_val = mh_matrix[mh_idx]
             # construct observations
-            observations = torch.zeros(
+            observations = np.zeros(
                 (example["random_insert_uplimit"] + 2)
                 * (len(example["ref2"]) + 1)
                 * (len(example["ref1"]) + 1),
-                dtype=torch.float32,
+                dtype=np.float32,
             )
-            observations[example["ob_idx"]] = torch.tensor(
-                example["ob_val"], dtype=torch.float32
+            observations[example["ob_idx"]] = np.array(
+                example["ob_val"], dtype=np.float32
+            )
+            observations = observations.reshape(
+                example["random_insert_uplimit"] + 2,
+                len(example["ref2"]) + 1,
+                len(example["ref1"]) + 1,
+            )
+            # correct observations
+            observations = self.get_mh.correct_observation(
+                observations, mh_matrix, mh_rep_num
             )
             # cumulate observations for all random insertion size
-            observation = (
-                observations.reshape(
-                    example["random_insert_uplimit"] + 2,
-                    len(example["ref2"]) + 1,
-                    len(example["ref1"]) + 1,
-                )
-                .sum(axis=0)
-                .flatten()
-            )
+            observation = observations.sum(axis=0).flatten()
             # distribute count to all positions in single micro-homology diagonal
-            observation[example["mh_idx"]] = observation[example["mh_idx"]] / (
-                torch.tensor(example["mh_val"]) + 1
-            )
+            observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
             observation = observation.reshape(
                 len(example["ref2"]) + 1, len(example["ref1"]) + 1
             )
             # the last 20 elements of lefts and rights correspond to insert_count
             count = torch.cat(
                 [
-                    observation[
-                        self.rights[:-20] + example["cut2"],
-                        self.lefts[:-20] + example["cut1"],
-                    ],
+                    torch.from_numpy(
+                        observation[
+                            self.rights[:-20] + example["cut2"],
+                            self.lefts[:-20] + example["cut1"],
+                        ],
+                    ),
                     torch.tensor(example["insert_count"][:20], dtype=torch.float32),
                 ],
                 dim=0,
             )
 
-        cut = example["cut1"]
-        ref = example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
         (
             feature_I1or2Rpt,
             feature_LocalCutSiteSequence,
@@ -495,12 +518,15 @@ class DataCollator:
         assert not self.output_label, "inference cannot output count"
         for example in examples:
             ref, cut = example.pop("ref"), example.pop("cut")
-            assert (
-                cut >= self.max_del_size
-            ), f"ref upstream to cut ({cut}) is less than max_del_size ({self.max_del_size}), extend ref to upstream"
-            assert (
-                len(ref) - cut >= self.max_del_size
-            ), f"ref downstream to cut ({len(ref) - cut}) is less than max_del_size ({self.max_del_size}), extend ref to downstream"
+            self.assert_reference_length_and_cut(ref, cut)
             example["ref1"] = example["ref2"] = ref
             example["cut1"] = example["cut2"] = cut
         return examples
+
+    def assert_reference_length_and_cut(self, ref, cut):
+        assert (
+            cut >= self.max_del_size
+        ), f"ref upstream to cut ({cut}) is less than max_del_size ({self.max_del_size}), extend ref to upstream"
+        assert (
+            len(ref) - cut >= self.max_del_size
+        ), f"ref downstream to cut ({len(ref) - cut}) is less than max_del_size ({self.max_del_size}), extend ref to downstream"

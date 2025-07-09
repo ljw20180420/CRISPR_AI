@@ -43,8 +43,6 @@ class Dataset:
         data_name: Data name for training. Generally correpond to Cas protein name.
         test_ratio: Proportion for test samples.
         validation_ratio: Proportion for validation samples.
-        ref1len: Length of reference 1.
-        ref2len: Length of reference 2.
         random_insert_uplimit: The maximal discriminated length of random insertion.
         insert_uplimit: The maximal insertion length to count.
         owner: huggingface user name.
@@ -53,8 +51,6 @@ class Dataset:
     data_name: Literal["SX_spcas9", "SX_spymac", "SX_ispymac"]
     test_ratio: float
     validation_ratio: float
-    ref1len: int
-    ref2len: int
     random_insert_uplimit: int
     insert_uplimit: int
     owner: str
@@ -100,7 +96,7 @@ class Scheduler:
 
 
 preprocess_to_model = {
-    "inDelphi": ["inDelphi"],
+    # "inDelphi": ["inDelphi"],
     "FOREcasT": ["FOREcasT"],
     "DeepHF": ["DeepHF"],
 }
@@ -181,9 +177,10 @@ def get_config() -> jsonargparse.Namespace:
             model_commond.add_argument("--config", action="config")
             # Construct dynamic function from model config class
             theclass = getattr(
-                importlib.import_module(f".{preprocess}.model", package="preprocess"),
+                importlib.import_module(f"preprocess.{preprocess}.model"),
                 f"{model_name}Config",
             )
+
             signature = inspect.Signature(
                 parameters=[
                     sig_value.replace(

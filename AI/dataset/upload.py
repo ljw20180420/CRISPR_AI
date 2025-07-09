@@ -7,6 +7,7 @@ import pathlib
 from datasets.commands.test import TestCommand
 import os
 import sys
+import shutil
 
 # Change to the directory of the script
 os.chdir(pathlib.Path(__file__).parent)
@@ -40,7 +41,8 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         # test() always appends contents to README.md, so remove it before new test().
-        os.remove("README.md")
+        if os.path.exists("README.md"):
+            os.remove("README.md")
         test()
         api.upload_file(
             path_or_fileobj="README.md",

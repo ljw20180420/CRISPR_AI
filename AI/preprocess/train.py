@@ -13,8 +13,6 @@ def train(
     data_name: str,
     test_ratio: float,
     validation_ratio: float,
-    ref1len: int,
-    ref2len: int,
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
@@ -37,8 +35,6 @@ def train(
         test_ratio=test_ratio,
         validation_ratio=validation_ratio,
         seed=seed,
-        ref1len=ref1len,
-        ref2len=ref2len,
         random_insert_uplimit=random_insert_uplimit,
         insert_uplimit=insert_uplimit,
     )

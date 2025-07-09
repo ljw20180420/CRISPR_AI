@@ -10,8 +10,6 @@ dataset:
   # data_name: # SX_spcas9, SX_spymac, SX_ispymac
   test_ratio: 0.05
   validation_ratio: 0.05
-  ref1len: 127
-  ref2len: 127
   random_insert_uplimit: 0
   insert_uplimit: 2
   # owner:
