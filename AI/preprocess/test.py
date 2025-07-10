@@ -61,29 +61,29 @@ def test(
         collate_fn=lambda examples: examples,
     )
 
-    # logger.info("test pipeline")
-    # os.makedirs(
-    #     f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}",
-    #     exist_ok=True,
-    # )
-    # dfs, total_loss, total_loss_num, accum_sample_idx = [], 0, 0, 0
-    # for examples in tqdm(dl):
-    #     current_batch_size = len(examples)
-    #     df, loss, loss_num = pipe(examples, output_label=True)
-    #     df["sample_idx"] = df["sample_idx"] + accum_sample_idx
-    #     accum_sample_idx += current_batch_size
-    #     dfs.append(df)
-    #     total_loss += loss
-    #     total_loss_num += loss_num
-    # with open(
-    #     f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/mean_test_loss.txt",
-    #     "w",
-    # ) as fd:
-    #     fd.write(f"{total_loss / total_loss_num}\n")
-    # pd.concat(dfs).to_csv(
-    #     f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/test_result.csv",
-    #     index=False,
-    # )
+    logger.info("test pipeline")
+    os.makedirs(
+        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}",
+        exist_ok=True,
+    )
+    dfs, total_loss, total_loss_num, accum_sample_idx = [], 0, 0, 0
+    for examples in tqdm(dl):
+        current_batch_size = len(examples)
+        df, loss, loss_num = pipe(examples, output_label=True)
+        df["sample_idx"] = df["sample_idx"] + accum_sample_idx
+        accum_sample_idx += current_batch_size
+        dfs.append(df)
+        total_loss += loss
+        total_loss_num += loss_num
+    with open(
+        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/mean_test_loss.txt",
+        "w",
+    ) as fd:
+        fd.write(f"{total_loss / total_loss_num}\n")
+    pd.concat(dfs).to_csv(
+        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/test_result.csv",
+        index=False,
+    )
 
     logger.info("save pipeline")
     pipe.save_pretrained(

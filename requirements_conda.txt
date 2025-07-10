@@ -10,3 +10,4 @@ conda-forge::einops
 conda-forge::optuna
 conda-forge::lightgbm
 bioconda::viennarna
+conda-forge::scikit-learn

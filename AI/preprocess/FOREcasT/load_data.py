@@ -523,7 +523,7 @@ class DataCollator:
             example["cut1"] = example["cut2"] = cut
         return examples
 
-    def assert_reference_length_and_cut(self, ref, cut):
+    def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert (
             cut >= self.max_del_size
         ), f"ref upstream to cut ({cut}) is less than max_del_size ({self.max_del_size}), extend ref to upstream"

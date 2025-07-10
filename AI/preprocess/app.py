@@ -1,6 +1,7 @@
 import gradio as gr
 from diffusers import DiffusionPipeline
 import torch
+import pandas as pd
 
 
 @torch.no_grad()
@@ -18,11 +19,26 @@ def app(
     )
     pipe.core_model.to(device)
 
-    def gradio_fn(ref, cut):
-        return pipe.inference(examples=[{"ref": ref, "cut": cut}])
+    if preprocess == "DeepHF":
 
-    gr.Interface(
-        fn=gradio_fn,
-        inputs=["text", "number"],
-        outputs=["dataframe"],
-    ).launch()
+        def gradio_fn(ref: str, cut: int, scaffold: str) -> pd.DataFrame:
+            return pipe.inference(
+                examples=[{"ref": ref, "cut": cut, "scaffold": scaffold}]
+            )
+
+        gr.Interface(
+            fn=gradio_fn,
+            inputs=["text", "number", "text"],
+            outputs=["dataframe"],
+        ).launch()
+
+    else:
+
+        def gradio_fn(ref: str, cut: int) -> pd.DataFrame:
+            return pipe.inference(examples=[{"ref": ref, "cut": cut}])
+
+        gr.Interface(
+            fn=gradio_fn,
+            inputs=["text", "number"],
+            outputs=["dataframe"],
+        ).launch()

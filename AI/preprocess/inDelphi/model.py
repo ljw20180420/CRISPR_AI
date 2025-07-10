@@ -3,6 +3,20 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from typing import Optional
+import pickle
+import numpy as np
+from sklearn.neighbors import KNeighborsRegressor
+from huggingface_hub import HfFileSystem
+import os
+import pathlib
+import logging
+import datasets
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+import numpy as np
+import torch
+import pickle
+from tqdm import tqdm
 
 
 class inDelphiConfig(PretrainedConfig):
@@ -13,7 +27,7 @@ class inDelphiConfig(PretrainedConfig):
         self,
         DELLEN_LIMIT: Optional[int] = None,
         mid_dim: Optional[int] = None,
-        seed=63036,
+        seed: Optional[int] = None,
         **kwargs,
     ):
         """inDelphi paramters.
@@ -139,3 +153,154 @@ class inDelphiModel(PreTrainedModel):
         ).sum()
 
         return -genotype_pearson - total_del_len_pearson
+
+
+class inDelphiInsert:
+
+    def __init__(self) -> None:
+        pass
+
+    def load(self, model_pickle_file: str) -> None:
+        if os.path.exists(model_pickle_file):
+            with open(model_pickle_file, "rb") as fd:
+                knn_features, insert_probabilities, m654s = pickle.load(fd)
+        else:
+            fs = HfFileSystem()
+            with fs.open(model_pickle_file, "rb") as fd:
+                knn_features, insert_probabilities, m654s = pickle.load(fd)
+
+        self.compose(knn_features, insert_probabilities, m654s)
+
+    def compose(
+        self,
+        knn_features: np.ndarray,
+        insert_probabilities: np.ndarray,
+        m654s: np.ndarray,
+    ) -> None:
+        self.knn_feature_mean = knn_features.mean(axis=0)
+        self.knn_feature_std = knn_features.std(axis=0)
+        self.knn = KNeighborsRegressor(weights="distance").fit(
+            (knn_features - self.knn_feature_mean) / self.knn_feature_std,
+            insert_probabilities,
+        )
+        self.m654s = m654s / np.maximum(
+            np.linalg.norm(m654s, ord=1, axis=1, keepdims=True),
+            1e-6,
+        )
+        self.m4s = m654s.reshape(16, 4, 4).sum(axis=0)
+        self.m4s = self.m4s / np.maximum(
+            np.linalg.norm(self.m4s, ord=1, axis=1, keepdims=True),
+            1e-6,
+        )
+
+    def __call__(
+        self,
+        total_del_len_weights: torch.Tensor,
+        onebp_features: np.ndarray,
+        m654s: np.ndarray,
+        use_m654: bool,
+    ) -> tuple[np.ndarray]:
+        knn_feature = self.get_knn_feature(total_del_len_weights, onebp_features)
+        insert_probabilities = self.knn.predict(
+            (knn_feature - self.knn_feature_mean) / self.knn_feature_std
+        )
+
+        if use_m654:
+            insert_1bps = self.m654s[m654s]
+        else:
+            insert_1bps = self.m4s[m654s % 4]
+
+        return insert_probabilities, insert_1bps
+
+    def train(
+        self,
+        preprocess: str,
+        model_name: str,
+        data_collator,  # Type hint make model.py depends on load_data.py, thereby utils.py.
+        data_name: str,
+        test_ratio: float,
+        validation_ratio: float,
+        random_insert_uplimit: int,
+        insert_uplimit: int,
+        owner: str,
+        output_dir: pathlib.Path,
+        batch_size: int,
+        seed: int,
+        device: str,
+        logger: logging.Logger,
+    ):
+        logger.info("loading model")
+        model = inDelphiModel.from_pretrained(
+            output_dir / preprocess / model_name / data_name
+        ).to(device)
+
+        logger.info("loading data")
+        ds = load_dataset(
+            path=f"{owner}/CRISPR_data",
+            name=data_name,
+            split=datasets.Split.TRAIN,
+            trust_remote_code=True,
+            test_ratio=test_ratio,
+            validation_ratio=validation_ratio,
+            seed=seed,
+            random_insert_uplimit=random_insert_uplimit,
+            insert_uplimit=insert_uplimit,
+        )
+        dl = DataLoader(
+            dataset=ds,
+            batch_size=batch_size,
+            collate_fn=lambda examples: examples,
+        )
+
+        logger.info("train inDelphi insertion model")
+        with torch.no_grad():
+            knn_features = []
+            insert_probabilities = []
+            m654s = np.zeros((4**3, 4), dtype=int)
+            for examples in tqdm(dl):
+                data_collator.output_label = False
+                batch = data_collator(examples)
+                result = model(
+                    batch["mh_input"].to(model.device),
+                    batch["mh_del_len"].to(model.device),
+                )
+                data_collator.output_label = True
+                insert_batch = data_collator.insert_call(examples)
+                knn_features.append(
+                    self.get_knn_feature(
+                        result["total_del_len_weight"],
+                        insert_batch["onebp_feature"],
+                    )
+                )
+                np.add.at(
+                    m654s,
+                    insert_batch["m654"],
+                    insert_batch["insert_1bp"],
+                )
+                insert_probabilities.append(insert_batch["insert_probability"])
+            knn_features = np.concatenate(knn_features, axis=0)
+            insert_probabilities = np.concatenate(insert_probabilities, axis=0)
+
+        logger.info("save")
+        with open(
+            output_dir / preprocess / model_name / data_name / "insertion_model.pkl",
+            "wb",
+        ) as fd:
+            pickle.dump([knn_features, insert_probabilities, m654s], fd)
+
+    def get_knn_feature(
+        self, total_del_len_weights: torch.Tensor, onebp_features: np.ndarray
+    ) -> np.ndarray:
+        log_total_weights = total_del_len_weights.sum(dim=1, keepdim=True).log()
+        precisions = 1 - torch.distributions.Categorical(
+            total_del_len_weights[:, :28]
+        ).entropy() / torch.log(torch.tensor(28))
+
+        return np.concatenate(
+            [
+                onebp_features,
+                precisions[:, None].cpu().numpy(),
+                log_total_weights.cpu().numpy(),
+            ],
+            axis=1,
+        )

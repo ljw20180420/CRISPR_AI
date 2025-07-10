@@ -26,24 +26,20 @@ class DeepHFPipeline(DiffusionPipeline):
         )
         self.rpos2s = repeat(
             np.arange(
-                -self.DeepHF_model.config.ext2_up,
-                self.DeepHF_model.config.ext2_down + 1,
+                -self.core_model.config.ext2_up,
+                self.core_model.config.ext2_down + 1,
             ),
             "r2 -> r2 r1",
-            r1=self.DeepHF_model.config.ext1_up
-            + self.DeepHF_model.config.ext1_down
-            + 1,
+            r1=self.core_model.config.ext1_up + self.core_model.config.ext1_down + 1,
         ).flatten()
 
         self.rpos1s = repeat(
             np.arange(
-                -self.DeepHF_model.config.ext1_up,
-                self.DeepHF_model.config.ext1_down + 1,
+                -self.core_model.config.ext1_up,
+                self.core_model.config.ext1_down + 1,
             ),
             "r1 -> r2 r1",
-            r2=self.DeepHF_model.config.ext2_up
-            + self.DeepHF_model.config.ext2_down
-            + 1,
+            r2=self.core_model.config.ext2_up + self.core_model.config.ext2_down + 1,
         ).flatten()
 
     @torch.no_grad()
@@ -53,13 +49,13 @@ class DeepHFPipeline(DiffusionPipeline):
         if output_label:
             result = self.core_model(
                 X=batch["X"].to(self.core_model.device),
-                biologial_input=batch["biological_input"].to(self.core_model.device),
+                biological_input=batch["biological_input"].to(self.core_model.device),
                 observation=batch["observation"].to(self.core_model.device),
             )
         else:
             result = self.core_model(
                 X=batch["X"].to(self.core_model.device),
-                biologial_input=batch["biological_input"].to(self.core_model.device),
+                biological_input=batch["biological_input"].to(self.core_model.device),
             )
 
         probas = F.softmax(result["logit"], dim=-1).cpu().numpy()

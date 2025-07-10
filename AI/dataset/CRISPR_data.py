@@ -6,7 +6,7 @@ from typing import Callable
 import torch
 import numpy as np
 from typing import Optional
-from .utils import gc_content, GetInsertionCount, GetObservation
+from .utils import GetInsertionCount, GetObservation
 
 # TODO: Add BibTeX citation
 # Find for instance the citation on arxiv or on the dataset repo/website
@@ -212,83 +212,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "ob_val": ob_vals,
             "insert_count": insert_countss,
             "insert_count_long": insert_count_longs,
-        }
-
-    def inDelphi_trans_func(self, examples):
-        (
-            refs,
-            cut_list,
-            mh_del_lenss,
-            mh_mh_lenss,
-            mh_gt_posss,
-            mh_gc_fracss,
-            mh_countss,
-            mhless_countss,
-            insert_1bpss,
-        ) = ([], [], [], [], [], [], [], [], [])
-        for ref1, ref2, cuts in zip(
-            examples["ref1"], examples["ref2"], examples["cuts"]
-        ):
-            for cut in cuts:
-                # ref and cut
-                cut1, cut2 = cut["cut1"], cut["cut2"]
-                refs.append(ref1[:cut1] + ref2[cut2:])
-                cut_list.append(cut1)
-                # input
-                mh_matrix, rep_num, rep_val = self.num2micro_homology(
-                    ref1, ref2, cut1, cut2
-                )
-                del_lens, mh_lens, gt_poss = self.get_input(
-                    ref1, ref2, cut1, cut2, mh_matrix, rep_num, rep_val, "inDelphi"
-                )
-                mask_del = (
-                    (del_lens > 0)
-                    & (del_lens < self.config.DELLEN_LIMIT)
-                    & (gt_poss >= cut1)
-                    & (gt_poss - del_lens <= cut1)
-                )
-                del_lens, mh_lens, gt_poss = (
-                    del_lens[mask_del],
-                    mh_lens[mask_del],
-                    gt_poss[mask_del],
-                )
-                mask_mh = mh_lens > 0
-                mh_del_lenss.append(del_lens[mask_mh])
-                mh_gt_posss.append(gt_poss[mask_mh])
-                mh_mh_lenss.append(mh_lens[mask_mh])
-                mh_gc_fracss.append(
-                    [
-                        gc_content(refs[-1][gt_pos - mh_len : gt_pos])
-                        for mh_len, gt_pos in zip(mh_mh_lenss[-1], mh_gt_posss[-1])
-                    ]
-                )
-                # output
-                observations = self.get_observations(ref1, ref2, cut["authors"])
-                insert_counts, _ = self.get_insertion_count(ref1, ref2, cut)
-                insert_counts = insert_counts[:4]
-                insert_1bpss.append(insert_counts)
-                counts = self.get_output(observations, rep_num, rep_val, "inDelphi")
-                counts = counts[mask_del]
-                mh_countss.append(counts[mask_mh])
-                mhless_counts = torch.zeros(
-                    self.config.DELLEN_LIMIT - 1, dtype=torch.int64
-                )
-                mhless_counts = mhless_counts.scatter_add(
-                    dim=0,
-                    index=(del_lens[~mask_mh] - 1).to(torch.int64),
-                    src=counts[~mask_mh],
-                )
-                mhless_countss.append(mhless_counts)
-        return {
-            "ref": refs,
-            "cut": cut_list,
-            "mh_gt_pos": mh_gt_posss,
-            "mh_del_len": mh_del_lenss,
-            "mh_mh_len": mh_mh_lenss,
-            "mh_gc_frac": mh_gc_fracss,
-            "mh_count": mh_countss,
-            "mhless_count": mhless_countss,
-            "insert_1bp": insert_1bpss,
         }
 
     def Lindel_trans_func(self, examples):

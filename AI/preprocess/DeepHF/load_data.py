@@ -3,11 +3,7 @@ import torch
 import more_itertools
 import Bio.SeqUtils.MeltingTemp as Tm
 import subprocess
-import os
-
-# torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
-from torch.backends import opt_einsum
-from einops import repeat
+from ..utils import GetMH
 
 
 class SeqTokenizer:
@@ -50,7 +46,6 @@ class DataCollator:
         ext2_down: int,
         output_label: bool,
     ) -> None:
-        os.makedirs("preprocess/DeepHF/rnafold", exist_ok=True)
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
@@ -58,6 +53,7 @@ class DataCollator:
         self.seq_tokenizer = SeqTokenizer("PSACGT")
         self.two_mer_energy = TwoMerEnergy()
         self.energy_records = {}
+        self.get_mh = None
         self.output_label = output_label
         self.ext_stem = "(((((((((.((((....))))...)))))))"
 
@@ -113,31 +109,54 @@ class DataCollator:
             observation_list = []
 
         for example in examples:
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+            )
+            cut = example["cut1"]
+            self.assert_reference_length_and_cut(ref, cut)
+            if (
+                not self.get_mh
+                or self.get_mh.ref1len != len(example["ref1"])
+                or self.get_mh.ref2len != len(example["ref2"])
+            ):
+                self.get_mh = GetMH(
+                    ref1len=len(example["ref1"]),
+                    ref2len=len(example["ref2"]),
+                )
             if self.output_label:
+                mh_matrix, _, _, mh_rep_num = self.get_mh(
+                    example["ref1"],
+                    example["ref2"],
+                    example["cut1"],
+                    example["cut2"],
+                    ext1=0,
+                    ext2=0,
+                )
+                mh_idx = mh_matrix.nonzero()
+                mh_val = mh_matrix[mh_idx]
                 # construct observations
-                observations = torch.zeros(
+                observations = np.zeros(
                     (example["random_insert_uplimit"] + 2)
                     * (len(example["ref2"]) + 1)
                     * (len(example["ref1"]) + 1),
-                    dtype=torch.float32,
+                    dtype=np.float32,
                 )
-                observations[example["ob_idx"]] = torch.tensor(
-                    example["ob_val"], dtype=torch.float32
+                observations[example["ob_idx"]] = np.array(
+                    example["ob_val"], dtype=np.float32
+                )
+                observations = observations.reshape(
+                    example["random_insert_uplimit"] + 2,
+                    len(example["ref2"]) + 1,
+                    len(example["ref1"]) + 1,
+                )
+                # correct observations
+                observations = self.get_mh.correct_observation(
+                    observations, mh_matrix, mh_rep_num
                 )
                 # cumulate observations for all random insertion size
-                observation = (
-                    observations.reshape(
-                        example["random_insert_uplimit"] + 2,
-                        len(example["ref2"]) + 1,
-                        len(example["ref1"]) + 1,
-                    )
-                    .sum(axis=0)
-                    .flatten()
-                )
+                observation = observations.sum(axis=0).flatten()
                 # distribute count to all positions in single micro-homology diagonal
-                observation[example["mh_idx"]] = observation[example["mh_idx"]] / (
-                    torch.tensor(example["mh_val"]) + 1
-                )
+                observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
                 observation = observation.reshape(
                     len(example["ref2"]) + 1, len(example["ref1"]) + 1
                 )
@@ -152,7 +171,7 @@ class DataCollator:
                     + self.ext1_down
                     + 1,
                 ]
-                observation_list.append(observation)
+                observation_list.append(torch.from_numpy(observation))
 
             sgRNA21mer = example["ref1"][example["cut1"] - 17 : example["cut1"] + 4]
             Xs.append(self.seq_tokenizer("S" + sgRNA21mer))
@@ -191,13 +210,15 @@ class DataCollator:
             "biological_input": torch.tensor(biological_inputs, dtype=torch.float32),
         }
 
+    def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
+        assert cut >= 17 and len(ref) - cut >= 4, f"ref is too short to contain 21mer"
+
     def inference(self, examples: list[dict]) -> dict:
         assert not self.output_label, "inference cannot output count"
         for example in examples:
             ref, cut = example.pop("ref"), example.pop("cut")
-            assert (
-                cut >= 17 and len(ref) - cut >= 4
-            ), f"ref is too short to contain 21mer"
+            self.assert_reference_length_and_cut(ref, cut)
             assert "scaffold" in example, "scaffold not provided"
-            example["ref1"], example["cut1"] = ref, cut
+            example["ref1"] = example["ref2"] = ref
+            example["cut1"] = example["cut2"] = cut
         return examples

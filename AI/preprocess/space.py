@@ -56,6 +56,7 @@ app(
                             "einops",
                             "ViennaRNA",
                             "scikit-learn",
+                            "more_itertools",
                         ]
                     )
                 )

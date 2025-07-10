@@ -3,10 +3,6 @@
 import numpy as np
 
 
-def gc_content(DNA: str) -> float:
-    return (DNA.count("G") + DNA.count("C")) / len(DNA)
-
-
 class SeqTokenizer:
     def __init__(self, alphabet: str) -> None:
         self.ascii_code = np.frombuffer(alphabet.encode(), dtype=np.int8)

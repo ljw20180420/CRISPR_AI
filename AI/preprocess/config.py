@@ -96,7 +96,7 @@ class Scheduler:
 
 
 preprocess_to_model = {
-    # "inDelphi": ["inDelphi"],
+    "inDelphi": ["inDelphi"],
     "FOREcasT": ["FOREcasT"],
     "DeepHF": ["DeepHF"],
 }
