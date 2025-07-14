@@ -44,54 +44,73 @@ def train(
         f"preprocess.{preprocess}.load_data",
     ).DataCollator(**data_collator_parameters)
 
-    logger.info("initialize model")
-    model_module = importlib.import_module(f"preprocess.{preprocess}.model")
-    getattr(model_module, f"{model_name}Model").register_for_auto_class()
-    getattr(model_module, f"{model_name}Config").register_for_auto_class()
-    model = getattr(model_module, f"{model_name}Model")(
-        getattr(model_module, f"{model_name}Config")(
-            **model_parameters,
-        )
-    )
-    assert model_name == model.config.model_type, "model name is not consistent"
-
     logger.info("train model")
-    training_args = TrainingArguments(
-        output_dir=output_dir / preprocess / model.config.model_type / data_name,
-        seed=seed,
-        logging_strategy="epoch",
-        eval_strategy="epoch",
-        save_strategy="epoch",
-        use_cpu=True if device == "cpu" else False,
-        load_best_model_at_end=True,
-        remove_unused_columns=False,
-        label_names=model.config.label_names,
+    model_module = importlib.import_module(f"preprocess.{preprocess}.model")
+    getattr(model_module, f"{model_name}Config").register_for_auto_class()
+    config = getattr(model_module, f"{model_name}Config")(
+        **model_parameters,
     )
-    training_args.set_dataloader(
-        train_batch_size=batch_size,
-        eval_batch_size=batch_size,
-    )
-    training_args.set_optimizer(
-        name=optimizer,
-        learning_rate=learning_rate,
-    )
-    training_args.set_lr_scheduler(
-        name=scheduler,
-        num_epochs=num_epochs,
-        warmup_ratio=warmup_ratio,
-    )
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=ds["train"],
-        eval_dataset=ds["validation"],
-        data_collator=data_collator,
-    )
-    try:
-        trainer.train(resume_from_checkpoint=True)
-    except ValueError:
-        trainer.train()
+    if hasattr(model_module, f"{model_name}Model"):
+        logger.info("train core model")
+        getattr(model_module, f"{model_name}Model").register_for_auto_class()
+        model = getattr(model_module, f"{model_name}Model")(config)
+        assert model_name == model.config.model_type, "model name is not consistent"
 
-    logger.info("save model")
-    trainer.save_model()
-    trainer.create_model_card()
+        logger.info("set training arguments")
+        training_args = TrainingArguments(
+            output_dir=output_dir
+            / preprocess
+            / model.config.model_type
+            / data_name
+            / "core_model",
+            seed=seed,
+            logging_strategy="epoch",
+            eval_strategy="epoch",
+            save_strategy="epoch",
+            use_cpu=True if device == "cpu" else False,
+            load_best_model_at_end=True,
+            remove_unused_columns=False,
+            label_names=model.config.label_names,
+        )
+        training_args.set_dataloader(
+            train_batch_size=batch_size,
+            eval_batch_size=batch_size,
+        )
+        training_args.set_optimizer(
+            name=optimizer,
+            learning_rate=learning_rate,
+        )
+        training_args.set_lr_scheduler(
+            name=scheduler,
+            num_epochs=num_epochs,
+            warmup_ratio=warmup_ratio,
+        )
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=ds["train"],
+            eval_dataset=ds["validation"],
+            data_collator=data_collator,
+        )
+        try:
+            trainer.train(resume_from_checkpoint=True)
+        except ValueError:
+            trainer.train()
+
+        logger.info("save model")
+        trainer.save_model()
+        trainer.create_model_card()
+
+    if hasattr(model_module, f"{model_name}Auxilary"):
+        auxilary = getattr(model_module, f"{model_name}Auxilary")(config)
+        auxilary.train_auxilary(
+            preprocess=preprocess,
+            model_name=model_name,
+            data_collator=data_collator,  # pass data collator to inDelphi_insert.train so that model.py does not depend on load_data.py, thereby does not depend on utils.py
+            data_name=data_name,
+            ds=ds,
+            output_dir=output_dir,
+            batch_size=batch_size,
+            device=device,
+            logger=logger,
+        )

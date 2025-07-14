@@ -5,6 +5,17 @@ from torch.backends import opt_einsum
 from einops import repeat, rearrange
 
 
+class SeqTokenizer:
+    def __init__(self, alphabet: str) -> None:
+        self.ascii_code = np.frombuffer(alphabet.encode(), dtype=np.int8)
+        self.int2idx = np.empty(self.ascii_code.max() + 1, dtype=int)
+        for i, c in enumerate(self.ascii_code):
+            self.int2idx[c] = i
+
+    def __call__(self, seq: str) -> np.ndarray:
+        return self.int2idx[np.frombuffer(seq.encode(), dtype=np.int8)]
+
+
 class GetMH:
     def __init__(self, ref1len: int, ref2len: int) -> None:
         self.ref1len = ref1len

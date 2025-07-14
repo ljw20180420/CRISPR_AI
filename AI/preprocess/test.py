@@ -27,22 +27,42 @@ def test(
     device: str,
     logger: logging.Logger,
 ) -> None:
-    logger.info("load model")
-    model_module = importlib.import_module(
-        f"..{preprocess}.model", package="preprocess.common"
-    )
-    model = getattr(model_module, f"{model_name}Model").from_pretrained(
-        output_dir / preprocess / model_name / data_name
-    )
-    assert model_name == model.config.model_type, "model name is not consistent"
-    model.__module__ = "model"
+    logger.info("load models")
+    model_module = importlib.import_module(f"preprocess.{preprocess}.model")
+    models = {}
+    if hasattr(model_module, f"{model_name}Model"):
+        logger.info("load core model")
+        models["core_model"] = getattr(
+            model_module, f"{model_name}Model"
+        ).from_pretrained(
+            output_dir / preprocess / model_name / data_name / "core_model"
+        )
+        assert (
+            model_name == models["core_model"].config.model_type
+        ), "model name is not consistent"
+        models["core_model"].__module__ = "model"
+    if hasattr(model_module, f"{model_name}Auxilary"):
+        logger.info("load auxilary model")
+        models["auxilary_model"] = getattr(
+            model_module, f"{model_name}Auxilary"
+        ).from_pretrained(
+            output_dir / preprocess / model_name / data_name / "auxilary_model"
+        )
+        models["auxilary_model"].load_auxilary(
+            model_pickle_file=output_dir
+            / preprocess
+            / model_name
+            / data_name
+            / "auxilary_model"
+            / "auxilary.pkl"
+        )
+        models["auxilary_model"].__module__ = "model"
 
     logger.info("setup pipeline")
-    pipeline_module = importlib.import_module(
-        f"..{preprocess}.pipeline", package="preprocess.common"
-    )
-    pipe = getattr(pipeline_module, f"{model_name}Pipeline")(model)
-    pipe.core_model.to(device)
+    pipeline_module = importlib.import_module(f"preprocess.{preprocess}.pipeline")
+    pipe = getattr(pipeline_module, f"{model_name}Pipeline")(**models)
+    if hasattr(pipe, "core_model"):
+        pipe.core_model.to(device)
 
     logger.info("load test data")
     dl = DataLoader(
@@ -63,7 +83,7 @@ def test(
 
     logger.info("test pipeline")
     os.makedirs(
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}",
+        f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}",
         exist_ok=True,
     )
     dfs, total_loss, total_loss_num, accum_sample_idx = [], 0, 0, 0
@@ -76,27 +96,27 @@ def test(
         total_loss += loss
         total_loss_num += loss_num
     with open(
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/mean_test_loss.txt",
+        f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}/mean_test_loss.txt",
         "w",
     ) as fd:
         fd.write(f"{total_loss / total_loss_num}\n")
     pd.concat(dfs).to_csv(
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/test_result.csv",
+        f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}/test_result.csv",
         index=False,
     )
 
     logger.info("save pipeline")
     pipe.save_pretrained(
-        save_directory=f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}"
+        save_directory=f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}"
     )
 
     shutil.copyfile(
         f"preprocess/{preprocess}/pipeline.py",
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/pipeline.py",
+        f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}/pipeline.py",
     )
     # Merge utils.py into load_data.py. Also suppress the import of utils.py in load_data.py.
     with open(
-        f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/load_data.py",
+        f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}/load_data.py",
         "w",
     ) as wd:
         with open(f"preprocess/utils.py", "r") as rd:
@@ -108,13 +128,19 @@ def test(
                     continue
                 wd.write(line)
 
-    for component in pipe.components.keys():
-        file_stem = pipe.config[component][0].split(".")[-1]
-        shutil.copyfile(
-            output_dir
-            / preprocess
-            / pipe.core_model.config.model_type
-            / data_name
-            / f"{file_stem}.py",
-            f"preprocess/{preprocess}/pipeline/{pipe.core_model.config.model_type}/{data_name}/{component}/{file_stem}.py",
-        )
+    for component in ["core_model", "auxilary_model"]:
+        if hasattr(pipe, component):
+            shutil.copyfile(
+                f"preprocess/{preprocess}/model.py",
+                f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}/{component}/model.py",
+            )
+            if component == "auxilary_model":
+                shutil.copyfile(
+                    output_dir
+                    / preprocess
+                    / model_name
+                    / data_name
+                    / "auxilary_model"
+                    / "auxilary.pkl",
+                    f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}/{component}/auxilary.pkl",
+                )

@@ -237,6 +237,7 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+Add api documentation after finish the project
 add cross entropy as an metric
 train use float32
 sk2torch transforms scikitlearn model to pytorch model

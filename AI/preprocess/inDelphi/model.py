@@ -11,7 +11,6 @@ import os
 import pathlib
 import logging
 import datasets
-from datasets import load_dataset
 from torch.utils.data import DataLoader
 import numpy as np
 import torch
@@ -29,7 +28,7 @@ class inDelphiConfig(PretrainedConfig):
         mid_dim: Optional[int] = None,
         seed: Optional[int] = None,
         **kwargs,
-    ):
+    ) -> None:
         """inDelphi paramters.
 
         Args:
@@ -45,7 +44,7 @@ class inDelphiConfig(PretrainedConfig):
 class inDelphiModel(PreTrainedModel):
     config_class = inDelphiConfig
 
-    def __init__(self, config):
+    def __init__(self, config: inDelphiConfig) -> None:
         super().__init__(config)
         # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
         self.generator = torch.Generator().manual_seed(config.seed)
@@ -155,12 +154,14 @@ class inDelphiModel(PreTrainedModel):
         return -genotype_pearson - total_del_len_pearson
 
 
-class inDelphiInsert:
+class inDelphiAuxilary(PreTrainedModel):
+    config_class = inDelphiConfig
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, config: inDelphiConfig) -> None:
+        super().__init__(config)
+        self.workaround_to_save_the_model = nn.Parameter(torch.zeros(1))
 
-    def load(self, model_pickle_file: str) -> None:
+    def load_auxilary(self, model_pickle_file: str | pathlib.Path) -> None:
         if os.path.exists(model_pickle_file):
             with open(model_pickle_file, "rb") as fd:
                 knn_features, insert_probabilities, m654s = pickle.load(fd)
@@ -169,9 +170,9 @@ class inDelphiInsert:
             with fs.open(model_pickle_file, "rb") as fd:
                 knn_features, insert_probabilities, m654s = pickle.load(fd)
 
-        self.compose(knn_features, insert_probabilities, m654s)
+        self.compose_auxilary(knn_features, insert_probabilities, m654s)
 
-    def compose(
+    def compose_auxilary(
         self,
         knn_features: np.ndarray,
         insert_probabilities: np.ndarray,
@@ -212,42 +213,26 @@ class inDelphiInsert:
 
         return insert_probabilities, insert_1bps
 
-    def train(
+    def train_auxilary(
         self,
         preprocess: str,
         model_name: str,
         data_collator,  # Type hint make model.py depends on load_data.py, thereby utils.py.
         data_name: str,
-        test_ratio: float,
-        validation_ratio: float,
-        random_insert_uplimit: int,
-        insert_uplimit: int,
-        owner: str,
+        ds: datasets.Dataset,
         output_dir: pathlib.Path,
         batch_size: int,
-        seed: int,
         device: str,
         logger: logging.Logger,
-    ):
+    ) -> None:
         logger.info("loading model")
         model = inDelphiModel.from_pretrained(
-            output_dir / preprocess / model_name / data_name
+            output_dir / preprocess / model_name / data_name / "core_model"
         ).to(device)
 
         logger.info("loading data")
-        ds = load_dataset(
-            path=f"{owner}/CRISPR_data",
-            name=data_name,
-            split=datasets.Split.TRAIN,
-            trust_remote_code=True,
-            test_ratio=test_ratio,
-            validation_ratio=validation_ratio,
-            seed=seed,
-            random_insert_uplimit=random_insert_uplimit,
-            insert_uplimit=insert_uplimit,
-        )
         dl = DataLoader(
-            dataset=ds,
+            dataset=ds["train"],
             batch_size=batch_size,
             collate_fn=lambda examples: examples,
         )
@@ -282,8 +267,16 @@ class inDelphiInsert:
             insert_probabilities = np.concatenate(insert_probabilities, axis=0)
 
         logger.info("save")
+        self.save_pretrained(
+            output_dir / preprocess / model_name / data_name / "auxilary_model"
+        )
         with open(
-            output_dir / preprocess / model_name / data_name / "insertion_model.pkl",
+            output_dir
+            / preprocess
+            / model_name
+            / data_name
+            / "auxilary_model"
+            / "auxilary.pkl",
             "wb",
         ) as fd:
             pickle.dump([knn_features, insert_probabilities, m654s], fd)

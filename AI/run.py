@@ -68,30 +68,6 @@ if args.train:
         logger=get_logger(args.log_level),
     )
 
-    if args.preprocess == "inDelphi" and model_name == "inDelphi":
-        from preprocess.inDelphi.model import inDelphiInsert
-        from preprocess.inDelphi.load_data import DataCollator
-
-        inDelphi_insert = inDelphiInsert()
-        inDelphi_insert.train(
-            preprocess=args.preprocess,
-            model_name=model_name,
-            data_collator=DataCollator(
-                **data_collator_parameters
-            ),  # pass data collator to inDelphi_insert.train so that model.py does not depend on load_data.py, thereby does not depend on utils.py
-            data_name=args.dataset.data_name,
-            test_ratio=args.dataset.test_ratio,
-            validation_ratio=args.dataset.validation_ratio,
-            random_insert_uplimit=args.dataset.random_insert_uplimit,
-            insert_uplimit=args.dataset.insert_uplimit,
-            owner=args.dataset.owner,
-            output_dir=args.output_dir,
-            batch_size=args.batch_size,
-            seed=args.seed,
-            device=args.device,
-            logger=get_logger(args.log_level),
-        )
-
 elif args.test:
     from preprocess.test import test
 

@@ -98,6 +98,7 @@ class Scheduler:
 preprocess_to_model = {
     "inDelphi": ["inDelphi"],
     "FOREcasT": ["FOREcasT"],
+    "Lindel": ["Lindel"],
     "DeepHF": ["DeepHF"],
 }
 
@@ -167,14 +168,14 @@ def get_config() -> jsonargparse.Namespace:
             required=False, dest="model_name"
         )
         for model_name in model_names:
-            model_commond = jsonargparse.ArgumentParser(
+            model_command = jsonargparse.ArgumentParser(
                 description=f"model {model_name} of preprocess {preprocess}.",
                 default_config_files=[
                     f"preprocess/{preprocess}/configs/{model_name}.yaml"
                 ],
             )
-            preprocess_subcommands.add_subcommand(model_name, model_commond)
-            model_commond.add_argument("--config", action="config")
+            preprocess_subcommands.add_subcommand(model_name, model_command)
+            model_command.add_argument("--config", action="config")
             # Construct dynamic function from model config class
             theclass = getattr(
                 importlib.import_module(f"preprocess.{preprocess}.model"),
@@ -199,7 +200,7 @@ def get_config() -> jsonargparse.Namespace:
 
             dynamic_func.__signature__ = signature
             dynamic_func.__doc__ = theclass.__init__.__doc__
-            model_commond.add_function_arguments(
+            model_command.add_function_arguments(
                 function=dynamic_func,
                 skip={"seed"},
             )

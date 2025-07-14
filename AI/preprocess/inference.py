@@ -37,7 +37,12 @@ def inference(
         trust_remote_code=True,
         custom_pipeline=f"{owner}/{preprocess}_{model_name}_{data_name}",
     )
-    pipe.core_model.to(device)
+    if hasattr(pipe, "core_model"):
+        pipe.core_model.to(device)
+    if hasattr(pipe, "auxilary_model"):
+        pipe.auxilary_model.load_auxilary(
+            f"{owner}/{preprocess}_{model_name}_{data_name}/auxilary_model/auxilary.pkl"
+        )
 
     dfs, accum_sample_idx = [], 0
     for examples in tqdm(dl):

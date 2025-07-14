@@ -33,18 +33,17 @@ def upload(
                     path_or_fileobj=f"preprocess/{preprocess}/pipeline/{model}/{data_name}/{file}",
                     path_in_repo=file,
                 )
-            for component in pipe.components.keys():
-                folder_path = (
-                    f"preprocess/{preprocess}/pipeline/{model}/{data_name}/{component}"
-                )
-                for file in pathlib.Path(folder_path).rglob("*"):
-                    if not file.is_file():
-                        continue
-                    api.upload_file(
-                        repo_id=f"{owner}/{preprocess}_{model}_{data_name}",
-                        path_or_fileobj=file,
-                        path_in_repo=f"{component}/{file.name}",
-                    )
+            for component in ["core_model", "auxilary_model"]:
+                if hasattr(pipe, component):
+                    folder_path = f"preprocess/{preprocess}/pipeline/{model}/{data_name}/{component}"
+                    for file in pathlib.Path(folder_path).rglob("*"):
+                        if not file.is_file():
+                            continue
+                        api.upload_file(
+                            repo_id=f"{owner}/{preprocess}_{model}_{data_name}",
+                            path_or_fileobj=file,
+                            path_in_repo=f"{component}/{file.name}",
+                        )
 
             break
         except Exception as err:

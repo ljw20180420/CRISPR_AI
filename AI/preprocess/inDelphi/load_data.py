@@ -1,17 +1,6 @@
 import torch
 import numpy as np
-from ..utils import GetMH
-
-
-class SeqTokenizer:
-    def __init__(self, alphabet: str) -> None:
-        self.ascii_code = np.frombuffer(alphabet.encode(), dtype=np.int8)
-        self.int2idx = np.empty(self.ascii_code.max() + 1, dtype=int)
-        for i, c in enumerate(self.ascii_code):
-            self.int2idx[c] = i
-
-    def __call__(self, seq: str) -> np.ndarray:
-        return self.int2idx[np.frombuffer(seq.encode(), dtype=np.int8)]
+from ..utils import GetMH, SeqTokenizer
 
 
 class DataCollator:
@@ -281,6 +270,58 @@ class DataCollator:
             "onebp_feature": onebp_features,
             "m654": m654s,
         }
+
+    # the right end of the rightest correction of mh deletion
+    def get_auxilaries(self, examples: list[dict]) -> tuple:
+        rightests, mh_mh_lens, mh_del_lens = [], [], []
+        for example in examples:
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+            )
+            cut = example["cut1"]
+            self.assert_reference_length_and_cut(ref, cut)
+            if (
+                not self.get_mh
+                or self.get_mh.ref1len != len(example["ref1"])
+                or self.get_mh.ref2len != len(example["ref2"])
+            ):
+                self.get_mh = GetMH(
+                    ref1len=len(example["ref1"]),
+                    ref2len=len(example["ref2"]),
+                )
+
+            mh_matrix, mh_idx_align_ref1, _, _ = self.get_mh(
+                example["ref1"],
+                example["ref2"],
+                example["cut1"],
+                example["cut2"],
+                ext1=0,
+                ext2=0,
+            )
+            all_mh_lens = mh_matrix.reshape(
+                len(example["ref2"]) + 1,
+                len(example["ref1"]) + 1,
+            )[
+                self.rights + example["cut2"],
+                self.lefts + example["cut1"],
+            ]
+            # construct mh_idx_align_ref1_2D
+            mh_idx_align_ref1_2D = np.full(
+                (len(example["ref2"]) + 1) * (len(example["ref1"]) + 1), False
+            )
+            mh_idx_align_ref1_2D[mh_idx_align_ref1] = True
+            del_end_mask = mh_idx_align_ref1_2D.reshape(
+                len(example["ref2"]) + 1,
+                len(example["ref1"]) + 1,
+            )[
+                self.rights + example["cut2"],
+                self.lefts + example["cut1"],
+            ]
+
+            rightests.append(self.rights[del_end_mask])
+            mh_mh_lens.append(all_mh_lens[del_end_mask])
+            mh_del_lens.append(self.del_lens[del_end_mask])
+        return rightests, mh_mh_lens, mh_del_lens
 
     def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert (

@@ -9,6 +9,23 @@ def space(
     owner: str,
     device: str,
 ):
+    common_packages = [
+        "accelerate",
+        "transformers",
+        "diffusers",
+        "torch",
+        "einops",
+        "ViennaRNA",
+        "scikit-learn",
+        "more_itertools",
+        "biopython",
+    ]
+    specific_packages = {
+        "FOREcasT": [],
+        "DeepHF": ["ViennaRNA", "scikit-learn", "more_itertools", "biopython"],
+        "inDelphi": [],
+    }
+
     api = HfApi()
     fs = HfFileSystem()
     while True:
@@ -46,20 +63,7 @@ app(
                 f"spaces/{owner}/{preprocess}_{model_name}_{data_name}/requirements.txt",
                 "w",
             ) as fd:
-                fd.write(
-                    "\n".join(
-                        [
-                            "accelerate",
-                            "transformers",
-                            "diffusers",
-                            "torch",
-                            "einops",
-                            "ViennaRNA",
-                            "scikit-learn",
-                            "more_itertools",
-                        ]
-                    )
-                )
+                fd.write("\n".join(common_packages + specific_packages[preprocess]))
             break
         except Exception as err:
             print(err)

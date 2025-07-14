@@ -86,67 +86,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         self.GGscaffold = "GTTTTAGAGCTAGAAATAGCAAGTTAAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG"
         self.AAscaffold = "GTTTCAGAGCTATGCTGGAAACAGCATAGCAAGTTGAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG"
 
-    def get_input(self, ref1, ref2, cut1, cut2, mh_matrix, rep_num, rep_val, model):
-        if model != "FOREcasT":
-            mh_lens = rep_val.to(torch.int16)
-        if model in ["inDelphi", "Lindel", "FOREcasT"]:
-            mask = rep_val == 0
-            if model != "FOREcasT":
-                mh_idxs = rep_num.cumsum(dim=0)[1::2] - 1
-            del_lens = (
-                torch.arange(cut1, cut1 - len(ref1) - 1, -1, dtype=torch.int16)[None, :]
-                + torch.arange(-cut2, len(ref2) - cut2 + 1, dtype=torch.int16)[:, None]
-            )[self.diag_indices]
-            if model in ["Lindel", "FOREcasT"]:
-                dstarts = torch.arange(-cut1, len(ref1) - cut1 + 1, dtype=torch.int16)[
-                    None, :
-                ].expand(len(ref2) + 1, -1)[self.diag_indices]
-                if model == "Lindel":
-                    return del_lens, mh_lens, dstarts, mh_idxs
-                else:
-                    return del_lens, dstarts
-            elif model == "inDelphi":
-                gt_poss = (
-                    torch.arange(-cut2, len(ref2) - cut2 + 1, dtype=torch.int16) + cut1
-                )[:, None].expand(-1, len(ref1) + 1)[self.diag_indices]
-                del_lens = torch.cat([del_lens[mask], del_lens[mh_idxs]])
-                gt_poss = torch.cat([gt_poss[mask], gt_poss[mh_idxs]])
-                mh_lens = torch.cat([mh_lens[mask], mh_lens[mh_idxs]])
-            return del_lens, mh_lens, gt_poss
-        mh_matrix[self.diag_indices] = mh_lens
-        return mh_matrix
-
-    def get_output(self, observations, rep_num, rep_val, model):
-        if model in ["inDelphi", "Lindel", "FOREcasT"]:
-            mask = rep_val == 0
-            counts = torch.zeros(len(rep_num) // 2, dtype=torch.int64)
-            counts = counts.scatter_add(
-                dim=0,
-                index=torch.arange(len(rep_num) // 2).repeat_interleave(rep_num[1::2]),
-                src=observations[self.diag_indices][~mask],
-            )
-            if model != "FOREcasT":
-                mh_idxs = rep_num.cumsum(dim=0)[1::2] - 1
-            if model in ["Lindel", "FOREcasT"]:
-                if model == "Lindel":
-                    observations[
-                        self.diag_indices[0][~mask], self.diag_indices[1][~mask]
-                    ] = 0
-                    observations[
-                        self.diag_indices[0][mh_idxs], self.diag_indices[1][mh_idxs]
-                    ] = counts
-                    return observations[self.diag_indices]
-                else:
-                    observations = observations.to(torch.float32)
-                    observations[
-                        self.diag_indices[0][~mask], self.diag_indices[1][~mask]
-                    ] = (counts / rep_num[1::2]).repeat_interleave(rep_num[1::2])
-                    return observations[self.diag_indices]
-            elif model == "inDelphi":
-                counts = torch.cat([observations[self.diag_indices][mask], counts])
-            return counts
-        return None
-
     def determine_scaffold(self, cut: dict) -> str:
         for author in cut["authors"]:
             if author["author"] == "SX":
@@ -212,68 +151,6 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             "ob_val": ob_vals,
             "insert_count": insert_countss,
             "insert_count_long": insert_count_longs,
-        }
-
-    def Lindel_trans_func(self, examples):
-        (
-            refs,
-            cut_list,
-            del_counts,
-            ins_counts,
-            dstarts_list,
-            del_lens_list,
-            mh_lens_list,
-        ) = ([], [], [], [], [], [], [])
-        for ref1, ref2, cuts in zip(
-            examples["ref1"], examples["ref2"], examples["cuts"]
-        ):
-            for cut in cuts:
-                # ref and cut
-                cut1, cut2 = cut["cut1"], cut["cut2"]
-                refs.append(ref1[:cut1] + ref2[cut2:])
-                cut_list.append(cut1)
-                # input
-                mh_matrix, rep_num, rep_val = self.num2micro_homology(
-                    ref1, ref2, cut1, cut2, ext1=2, ext2=1
-                )
-                del_lens, mh_lens, dstarts, mh_idxs = self.get_input(
-                    ref1, ref2, cut1, cut2, mh_matrix, rep_num, rep_val, "Lindel"
-                )
-                mask_del_len = (
-                    (del_lens > 0)
-                    .logical_and(del_lens < self.config.Lindel_dlen)
-                    .logical_and(dstarts < 3)
-                    .logical_and(dstarts + del_lens > -2)
-                )
-                mask_mh_end = torch.full(mask_del_len.shape, False)
-                mask_mh_end[mh_idxs] = True
-                mask = mask_del_len.logical_and((mh_lens == 0).logical_or(mask_mh_end))
-                mh_lens = mh_lens[mask]
-                dstarts = dstarts[mask]
-                dstarts[(dstarts > 0).logical_and(dstarts <= mh_lens)] = 0
-                del_lens = del_lens[mask]
-                mh_lens = torch.min(del_lens, mh_lens).clamp(
-                    0, self.config.Lindel_mh_len
-                )
-                dstarts_list.append(dstarts)
-                del_lens_list.append(del_lens)
-                mh_lens_list.append(mh_lens)
-                # output
-                observations = self.get_observations(ref1, ref2, cut["authors"])
-                insert_counts, insert_count_long = self.get_insertion_count(
-                    ref1, ref2, cut
-                )
-                ins_counts.append(np.append(insert_counts, insert_count_long))
-                counts = self.get_output(observations, rep_num, rep_val, "Lindel")
-                del_counts.append(counts[mask_del_len])
-        return {
-            "ref": refs,
-            "cut": cut_list,
-            "del_count": del_counts,
-            "ins_count": ins_counts,
-            "dstart": dstarts_list,
-            "del_len": del_lens_list,
-            "mh_len": mh_lens_list,
         }
 
     # This is an example of a dataset with multiple configurations.
