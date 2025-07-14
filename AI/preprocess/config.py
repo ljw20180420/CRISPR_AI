@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Literal
 import importlib
 import inspect
-from collections import OrderedDict
 
 
 @dataclass
@@ -100,14 +99,11 @@ preprocess_to_model = {
     "FOREcasT": ["FOREcasT"],
     "Lindel": ["Lindel"],
     "DeepHF": ["DeepHF"],
+    "CRIformer": ["CRIformer"],
 }
 
 
 def get_config() -> jsonargparse.Namespace:
-    """
-    config_files: Files contain hyper-parameters. The later config files will override the former ones.
-    For example, if  config_files=['config_default.ini', 'config_custom.ini'], then settings in config_custom.ini will override settings in config_default.ini. A good practice is to put default settings in config_default.ini (do not modify config_default.ini), and then override default behaviors in config_custom.ini.
-    """
     parser = jsonargparse.ArgumentParser(
         description="Arguments of AI models.",
         default_config_files=["preprocess/config.yaml"],

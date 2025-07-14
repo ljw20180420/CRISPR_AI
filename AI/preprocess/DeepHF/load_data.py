@@ -201,6 +201,12 @@ class DataCollator:
 
     def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert cut >= 17 and len(ref) - cut >= 4, f"ref is too short to contain 21mer"
+        assert (
+            cut >= self.ext1_up
+            and cut >= self.ext2_up
+            and len(ref) - cut >= self.ext1_down
+            and len(ref) - cut >= self.ext2_down
+        ), f"reference is too short to support extensions, ext1_up: {self.ext1_up}, ext1_down: {self.ext1_down}, ext2_up: {self.ext2_up}, ext2_down: {self.ext2_down}"
 
     def inference(self, examples: list[dict]) -> dict:
         assert not self.output_label, "inference cannot output count"

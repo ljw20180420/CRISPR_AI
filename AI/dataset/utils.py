@@ -25,7 +25,7 @@ class GetInsertionCount:
         self.DNA_tokenizer = SeqTokenizer("ACGT")
 
     def DNA_to_idx(self, DNA: str) -> int:
-        vec = self.DNA_tokenizer(DNA) * np.arange(len(DNA) - 1, -1, -1)
+        vec = self.DNA_tokenizer(DNA) * (len("ACGT") ** np.arange(len(DNA) - 1, -1, -1))
         return self.base_cutoff[len(DNA) - 1] + vec.sum()
 
     def extract_insert_idx(
@@ -43,6 +43,8 @@ class GetInsertionCount:
             return -1
         insert = ref1[cut1:ref1_end] + random_insert + ref2[ref2_start:cut2]
         if not insert:  # wildtype
+            return -1
+        if insert.find("N") != -1:  # ambitious insertion
             return -1
         if len(insert) > self.insert_uplimit:  # insertion length beyond insert_uplimit
             return self.base_cutoff[-1]

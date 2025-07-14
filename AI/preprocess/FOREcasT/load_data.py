@@ -479,37 +479,31 @@ class DataCollator:
         ).to(torch.float32)
         feature = torch.cat([self.feature_fix, feature_var], dim=-1)
         if self.output_label:
-            return ref, cut, feature, count
-        return ref, cut, feature
+            return feature, count
+        return feature
 
     @torch.no_grad()
     def __call__(
         self,
         examples: list[dict],
     ) -> dict:
-        refs, cuts, features = [], [], []
+        features = []
         if self.output_label:
             counts = []
         for example in examples:
             if self.output_label:
-                ref, cut, feature, count = self.data_collator_single_example(example)
+                feature, count = self.data_collator_single_example(example)
             else:
-                ref, cut, feature = self.data_collator_single_example(example)
-            refs.append(ref)
-            cuts.append(cut)
+                feature = self.data_collator_single_example(example)
             features.append(feature)
             if self.output_label:
                 counts.append(count)
         if self.output_label:
             return {
-                "ref": refs,
-                "cut": cuts,
                 "feature": torch.stack(features),
                 "count": torch.stack(counts),
             }
         return {
-            "ref": refs,
-            "cut": cuts,
             "feature": torch.stack(features),
         }
 

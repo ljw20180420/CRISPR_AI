@@ -23,7 +23,7 @@ class inDelphiPipeline(DiffusionPipeline):
         )
 
     @torch.no_grad()
-    def __call__(self, examples: list[dict], output_label: bool):
+    def __call__(self, examples: list[dict], output_label: bool) -> pd.DataFrame:
         self.data_collator.output_label = output_label
         batch = self.data_collator(examples)
         if output_label:

@@ -38,15 +38,57 @@ class DataCollator:
                     ref1len=len(example["ref1"]),
                     ref2len=len(example["ref2"]),
                 )
-            (
-                mh_matrix,
-                mh_rep_num,
-                all_mh_lens,
-                del_end_mask,
-                mh_lens,
-                del_lens,
-                dstarts,
-            ) = self.get_delete_info(example)
+            mh_matrix, mh_idx_align_ref1, _, mh_rep_num = self.get_mh(
+                example["ref1"],
+                example["ref2"],
+                example["cut1"],
+                example["cut2"],
+                ext1=0,
+                ext2=0,
+            )
+            all_mh_lens = mh_matrix.reshape(
+                len(example["ref2"]) + 1,
+                len(example["ref1"]) + 1,
+            )[
+                self.rights + example["cut2"],
+                self.lefts + example["cut1"],
+            ]
+            # construct mh_idx_align_ref1_2D
+            mh_idx_align_ref1_2D = np.full(
+                (len(example["ref2"]) + 1) * (len(example["ref1"]) + 1), False
+            )
+            mh_idx_align_ref1_2D[mh_idx_align_ref1] = True
+            del_end_mask = mh_idx_align_ref1_2D.reshape(
+                len(example["ref2"]) + 1,
+                len(example["ref1"]) + 1,
+            )[
+                self.rights + example["cut2"],
+                self.lefts + example["cut1"],
+            ]
+            # mh_lens
+            mh_lens = np.concatenate(
+                [
+                    all_mh_lens[del_end_mask],
+                    all_mh_lens[all_mh_lens == 0],
+                ],
+                axis=0,
+            )
+            # del_lens
+            del_lens = np.concatenate(
+                [
+                    self.del_lens[del_end_mask],
+                    self.del_lens[all_mh_lens == 0],
+                ],
+                axis=0,
+            )
+            # dstarts
+            dstarts = np.concatenate(
+                [
+                    self.lefts[del_end_mask],
+                    self.lefts[all_mh_lens == 0],
+                ],
+                axis=0,
+            )
             # input_indels
             input_indel = self.onehot_encoder(
                 example["ref1"][example["cut1"] - 17 : example["cut1"] + 3]
@@ -129,69 +171,6 @@ class DataCollator:
             },
         }
 
-    def get_delete_info(self, example: dict) -> tuple:
-        mh_matrix, mh_idx_align_ref1, _, mh_rep_num = self.get_mh(
-            example["ref1"],
-            example["ref2"],
-            example["cut1"],
-            example["cut2"],
-            ext1=0,
-            ext2=0,
-        )
-        all_mh_lens = mh_matrix.reshape(
-            len(example["ref2"]) + 1,
-            len(example["ref1"]) + 1,
-        )[
-            self.rights + example["cut2"],
-            self.lefts + example["cut1"],
-        ]
-        # construct mh_idx_align_ref1_2D
-        mh_idx_align_ref1_2D = np.full(
-            (len(example["ref2"]) + 1) * (len(example["ref1"]) + 1), False
-        )
-        mh_idx_align_ref1_2D[mh_idx_align_ref1] = True
-        del_end_mask = mh_idx_align_ref1_2D.reshape(
-            len(example["ref2"]) + 1,
-            len(example["ref1"]) + 1,
-        )[
-            self.rights + example["cut2"],
-            self.lefts + example["cut1"],
-        ]
-        # mh_lens
-        mh_lens = np.concatenate(
-            [
-                all_mh_lens[del_end_mask],
-                all_mh_lens[all_mh_lens == 0],
-            ],
-            axis=0,
-        )
-        # del_lens
-        del_lens = np.concatenate(
-            [
-                self.del_lens[del_end_mask],
-                self.del_lens[all_mh_lens == 0],
-            ],
-            axis=0,
-        )
-        # dstarts
-        dstarts = np.concatenate(
-            [
-                self.lefts[del_end_mask],
-                self.lefts[all_mh_lens == 0],
-            ],
-            axis=0,
-        )
-
-        return (
-            mh_matrix,
-            mh_rep_num,
-            all_mh_lens,
-            del_end_mask,
-            mh_lens,
-            del_lens,
-            dstarts,
-        )
-
     def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert (
             cut >= self.dlen - 1 + 2 and len(ref) - cut >= self.dlen - 1 + 2
@@ -219,3 +198,12 @@ class DataCollator:
         one_hot = np.zeros((self.mh_len + 1) * len(self.lefts), dtype=np.float32)
         one_hot[features] = 1.0
         return one_hot
+
+    def inference(self, examples: list[dict]) -> dict:
+        assert not self.output_label, "inference cannot output count"
+        for example in examples:
+            ref, cut = example.pop("ref"), example.pop("cut")
+            self.assert_reference_length_and_cut(ref, cut)
+            example["ref1"] = example["ref2"] = ref
+            example["cut1"] = example["cut2"] = cut
+        return examples

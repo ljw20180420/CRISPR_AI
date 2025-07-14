@@ -192,7 +192,7 @@ class FOREcasTModel(PreTrainedModel):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, ref, cut, feature, count=None) -> torch.Tensor:
+    def forward(self, feature, count=None) -> torch.Tensor:
         logit = self.linear(feature).flatten(start_dim=1)
         if count is not None:
             return {"logit": logit, "loss": self.kl_divergence(logit, count)}

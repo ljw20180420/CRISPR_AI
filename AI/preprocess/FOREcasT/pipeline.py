@@ -28,26 +28,24 @@ class FOREcasTPipeline(DiffusionPipeline):
         batch = self.data_collator(examples)
         if output_label:
             result = self.core_model(
-                batch["ref"],
-                batch["cut"],
                 batch["feature"].to(self.core_model.device),
                 batch["count"].to(self.core_model.device),
             )
         else:
             result = self.core_model(
-                batch["ref"],
-                batch["cut"],
                 batch["feature"].to(self.core_model.device),
             )
 
         probas = F.softmax(result["logit"], dim=-1).cpu().numpy()
         batch_size, feature_size = probas.shape
-        left_shift, right_shift, ins_shift = (
-            np.zeros((batch_size, 20), dtype=int),
-            np.zeros((batch_size, 20), dtype=int),
-            np.full((batch_size, 20), "", dtype="U2"),
-        )
-        for i, (ref, cut) in enumerate(zip(batch["ref"], batch["cut"])):
+        left_shift = np.zeros((batch_size, 20), dtype=int)
+        right_shift = np.zeros((batch_size, 20), dtype=int)
+        ins_shift = np.full((batch_size, 20), "", dtype="U2")
+        for i, example in enumerate(examples):
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+            )
+            cut = example["cut1"]
             for j, ins in enumerate(self.data_collator.inss[-20:]):
                 if ref[cut] == ins[0]:
                     if len(ins) == 2 and ref[cut + 1] == ins[1]:

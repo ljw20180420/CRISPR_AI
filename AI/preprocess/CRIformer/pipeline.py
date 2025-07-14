@@ -1,7 +1,8 @@
 import torch
 from diffusers import DiffusionPipeline
 
-class CRISPRTransformerPipeline(DiffusionPipeline):
+
+class CRIformerPipeline(DiffusionPipeline):
     def __init__(self, CRISPR_transformer_model):
         super().__init__()
 
@@ -10,5 +11,7 @@ class CRISPRTransformerPipeline(DiffusionPipeline):
     @torch.no_grad()
     def __call__(self, batch):
         return {
-            "logit": self.CRISPR_transformer_model(batch["refcode"].to(self.CRISPR_transformer_model.device))["logit"]
+            "logit": self.CRISPR_transformer_model(
+                batch["refcode"].to(self.CRISPR_transformer_model.device)
+            )["logit"]
         }
