@@ -7,7 +7,7 @@ from typing import Optional
 
 
 class CRIformerConfig(RoFormerConfig):
-    model_type = "CRISPR_transformer"
+    model_type = "CRIformer"
     label_names = ["observation"]
 
     def __init__(
@@ -44,19 +44,24 @@ class CRIformerConfig(RoFormerConfig):
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
         self.seed = seed
+        if ext1_up and ext1_down and ext2_up and ext2_down:
+            # The maximum sequence length that this model might ever be used with. Typically set this to something large just in case (e.g., 512 or 1024 or 1536).
+            max_position_embeddings = 2 ** int(
+                np.ceil(np.log2(ext1_up + ext1_down + ext2_up + ext2_down + 2))
+            )
+        else:
+            max_position_embeddings = 1
+        # vocab_size and max_position_embeddings are not in the signature of CRIformerConfig, so they will be in kwargs when loading the model. Set them in kwargs.
+        kwargs["vocab_size"] = 4  # ACGT
+        kwargs["max_position_embeddings"] = max_position_embeddings
         super().__init__(
-            vocab_size=4,  # ACGT
             hidden_size=hidden_size,
             num_hidden_layers=num_hidden_layers,
             num_attention_heads=num_attention_heads,
             intermediate_size=intermediate_size,
             hidden_dropout_prob=hidden_dropout_prob,
             attention_probs_dropout_prob=attention_probs_dropout_prob,
-            max_position_embeddings=2
-            ** int(
-                np.ceil(np.log2(ext1_up + ext1_down + ext2_up + ext2_down + 2))
-            ),  # The maximum sequence length that this model might ever be used with. Typically set this to something large just in case (e.g., 512 or 1024 or 1536).
-            **kwargs
+            **kwargs,
         )
 
 
@@ -99,17 +104,12 @@ class CRIformerModel(PreTrainedModel):
                     device=self.model.device,
                 ),
             ).last_hidden_state[:, -1, :]
-        ).view(
-            batch_size,
-            self.config.ext2_up + self.config.ext2_down + 1,
-            self.config.ext1_up + self.config.ext1_down + 1,
         )
         if observation is not None:
             return {
                 "logit": logit,
                 "loss": -(
-                    observation.flatten(start_dim=1)
-                    * F.log_softmax(logit.flatten(start_dim=1), dim=1)
+                    observation.flatten(start_dim=1) * F.log_softmax(logit, dim=1)
                 ).sum(),
             }
         return {"logit": logit}
