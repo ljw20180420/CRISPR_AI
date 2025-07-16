@@ -191,6 +191,14 @@ class FOREcasTModel(PreTrainedModel):
                 nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.ConvTranspose2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     def forward(self, feature, count=None) -> torch.Tensor:
         logit = self.linear(feature).flatten(start_dim=1)

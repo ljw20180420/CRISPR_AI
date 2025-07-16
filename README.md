@@ -237,6 +237,11 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+move loss function into model
+learning rate
+non-wild-type metric
+optuna
+In the paper, remove dependency of beta on d, and apply beta_t to both ELBO and CE.
 Add api documentation after finish the project
 add cross entropy as an metric
 train use float32

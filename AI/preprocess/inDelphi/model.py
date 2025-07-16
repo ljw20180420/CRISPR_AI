@@ -72,6 +72,14 @@ class inDelphiModel(PreTrainedModel):
                 nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.ConvTranspose2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     def forward(
         self, mh_input, mh_del_len, genotype_count=None, total_del_len_count=None

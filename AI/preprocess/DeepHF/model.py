@@ -16,6 +16,11 @@ class DeepHFConfig(PretrainedConfig):
 
     def __init__(
         self,
+        ext1_up: Optional[int] = None,
+        ext1_down: Optional[int] = None,
+        ext2_up: Optional[int] = None,
+        ext2_down: Optional[int] = None,
+        seed: Optional[int] = None,
         seq_length: Optional[int] = None,
         em_drop: Optional[float] = None,
         fc_drop: Optional[float] = None,
@@ -29,16 +34,15 @@ class DeepHFConfig(PretrainedConfig):
         fc_activation: Optional[
             Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"]
         ] = None,
-        ext1_up: Optional[int] = None,
-        ext1_down: Optional[int] = None,
-        ext2_up: Optional[int] = None,
-        ext2_down: Optional[int] = None,
-        seed: Optional[int] = None,
         **kwargs,
     ) -> None:
         """DeepHF arguments.
 
         Args:
+            ext1_up: upstream limit of the resection of the upstream end.
+            ext1_down: downstream limit of the templated insertion of the upstream end.
+            ext2_up: upstream limit of the templated insertion of the downstream end.
+            ext2_down: downstream limit of the resection of the downstream end.
             seq_length: input sequence length.
             em_drop: dropout probability of embedding.
             fc_drop: dropout probability of fully connected layer.
@@ -48,11 +52,11 @@ class DeepHFConfig(PretrainedConfig):
             fc_num_hidden_layers: number of output fully connected layers.
             fc_num_units: hidden dimension of output fully connected layers.
             fc_activation: activation function of output fully connected layers.
-            ext1_up: upstream limit of the resection of the upstream end.
-            ext1_down: downstream limit of the templated insertion of the upstream end.
-            ext2_up: upstream limit of the templated insertion of the downstream end.
-            ext2_down: downstream limit of the resection of the downstream end.
         """
+        self.ext1_up = ext1_up
+        self.ext1_down = ext1_down
+        self.ext2_up = ext2_up
+        self.ext2_down = ext2_down
         self.seq_length = seq_length
         self.em_drop = em_drop
         self.fc_drop = fc_drop
@@ -62,10 +66,6 @@ class DeepHFConfig(PretrainedConfig):
         self.fc_num_hidden_layers = fc_num_hidden_layers
         self.fc_num_units = fc_num_units
         self.fc_activation = fc_activation
-        self.ext1_up = ext1_up
-        self.ext1_down = ext1_down
-        self.ext2_up = ext2_up
-        self.ext2_down = ext2_down
         self.seed = seed
         super().__init__(**kwargs)
 
@@ -161,6 +161,14 @@ class DeepHFModel(PreTrainedModel):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 init_func(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.ConvTranspose2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 

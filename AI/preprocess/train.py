@@ -2,7 +2,6 @@ import pathlib
 import logging
 from datasets import load_dataset
 import importlib
-import torch
 from transformers import (
     Trainer,
     TrainingArguments,
@@ -12,7 +11,7 @@ from transformers import (
 )
 
 
-class SingularLossGradTrainerCallback(TrainerCallback):
+class SingularGradTrainerCallback(TrainerCallback):
     def on_optimizer_step(
         self,
         args: TrainingArguments,
@@ -21,9 +20,6 @@ class SingularLossGradTrainerCallback(TrainerCallback):
         model=None,
         **kwargs,
     ):
-        if model.loss and (torch.isnan(model.loss) or torch.isinf(model.loss)):
-            control.should_training_stop = True
-            return
         for p in model.parameters():
             if p.grad is not None and (p.grad.isnan().any() or p.grad.isinf().any()):
                 control.should_training_stop = True
@@ -116,7 +112,7 @@ def train(
             train_dataset=ds["train"],
             eval_dataset=ds["validation"],
             data_collator=data_collator,
-            callbacks=[SingularLossGradTrainerCallback],
+            callbacks=[SingularGradTrainerCallback],
         )
         try:
             trainer.train(resume_from_checkpoint=True)

@@ -1,3 +1,7 @@
+ext1_up: 50
+ext1_down: 13
+ext2_up: 13
+ext2_down: 50
 seq_length: 22
 em_drop: 0.2
 fc_drop: 0.4
@@ -7,7 +11,3 @@ rnn_units: 60
 fc_num_hidden_layers: 3
 fc_num_units: 320
 fc_activation: elu # elu, relu, tanh, sigmoid, hard_sigmoid
-ext1_up: 50
-ext1_down: 13
-ext2_up: 13
-ext2_down: 50

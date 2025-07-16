@@ -100,6 +100,7 @@ preprocess_to_model = {
     "Lindel": ["Lindel"],
     "DeepHF": ["DeepHF"],
     "CRIformer": ["CRIformer"],
+    "CRIfuser": ["CRIfuser"],
 }
 
 

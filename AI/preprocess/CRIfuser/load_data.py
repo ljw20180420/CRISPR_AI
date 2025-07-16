@@ -1,68 +1,163 @@
 import torch
-import torch.nn.functional as F
-from torch.distributions import Categorical
 import numpy as np
-from ..config import get_config
 
-args = get_config(config_file="config_CRISPR_diffuser.ini")
+# torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
+from torch.backends import opt_einsum
+from einops import repeat
+from ..utils import GetMH, SeqTokenizer
 
-outputs_train = ["x1t_x2t_t", "condition", "observation"]
-outputs_test = ["condition", "observation"]
-outputs_inference = ["condition"]
 
-@torch.no_grad()
-def data_collector(examples, noise_scheduler, stationary_sampler1, stationary_sampler2, outputs):
-    def get_condition(example):
-        mh_matrix = torch.zeros(ref2len + 1, ref1len + 1)
-        mh_matrix[example['mh_ref2'], example['mh_ref1']] = torch.tensor(example['mh_val'], dtype=mh_matrix.dtype)
-        mh_matrix = mh_matrix.clamp(0, args.max_micro_homology) / args.max_micro_homology
-        one_hot_cut = torch.zeros(ref2len + 1, ref1len + 1)
-        one_hot_cut[example['cut2'], example['cut1']] = 1.0
-        one_hot_ref1 = F.one_hot(
-            torch.from_numpy(
-                (np.frombuffer((example['ref1'] + "N").encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
-            ),
-            num_classes=4
-        ).T[:, None, :].expand(-1, ref2len + 1, -1)
-        one_hot_ref2 = F.one_hot(
-            torch.from_numpy(
-                (np.frombuffer((example['ref2'] + "N").encode(), dtype=np.int8) % 5).clip(max=3).astype(np.int64)
-            ),
-            num_classes=4
-        ).T[:, :, None].expand(-1, -1, ref1len + 1)
-        return torch.cat([
-            mh_matrix[None, :, :],
-            one_hot_cut[None, :, :],
-            one_hot_ref1,
-            one_hot_ref2
-        ])
+class DataCollator:
+    def __init__(
+        self,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        max_micro_homology: int,
+        output_label: bool,
+    ):
+        self.ext1_up = ext1_up
+        self.ext1_down = ext1_down
+        self.ext2_up = ext2_up
+        self.ext2_down = ext2_down
+        self.max_micro_homology = max_micro_homology
+        self.seq_tokenizer = SeqTokenizer("ACGT")
+        self.output_label = output_label
 
-    def get_observation(example):
-        observation = torch.zeros(ref2len + 1, ref1len + 1)
-        observation[example['ob_ref2'], example['ob_ref1']] = torch.tensor(example['ob_val'], dtype=observation.dtype)
-        return observation
+    @torch.no_grad()
+    def __call__(self, examples: list[dict]) -> dict:
+        conditions = []
+        if self.output_label:
+            observation_list = []
+        for example in examples:
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+            )
+            cut = example["cut1"]
+            self.assert_reference_length_and_cut(ref, cut)
+            if (
+                not self.get_mh
+                or self.get_mh.ref1len != len(example["ref1"])
+                or self.get_mh.ref2len != len(example["ref2"])
+            ):
+                self.get_mh = GetMH(
+                    ref1len=len(example["ref1"]),
+                    ref2len=len(example["ref2"]),
+                )
+            mh_matrix, _, _, mh_rep_num = self.get_mh(
+                example["ref1"],
+                example["ref2"],
+                example["cut1"],
+                example["cut2"],
+                ext1=0,
+                ext2=0,
+            )
+            if self.output_label:
+                mh_idx = mh_matrix.nonzero()
+                mh_val = mh_matrix[mh_idx]
+                # construct observations
+                observations = np.zeros(
+                    (example["random_insert_uplimit"] + 2)
+                    * (len(example["ref2"]) + 1)
+                    * (len(example["ref1"]) + 1),
+                    dtype=np.float32,
+                )
+                observations[example["ob_idx"]] = np.array(
+                    example["ob_val"], dtype=np.float32
+                )
+                observations = observations.reshape(
+                    example["random_insert_uplimit"] + 2,
+                    len(example["ref2"]) + 1,
+                    len(example["ref1"]) + 1,
+                )
+                # correct observations
+                observations = self.get_mh.correct_observation(
+                    observations, mh_matrix, mh_rep_num
+                )
+                # cumulate observations for all random insertion size
+                observation = observations.sum(axis=0).flatten()
+                # distribute count to all positions in single micro-homology diagonal
+                observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
+                observation = observation.reshape(
+                    len(example["ref2"]) + 1, len(example["ref1"]) + 1
+                )
+                # take the observation region based on model extension limits
+                observation = observation[
+                    example["cut2"]
+                    - self.ext2_up : example["cut2"]
+                    + self.ext2_down
+                    + 1,
+                    example["cut1"]
+                    - self.ext1_up : example["cut1"]
+                    + self.ext1_down
+                    + 1,
+                ]
+                observation_list.append(observation)
 
-    batch_size, ref1len, ref2len = len(examples), len(examples[0]['ref1']), len(examples[0]['ref2'])
-    results = dict()
-    if "condition" in outputs:
-        results["condition"] = torch.stack([
-            get_condition(example)
-            for example in examples
-        ])
-    if "x1t_x2t_t" in outputs or "observation" in outputs:
-        results["observation"] = torch.stack([
-            get_observation(example)
-            for example in examples
-        ])
-    if "x1t_x2t_t" in outputs:
-        x_cross0 = Categorical(probs=results["observation"].view(batch_size, -1)).sample()
-        x20 = x_cross0 // (ref1len + 1)
-        x10 = x_cross0 % (ref1len + 1)
-        t = noise_scheduler.step_to_time(torch.rand(batch_size) * args.noise_timesteps)
-        x1t, x2t = noise_scheduler.add_noise(x10, x20, t, stationary_sampler1, stationary_sampler2)
-        results["x1t_x2t_t"] = {
-            "x1t": x1t,
-            "x2t": x2t,
-            "t": t,
+            mh_matrix = (
+                mh_matrix[
+                    example["cut2"]
+                    - self.ext2_up : example["cut2"]
+                    + self.ext2_down
+                    + 1,
+                    example["cut1"]
+                    - self.ext1_up : example["cut1"]
+                    + self.ext1_down
+                    + 1,
+                ].clip(0, self.max_micro_homology)
+                / self.max_micro_homology
+            )
+            one_hot_cut = torch.zeros(
+                self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
+            )
+            one_hot_cut[self.ext2_up, self.ext1_up] = 1
+            one_hot_ref1 = repeat(
+                example["ref1"][
+                    example["cut1"]
+                    - self.ext1_up : example["cut1"]
+                    + self.ext1_down
+                    + 1
+                ],
+                "r1 -> r2 r1",
+                r2=self.ext2_up + self.ext2_down + 1,
+            )
+            one_hot_ref2 = repeat(
+                example["ref2"][
+                    example["cut2"]
+                    - self.ext2_up : example["cut2"]
+                    + self.ext2_down
+                    + 1
+                ],
+                "r2 -> r2 r1",
+                r1=self.ext1_up + self.ext1_down + 1,
+            )
+            conditions.append(
+                np.stack([mh_matrix, one_hot_cut, one_hot_ref1, one_hot_ref2])
+            )
+        if self.output_label:
+            return {
+                "condition": torch.from_numpy(np.stack(conditions)),
+                "observation": torch.from_numpy(np.stack(observation_list)),
+            }
+        return {
+            "condition": torch.from_numpy(np.stack(conditions)),
         }
-    return results
+
+    def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
+        # len(ref) - cut > self.ext?_down instead of >= because one_hot_ref? needs an additional bp.
+        assert (
+            cut >= self.ext1_up
+            and cut >= self.ext2_up
+            and len(ref) - cut > self.ext1_down
+            and len(ref) - cut > self.ext2_down
+        ), f"reference is too short to support extensions, ext1_up: {self.ext1_up}, ext1_down: {self.ext1_down}, ext2_up: {self.ext2_up}, ext2_down: {self.ext2_down}"
+
+    def inference(self, examples: list[dict]) -> dict:
+        assert not self.output_label, "inference cannot output count"
+        for example in examples:
+            ref, cut = example.pop("ref"), example.pop("cut")
+            self.assert_reference_length_and_cut(ref, cut)
+            example["ref1"] = example["ref2"] = ref
+            example["cut1"] = example["cut2"] = cut
+        return examples

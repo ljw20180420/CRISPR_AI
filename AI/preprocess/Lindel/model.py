@@ -62,6 +62,14 @@ class LindelModel(PreTrainedModel):
                 nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            if isinstance(m, nn.ConvTranspose2d):
+                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     def forward(self, input: dict, count: Optional[dict] = None) -> torch.Tensor:
         logit_indel = self.model_indel(input["input_indel"])
