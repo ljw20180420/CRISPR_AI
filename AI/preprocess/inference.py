@@ -53,7 +53,15 @@ def inference(
                     "GTTTTAGAGCTAGAAATAGCAAGTTAAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG"
                 )
         current_batch_size = len(examples)
-        df = pipe.inference(examples)
+        for example in examples:
+            ref, cut = example.pop("ref"), example.pop("cut")
+            example["ref1"] = example["ref2"] = ref
+            example["cut1"] = example["cut2"] = cut
+        df = pipe(
+            examples=examples,
+            output_label=False,
+            metric=None,
+        )
         df["sample_idx"] = df["sample_idx"] + accum_sample_idx
         accum_sample_idx += current_batch_size
         dfs.append(df)

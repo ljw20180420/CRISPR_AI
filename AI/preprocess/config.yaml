@@ -16,9 +16,15 @@ dataset:
 
 optimizer:
   optimizer: adamw_torch # adamw_torch, adamw_torch_fused, adafactor
-  learning_rate: 0.001
+  learning_rate: 0.00001
 
 scheduler:
   scheduler: linear # linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup, inverse_sqrt, reduce_lr_on_plateau, cosine_with_min_lr, warmup_stable_decay
   num_epochs: 30.0
   warmup_ratio: 0.05
+
+metric:
+  metric_ext1_up: 25
+  metric_ext1_down: 6
+  metric_ext2_up: 6
+  metric_ext2_down: 25

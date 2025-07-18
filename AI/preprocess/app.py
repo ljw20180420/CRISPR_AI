@@ -27,8 +27,18 @@ def app(
     if preprocess == "DeepHF":
 
         def gradio_fn(ref: str, cut: int, scaffold: str) -> pd.DataFrame:
-            return pipe.inference(
-                examples=[{"ref": ref, "cut": cut, "scaffold": scaffold}]
+            return pipe(
+                examples=[
+                    {
+                        "ref1": ref,
+                        "cut1": cut,
+                        "ref2": ref,
+                        "cut2": cut,
+                        "scaffold": scaffold,
+                    }
+                ],
+                output_label=False,
+                metric=None,
             )
 
         gr.Interface(
@@ -40,7 +50,11 @@ def app(
     else:
 
         def gradio_fn(ref: str, cut: int) -> pd.DataFrame:
-            return pipe.inference(examples=[{"ref": ref, "cut": cut}])
+            return pipe(
+                examples=[{"ref1": ref, "cut1": cut, "ref2": ref, "cut2": cut}],
+                output_label=False,
+                metric=None,
+            )
 
         gr.Interface(
             fn=gradio_fn,

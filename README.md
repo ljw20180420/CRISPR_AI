@@ -237,47 +237,30 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
-move loss function into model
-learning rate
-non-wild-type metric
-optuna
 In the paper, remove dependency of beta on d, and apply beta_t to both ELBO and CE.
+save test result and pipeline in the ouput directory instead of project directory
+include load_data in model, and include model in pipeline
+custom train loop
+Remove auxilary model
+add non-wild-type metric to the trainer
+learning rate
+hyperparameter choice (optuna)
 Add api documentation after finish the project
-add cross entropy as an metric
 train use float32
 sk2torch transforms scikitlearn model to pytorch model
-@torch.no_grad() instead of @torch.no_grad
-use class callable data collator
-move the data collator into pipeline
-unify pipeline output as sample_idx, proba, rpos1, rpos2, [random_ins], [loss, loss_num]
-use core_model instead of model as pipeline component
 add type hint
-remove unnecessary shebang
-models have individual configs
-add --model_name to config
-assert consistency of model_name and model_type
-add model name and data name when saving
-roll back to fstring
-split common methods
-write test results to pipeline folder when test
 
 parallel data_collator, especially for FOREcasT
 early stopping
 model interpretable
-hyperparameter choice
 
 noise2noise explanation of prediction results
-to use uniform time-step sampling in 0~T, diffusion model need to modify alpha_t
-more robust valid loss for CRISPR diffusion
 put more weights on small steps of diffusion
 increase model parameters
 decrease model window size (128 -> 64 -> 32)
-for decreased window size, exact inference is possible
-AI explaining
 use latent diffuser
 use mamba
 use KAN
 discriminative routing mechanism (https://arxiv.org/pdf/2302.05737)
 sample temperature (https://arxiv.org/pdf/2302.05737)
-Diffuse ref2 and ref1 independently, so that $p_\theta(x_s|x_t)=\sum_{x_0}q(x_s|x_t,x_0)p_\theta(x_0|x_t)$ https://arxiv.org/pdf/2402.03701 can be used.
 ```

@@ -1,9 +1,7 @@
-import numpy as np
-import pandas as pd
 import torch
 from diffusers import DiffusionPipeline
-import torch.nn.functional as F
 from transformers import PreTrainedModel
+from typing import Optional, Callable
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -24,61 +22,17 @@ class DeepHFPipeline(DiffusionPipeline):
             ext2_down=core_model.config.ext2_down,
             output_label=True,
         )
-        self.rpos2s = repeat(
-            np.arange(
-                -self.core_model.config.ext2_up,
-                self.core_model.config.ext2_down + 1,
-            ),
-            "r2 -> r2 r1",
-            r1=self.core_model.config.ext1_up + self.core_model.config.ext1_down + 1,
-        ).flatten()
-
-        self.rpos1s = repeat(
-            np.arange(
-                -self.core_model.config.ext1_up,
-                self.core_model.config.ext1_down + 1,
-            ),
-            "r1 -> r2 r1",
-            r2=self.core_model.config.ext2_up + self.core_model.config.ext2_down + 1,
-        ).flatten()
 
     @torch.no_grad()
-    def __call__(self, examples: list[dict], output_label: bool) -> dict:
+    def __call__(
+        self, examples: list[dict], output_label: bool, metric: Optional[Callable]
+    ) -> dict:
         self.data_collator.output_label = output_label
         batch = self.data_collator(examples)
-        if output_label:
-            result = self.core_model(
-                X=batch["X"].to(self.core_model.device),
-                biological_input=batch["biological_input"].to(self.core_model.device),
-                observation=batch["observation"].to(self.core_model.device),
-            )
-        else:
-            result = self.core_model(
-                X=batch["X"].to(self.core_model.device),
-                biological_input=batch["biological_input"].to(self.core_model.device),
-            )
-
-        probas = F.softmax(result["logit"], dim=-1).cpu().numpy()
-        batch_size, feature_size = probas.shape
-        df = pd.DataFrame(
-            {
-                "sample_idx": repeat(
-                    np.arange(batch_size), "b -> (b f)", f=feature_size
-                ),
-                "proba": probas.flatten(),
-                "rpos1": repeat(self.rpos1s, "r1 -> (b r1)", b=batch_size),
-                "rpos2": repeat(self.rpos2s, "r2 -> (b r2)", b=batch_size),
-            }
-        )
+        df = self.core_model.eval_output(batch)
 
         if output_label:
-            return df, result["loss"], batch["observation"].sum()
+            assert metric is not None, "not metric given"
+            loss, loss_num = metric(df=df, batch=batch)
+            return df, loss, loss_num
         return df
-
-    @torch.no_grad()
-    def inference(self, examples: list) -> dict:
-        self.data_collator.output_label = False
-        return self.__call__(
-            examples=self.data_collator.inference(examples),
-            output_label=False,
-        )

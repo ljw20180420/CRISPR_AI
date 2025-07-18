@@ -1,3 +1,5 @@
+import numpy as np
+import pandas as pd
 from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
@@ -7,12 +9,12 @@ from typing import Literal, Optional
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops.layers.torch import Rearrange
-from einops import rearrange
+from einops import rearrange, einsum, repeat
 
 
 class DeepHFConfig(PretrainedConfig):
     model_type = "DeepHF"
-    label_names = ["observation"]
+    label_names = ["label"]
 
     def __init__(
         self,
@@ -140,9 +142,10 @@ class DeepHFModel(PreTrainedModel):
         )
         self.mix_output = nn.Linear(self.config.fc_num_units, out_dim)
 
-        self.initialize_weights()
+        self._initialize_model_layer_weights()
 
-    def initialize_weights(self):
+    # huggingface use the name initialize_weights, use another name here.
+    def _initialize_model_layer_weights(self) -> None:
         if self.config.initializer == "lecun_uniform":
             init_func = (
                 lambda weight, generator=self.generator: nn.init.kaiming_uniform_(
@@ -172,8 +175,8 @@ class DeepHFModel(PreTrainedModel):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, X, biological_input, observation=None) -> torch.Tensor:
-        X = self.embedding(X)
+    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+        X = self.embedding(input["X"])
         X = self.dropout1d(X)
         X, _ = self.lstm(X)
         X = self.lstm_ac(X)
@@ -181,20 +184,70 @@ class DeepHFModel(PreTrainedModel):
             torch.cat(
                 [
                     X,
-                    biological_input,
+                    input["biological_input"],
                 ],
                 dim=1,
             )
         )
         X = self.fcs(X)
         logit = self.mix_output(X)
-        if observation is not None:
+        if label is not None:
+            observation = torch.stack(
+                [
+                    ob[
+                        c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
+                        c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                    ]
+                    for ob, c1, c2 in zip(
+                        label["observation"], label["cut1"], label["cut2"]
+                    )
+                ]
+            )
             return {
                 "logit": logit,
                 # negative log likelihood
-                "loss": -(
-                    rearrange(observation, "b r2 r1 -> b (r2 r1)")
-                    * F.log_softmax(logit, dim=1)
-                ).sum(),
+                "loss": self.loss_fun(
+                    logit,
+                    observation,
+                ),
             }
         return {"logit": logit}
+
+    def loss_fun(self, logit: torch.Tensor, observation: torch.Tensor) -> float:
+        return -einsum(
+            F.log_softmax(logit, dim=1),
+            rearrange(observation, "b r2 r1 -> b (r2 r1)"),
+            "b f, b f ->",
+        )
+
+    def eval_output(self, batch: dict) -> pd.DataFrame:
+        result = self(input=batch["input"])
+
+        probas = F.softmax(result["logit"], dim=1).cpu().numpy()
+        batch_size = probas.shape[0]
+        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
+        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size),
+                    "b -> (b r2 r1)",
+                    r1=ref1_dim,
+                    r2=ref2_dim,
+                ),
+                "proba": probas.flatten(),
+                "rpos1": repeat(
+                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    "r1 -> (b r2 r1)",
+                    b=batch_size,
+                    r2=ref2_dim,
+                ),
+                "rpos2": repeat(
+                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    "r2 -> (b r2 r1)",
+                    b=batch_size,
+                    r1=ref1_dim,
+                ),
+            }
+        )
+        return df

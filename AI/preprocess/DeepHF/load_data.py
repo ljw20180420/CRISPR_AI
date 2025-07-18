@@ -42,11 +42,90 @@ class DataCollator:
         self.seq_tokenizer = SeqTokenizer("PSACGT")
         self.two_mer_energy = TwoMerEnergy()
         self.energy_records = {}
-        self.get_mh = None
+        self.get_mh = GetMH()
         self.output_label = output_label
         self.ext_stem = "(((((((((.((((....))))...)))))))"
 
-    def get_energy(self, examples: list[dict]) -> None:
+    @torch.no_grad()
+    def __call__(self, examples: list[dict]) -> dict:
+        self._get_energy(examples)
+
+        Xs, biological_inputs = [], []
+        if self.output_label:
+            observation_list, cut1s, cut2s = [], [], []
+
+        for example in examples:
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+            )
+            cut = example["cut1"]
+            self._assert_reference_length_and_cut(ref, cut)
+            if self.output_label:
+                mh_matrix, _, _, mh_rep_num = self.get_mh(
+                    example["ref1"],
+                    example["ref2"],
+                    example["cut1"],
+                    example["cut2"],
+                    ext1=0,
+                    ext2=0,
+                )
+                observation = self.get_mh.get_observation(
+                    example, mh_matrix, mh_rep_num
+                )
+                observation_list.append(observation)
+                cut1s.append(example["cut1"])
+                cut2s.append(example["cut2"])
+
+            sgRNA21mer = example["ref1"][example["cut1"] - 17 : example["cut1"] + 4]
+            Xs.append(self.seq_tokenizer("S" + sgRNA21mer))
+
+            gc_count = sgRNA21mer[:20].count("G") + sgRNA21mer[:20].count("C")
+            gc_above_10 = float(gc_count > 10)
+            gc_below_10 = float(gc_count < 10)
+            Tm_global = Tm.Tm_NN(sgRNA21mer)
+            Tm_5mer_end = Tm.Tm_NN(sgRNA21mer[15:21])
+            Tm_8mer_middle = Tm.Tm_NN(sgRNA21mer[4:13])
+            Tm_4mer_start = Tm.Tm_NN(sgRNA21mer[0:4])
+
+            biological_inputs.append(
+                self.energy_records[sgRNA21mer[:20] + example["scaffold"]]
+                + [
+                    gc_above_10,
+                    gc_below_10,
+                    gc_count,
+                    Tm_global,
+                    Tm_5mer_end,
+                    Tm_8mer_middle,
+                    Tm_4mer_start,
+                ]
+            )
+
+        if self.output_label:
+            return {
+                "input": {
+                    "X": torch.from_numpy(np.stack(Xs)),
+                    "biological_input": torch.tensor(
+                        biological_inputs,
+                        dtype=torch.float32,
+                    ),
+                },
+                "label": {
+                    "observation": torch.from_numpy(np.stack(observation_list)),
+                    "cut1": np.array(cut1s),
+                    "cut2": np.array(cut2s),
+                },
+            }
+        return {
+            "input": {
+                "X": torch.from_numpy(np.stack(Xs)),
+                "biological_input": torch.tensor(
+                    biological_inputs,
+                    dtype=torch.float32,
+                ),
+            },
+        }
+
+    def _get_energy(self, examples: list[dict]) -> None:
         sp = subprocess.Popen(
             "RNAfold --noPS",
             stdin=subprocess.PIPE,
@@ -89,117 +168,7 @@ class DataCollator:
                 dG_binding_7to20,
             ]
 
-    @torch.no_grad()
-    def __call__(self, examples: list[dict]) -> dict:
-        self.get_energy(examples)
-
-        Xs, biological_inputs = [], []
-        if self.output_label:
-            observation_list = []
-
-        for example in examples:
-            ref = (
-                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
-            )
-            cut = example["cut1"]
-            self.assert_reference_length_and_cut(ref, cut)
-            if (
-                not self.get_mh
-                or self.get_mh.ref1len != len(example["ref1"])
-                or self.get_mh.ref2len != len(example["ref2"])
-            ):
-                self.get_mh = GetMH(
-                    ref1len=len(example["ref1"]),
-                    ref2len=len(example["ref2"]),
-                )
-            if self.output_label:
-                mh_matrix, _, _, mh_rep_num = self.get_mh(
-                    example["ref1"],
-                    example["ref2"],
-                    example["cut1"],
-                    example["cut2"],
-                    ext1=0,
-                    ext2=0,
-                )
-                mh_idx = mh_matrix.nonzero()
-                mh_val = mh_matrix[mh_idx]
-                # construct observations
-                observations = np.zeros(
-                    (example["random_insert_uplimit"] + 2)
-                    * (len(example["ref2"]) + 1)
-                    * (len(example["ref1"]) + 1),
-                    dtype=np.float32,
-                )
-                observations[example["ob_idx"]] = np.array(
-                    example["ob_val"], dtype=np.float32
-                )
-                observations = observations.reshape(
-                    example["random_insert_uplimit"] + 2,
-                    len(example["ref2"]) + 1,
-                    len(example["ref1"]) + 1,
-                )
-                # correct observations
-                observations = self.get_mh.correct_observation(
-                    observations, mh_matrix, mh_rep_num
-                )
-                # cumulate observations for all random insertion size
-                observation = observations.sum(axis=0).flatten()
-                # distribute count to all positions in single micro-homology diagonal
-                observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
-                observation = observation.reshape(
-                    len(example["ref2"]) + 1, len(example["ref1"]) + 1
-                )
-                # take the observation region based on model extension limits
-                observation = observation[
-                    example["cut2"]
-                    - self.ext2_up : example["cut2"]
-                    + self.ext2_down
-                    + 1,
-                    example["cut1"]
-                    - self.ext1_up : example["cut1"]
-                    + self.ext1_down
-                    + 1,
-                ]
-                observation_list.append(torch.from_numpy(observation))
-
-            sgRNA21mer = example["ref1"][example["cut1"] - 17 : example["cut1"] + 4]
-            Xs.append(self.seq_tokenizer("S" + sgRNA21mer))
-
-            gc_count = sgRNA21mer[:20].count("G") + sgRNA21mer[:20].count("C")
-            gc_above_10 = float(gc_count > 10)
-            gc_below_10 = float(gc_count < 10)
-            Tm_global = Tm.Tm_NN(sgRNA21mer)
-            Tm_5mer_end = Tm.Tm_NN(sgRNA21mer[15:21])
-            Tm_8mer_middle = Tm.Tm_NN(sgRNA21mer[4:13])
-            Tm_4mer_start = Tm.Tm_NN(sgRNA21mer[0:4])
-
-            biological_inputs.append(
-                self.energy_records[sgRNA21mer[:20] + example["scaffold"]]
-                + [
-                    gc_above_10,
-                    gc_below_10,
-                    gc_count,
-                    Tm_global,
-                    Tm_5mer_end,
-                    Tm_8mer_middle,
-                    Tm_4mer_start,
-                ]
-            )
-
-        if self.output_label:
-            return {
-                "X": torch.from_numpy(np.stack(Xs)),
-                "biological_input": torch.tensor(
-                    biological_inputs, dtype=torch.float32
-                ),
-                "observation": torch.stack(observation_list),
-            }
-        return {
-            "X": torch.from_numpy(np.stack(Xs)),
-            "biological_input": torch.tensor(biological_inputs, dtype=torch.float32),
-        }
-
-    def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
+    def _assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert cut >= 17 and len(ref) - cut >= 4, f"ref is too short to contain 21mer"
         assert (
             cut >= self.ext1_up
@@ -207,13 +176,3 @@ class DataCollator:
             and len(ref) - cut >= self.ext1_down
             and len(ref) - cut >= self.ext2_down
         ), f"reference is too short to support extensions, ext1_up: {self.ext1_up}, ext1_down: {self.ext1_down}, ext2_up: {self.ext2_up}, ext2_down: {self.ext2_down}"
-
-    def inference(self, examples: list[dict]) -> dict:
-        assert not self.output_label, "inference cannot output count"
-        for example in examples:
-            ref, cut = example.pop("ref"), example.pop("cut")
-            self.assert_reference_length_and_cut(ref, cut)
-            assert "scaffold" in example, "scaffold not provided"
-            example["ref1"] = example["ref2"] = ref
-            example["cut1"] = example["cut2"] = cut
-        return examples

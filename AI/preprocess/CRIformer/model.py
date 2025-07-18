@@ -3,12 +3,17 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import numpy as np
+import pandas as pd
 from typing import Optional
+
+# torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
+from torch.backends import opt_einsum
+from einops import einsum, repeat, rearrange
 
 
 class CRIformerConfig(RoFormerConfig):
     model_type = "CRIformer"
-    label_names = ["observation"]
+    label_names = ["label"]
 
     def __init__(
         self,
@@ -77,9 +82,10 @@ class CRIformerModel(PreTrainedModel):
             out_features=(config.ext1_up + config.ext1_down + 1)
             * (config.ext2_up + config.ext2_down + 1),
         )
-        self.initialize_weights()
+        self._initialize_model_layer_weights()
 
-    def initialize_weights(self) -> None:
+    # huggingface use the name initialize_weights, use another name here.
+    def _initialize_model_layer_weights(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
@@ -94,14 +100,14 @@ class CRIformerModel(PreTrainedModel):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, refcode: torch.Tensor, observation: torch.Tensor = None) -> dict:
+    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         # refcode: batch_size X (ext1_up + ext1_down + ext2_up + ext2_down)
         # model(refcode): batch_size X (ext1_up + ext1_down + ext2_up + ext2_down) X hidden_size
         # model(refcode)[:, -1, :]: arbitrary choose the last position to predict the logits
-        batch_size = refcode.shape[0]
+        batch_size = input["refcode"].shape[0]
         logit = self.mlp(
             self.model(
-                input_ids=refcode,
+                input_ids=input["refcode"].to(self.device),
                 attention_mask=torch.ones(
                     batch_size,
                     self.config.ext1_up
@@ -113,11 +119,61 @@ class CRIformerModel(PreTrainedModel):
                 ),
             ).last_hidden_state[:, -1, :]
         )
-        if observation is not None:
+        if label is not None:
+            observation = torch.stack(
+                [
+                    ob[
+                        c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
+                        c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                    ]
+                    for ob, c1, c2 in zip(
+                        label["observation"], label["cut1"], label["cut2"]
+                    )
+                ]
+            ).to(self.device)
             return {
                 "logit": logit,
-                "loss": -(
-                    observation.flatten(start_dim=1) * F.log_softmax(logit, dim=1)
-                ).sum(),
+                "loss": self.loss_fun(
+                    logit,
+                    observation,
+                ),
             }
         return {"logit": logit}
+
+    def loss_fun(self, logit: torch.Tensor, observation: torch.Tensor) -> float:
+        return -einsum(
+            F.log_softmax(logit, dim=1),
+            rearrange(observation, "b r2 r1 -> b (r2 r1)"),
+            "b f, b f ->",
+        )
+
+    def eval_output(self, batch: dict) -> pd.DataFrame:
+        result = self(input=batch["input"])
+        probas = F.softmax(result["logit"], dim=1).cpu().numpy()
+        batch_size = probas.shape[0]
+        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
+        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size),
+                    "b -> (b r2 r1)",
+                    r1=ref1_dim,
+                    r2=ref2_dim,
+                ),
+                "proba": probas.flatten(),
+                "rpos1": repeat(
+                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    "r1 -> (b r2 r1)",
+                    b=batch_size,
+                    r2=ref2_dim,
+                ),
+                "rpos2": repeat(
+                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    "r2 -> (b r2 r1)",
+                    b=batch_size,
+                    r1=ref1_dim,
+                ),
+            }
+        )
+        return df

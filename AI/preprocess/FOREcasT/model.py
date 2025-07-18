@@ -1,13 +1,19 @@
+import numpy as np
+import pandas as pd
 from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Optional
 
+# torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
+from torch.backends import opt_einsum
+from einops import rearrange, einsum, repeat
+
 
 class FOREcasTConfig(PretrainedConfig):
     model_type = "FOREcasT"
-    label_names = ["count"]
+    label_names = ["label"]
 
     # Config must have default value to prevent error in Trainer.
     def __init__(
@@ -40,7 +46,7 @@ class FOREcasTModel(PreTrainedModel):
         # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
         self.generator = torch.Generator().manual_seed(config.seed)
         is_delete = torch.tensor(
-            ["I" not in label for label in FOREcasTModel.get_feature_label()]
+            ["I" not in label for label in self._get_feature_label()]
         )
         self.register_buffer(
             "reg_coff",
@@ -49,17 +55,9 @@ class FOREcasTModel(PreTrainedModel):
         self.linear = nn.Linear(
             in_features=len(self.reg_coff), out_features=1, bias=False
         )
-        self.initialize_weights()
+        self._initialize_model_layer_weights()
 
-    @staticmethod
-    def get_feature_label():
-        def features_pairwise_label(features1_label, features2_label):
-            features_label = []
-            for label1 in features1_label:
-                for label2 in features2_label:
-                    features_label.append(f"PW_{label1}_vs_{label2}")
-            return features_label
-
+    def _get_feature_label(self) -> list[str]:
         feature_DelSize_label = ["Any Deletion", "D1", "D2-3", "D4-7", "D8-12", "D>12"]
         feature_InsSize_label = ["Any Insertion", "I1", "I2"]
         feature_DelLoc_label = [
@@ -153,25 +151,25 @@ class FOREcasTModel(PreTrainedModel):
             "No MH",
         ]
         return (
-            features_pairwise_label(feature_DelSize_label, feature_DelLoc_label)
+            self._features_pairwise_label(feature_DelSize_label, feature_DelLoc_label)
             + feature_InsSize_label
             + feature_DelSize_label
             + feature_DelLoc_label
             + feature_InsLoc_label
             + feature_InsSeq_label
-            + features_pairwise_label(
+            + self._features_pairwise_label(
                 feature_LocalCutSiteSequence_label,
                 feature_InsSize_label + feature_DelSize_label,
             )
-            + features_pairwise_label(
+            + self._features_pairwise_label(
                 feature_microhomology_label + feature_LocalRelativeSequence_label,
                 feature_DelSize_label + feature_DelLoc_label,
             )
-            + features_pairwise_label(
+            + self._features_pairwise_label(
                 feature_LocalCutSiteSeqMatches_label + feature_SeqMatches_label,
                 feature_DelSize_label,
             )
-            + features_pairwise_label(
+            + self._features_pairwise_label(
                 feature_InsSeq_label
                 + feature_LocalCutSiteSequence_label
                 + feature_LocalCutSiteSeqMatches_label,
@@ -185,7 +183,17 @@ class FOREcasTModel(PreTrainedModel):
             + feature_microhomology_label
         )
 
-    def initialize_weights(self):
+    def _features_pairwise_label(
+        self, features1_label: list[str], features2_label: list[str]
+    ) -> list[str]:
+        features_label = []
+        for label1 in features1_label:
+            for label2 in features2_label:
+                features_label.append(f"PW_{label1}_vs_{label2}")
+        return features_label
+
+    # huggingface use the name initialize_weights, use another name here.
+    def _initialize_model_layer_weights(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
@@ -200,20 +208,128 @@ class FOREcasTModel(PreTrainedModel):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, feature, count=None) -> torch.Tensor:
-        logit = self.linear(feature).flatten(start_dim=1)
-        if count is not None:
-            return {"logit": logit, "loss": self.kl_divergence(logit, count)}
+    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+        logit = rearrange(self.linear(input["feature"]), "b m 1 -> b m")
+        if label is not None:
+            return {
+                "logit": logit,
+                "loss": self.loss_fun(
+                    logit,
+                    label["count"],
+                ),
+            }
         return {"logit": logit}
 
-    def kl_divergence(self, logit, count):
-        return (
-            F.kl_div(
-                F.log_softmax(logit, dim=-1),
-                F.normalize(
-                    count + 0.5, p=1.0, dim=-1
-                ),  # add 0.5 to prevent log(0), see loadOligoFeaturesAndReadCounts
-                reduction="sum",
+    def loss_fun(self, logit: torch.Tensor, count: torch.Tensor) -> float:
+        # kl divergence
+        batch_size = logit.shape[0]
+        return F.kl_div(
+            F.log_softmax(logit, dim=1),
+            F.normalize(
+                count + 0.5, p=1.0, dim=1
+            ),  # add 0.5 to prevent log(0), see loadOligoFeaturesAndReadCounts
+            reduction="sum",
+        ) + batch_size * einsum(self.reg_coff, self.linear.weight**2, "f, 1 f ->")
+
+    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+        result = self(batch["input"])
+
+        probas = F.softmax(result["logit"], dim=1).cpu().numpy()
+        batch_size, feature_size = probas.shape
+
+        left_shift = np.zeros((batch_size, 20), dtype=int)
+        right_shift = np.zeros((batch_size, 20), dtype=int)
+        ins_shift = np.full((batch_size, 20), "", dtype="U2")
+        ins1_2bp = [
+            "A",
+            "C",
+            "G",
+            "T",
+            "AA",
+            "AC",
+            "AG",
+            "AT",
+            "CA",
+            "CC",
+            "CG",
+            "CT",
+            "GA",
+            "GC",
+            "GG",
+            "GT",
+            "TA",
+            "TC",
+            "TG",
+            "TT",
+        ]
+        for i, example in enumerate(examples):
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
             )
-            + logit.shape[0] * (self.reg_coff * (self.linear.weight**2)).sum()
+            cut = example["cut1"]
+            for j, ins in enumerate(ins1_2bp):
+                if ref[cut] == ins[0]:
+                    if len(ins) == 2 and ref[cut + 1] == ins[1]:
+                        left_shift[i, j] = 2
+                    else:
+                        left_shift[i, j] = 1
+                if ref[cut - 1] == ins[-1]:
+                    if len(ins) == 2 and ref[cut - 2] == ins[-2]:
+                        right_shift[i, j] = 2
+                    else:
+                        right_shift[i, j] = 1
+                ins_shift[i, j] = ins[left_shift[i, j] : (len(ins) - right_shift[i, j])]
+
+        ins_lens = np.array([len(ins) for ins in ins1_2bp])
+        left_shift = np.minimum(ins_lens - right_shift, left_shift)
+        rpos1s = np.concatenate(
+            [
+                repeat(
+                    np.concatenate(
+                        [
+                            np.arange(-DEL_SIZE, 1)
+                            for DEL_SIZE in range(self.max_del_size, -1, -1)
+                        ]
+                    ),
+                    "f -> b f",
+                    b=batch_size,
+                ),
+                left_shift,
+            ],
+            axis=1,
         )
+        rpos2s = np.concatenate(
+            [
+                repeat(
+                    np.concatenate(
+                        [
+                            np.arange(0, DEL_SIZE + 1)
+                            for DEL_SIZE in range(self.max_del_size, -1, -1)
+                        ]
+                    ),
+                    "f -> b f",
+                    b=batch_size,
+                ),
+                -right_shift,
+            ],
+            axis=1,
+        )
+        random_ins = np.concatenate(
+            [
+                np.full((batch_size, feature_size - 20), "", dtype="U2"),
+                ins_shift,
+            ],
+            axis=1,
+        )
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size), "b -> (b f)", f=feature_size
+                ),
+                "proba": probas.flatten(),
+                "rpos1": rpos1s.flatten(),
+                "rpos2": rpos2s.flatten(),
+                "random_ins": random_ins.flatten(),
+            }
+        )
+        return df

@@ -17,9 +17,16 @@ class SeqTokenizer:
 
 
 class GetMH:
-    def __init__(self, ref1len: int, ref2len: int) -> None:
-        self.ref1len = ref1len
-        self.ref2len = ref2len
+    def __init__(self) -> None:
+        self.ref1len = None
+        self.ref2len = None
+        self.diag_indices = None
+
+    def reinitialize(self, ref1: str, ref2: str) -> None:
+        if self.ref1len == len(ref1) and self.ref2len == len(ref2):
+            return
+        self.ref1len = len(ref1)
+        self.ref2len = len(ref2)
         # diag_indices example for ref2len = 3 and ref1len = 2:
         # 6 9 11   row_indices 0 0 0   col_indices 0 1 2
         # 3 7 10               1 1 1               0 1 2
@@ -44,14 +51,14 @@ class GetMH:
                 np.concatenate(
                     [
                         row_indices.diagonal(offset)
-                        for offset in range(-ref2len, ref1len + 1)
+                        for offset in range(-self.ref2len, self.ref1len + 1)
                     ]
                 ),
                 # col index
                 np.concatenate(
                     [
                         col_indices.diagonal(offset)
-                        for offset in range(-ref2len, ref1len + 1)
+                        for offset in range(-self.ref2len, self.ref1len + 1)
                     ]
                 ),
             ),
@@ -61,10 +68,8 @@ class GetMH:
     def __call__(
         self, ref1: str, ref2: str, cut1: int, cut2: int, ext1: int, ext2: int
     ) -> tuple[np.ndarray]:
-        assert (
-            len(ref1) == self.ref1len and len(ref2) == self.ref2len
-        ), "reference length does not fit"
         assert cut1 + ext1 <= len(ref1) and ext2 <= cut2, "extend too much"
+        self.reinitialize(ref1, ref2)
         mh_matrix = np.pad(
             (
                 rearrange(
@@ -101,7 +106,7 @@ class GetMH:
 
     def correct_observation(
         self, observations: np.ndarray, mh_matrix: np.ndarray, mh_rep_num: np.ndarray
-    ) -> tuple[np.ndarray]:
+    ) -> np.ndarray:
         mh_mask = (mh_matrix > 0)[self.diag_indices]
         for i, observation in enumerate(observations):
             observation = observation.flatten()
@@ -115,3 +120,32 @@ class GetMH:
             observations[i] = observation.reshape(self.ref2len + 1, self.ref1len + 1)
 
         return observations
+
+    def get_observation(
+        self, example: dict, mh_matrix: np.ndarray, mh_rep_num: np.ndarray
+    ) -> np.ndarray:
+        mh_idx = mh_matrix.nonzero()
+        mh_val = mh_matrix[mh_idx]
+        # construct observations
+        observations = np.zeros(
+            (example["random_insert_uplimit"] + 2)
+            * (len(example["ref2"]) + 1)
+            * (len(example["ref1"]) + 1),
+            dtype=np.float32,
+        )
+        observations[example["ob_idx"]] = np.array(example["ob_val"], dtype=np.float32)
+        observations = observations.reshape(
+            example["random_insert_uplimit"] + 2,
+            len(example["ref2"]) + 1,
+            len(example["ref1"]) + 1,
+        )
+        # correct observations
+        observations = self.correct_observation(observations, mh_matrix, mh_rep_num)
+        # cumulate observations for all random insertion size
+        observation = observations.sum(axis=0).flatten()
+        # distribute count to all positions in single micro-homology diagonal
+        observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
+        observation = observation.reshape(
+            len(example["ref2"]) + 1, len(example["ref1"]) + 1
+        )
+        return observation

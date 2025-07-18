@@ -9,6 +9,7 @@ import datasets
 import torch
 from torch.utils.data import DataLoader
 import importlib
+from .metric import NonWildTypeCrossEntropy
 
 
 @torch.no_grad()
@@ -21,6 +22,10 @@ def test(
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
+    metric_ext1_up: int,
+    metric_ext1_down: int,
+    metric_ext2_up: int,
+    metric_ext2_down: int,
     output_dir: pathlib.Path,
     batch_size: int,
     seed: int,
@@ -86,10 +91,18 @@ def test(
         f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}",
         exist_ok=True,
     )
+    non_wild_type_cross_entropy = NonWildTypeCrossEntropy(
+        metric_ext1_up=metric_ext1_up,
+        metric_ext1_down=metric_ext1_down,
+        metric_ext2_up=metric_ext2_up,
+        metric_ext2_down=metric_ext2_down,
+    )
     dfs, total_loss, total_loss_num, accum_sample_idx = [], 0, 0, 0
     for examples in tqdm(dl):
         current_batch_size = len(examples)
-        df, loss, loss_num = pipe(examples, output_label=True)
+        df, loss, loss_num = pipe(
+            examples, output_label=True, metric=non_wild_type_cross_entropy
+        )
         df["sample_idx"] = df["sample_idx"] + accum_sample_idx
         accum_sample_idx += current_batch_size
         dfs.append(df)

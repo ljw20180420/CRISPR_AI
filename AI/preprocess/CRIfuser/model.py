@@ -1,3 +1,5 @@
+import numpy as np
+import pandas as pd
 from diffusers.models.embeddings import get_timestep_embedding
 from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
@@ -13,7 +15,7 @@ from einops import einsum, rearrange, repeat
 
 class CRIfuserConfig(PretrainedConfig):
     model_type = "CRIfuser"
-    label_names = ["observation"]
+    label_names = ["label"]
 
     def __init__(
         self,
@@ -85,7 +87,8 @@ class CRIfuserModel(PreTrainedModel):
     def __init__(self, config: CRIfuserConfig) -> None:
         super().__init__(config)
         # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.generator = torch.Generator().manual_seed(config.seed)
+        self.c_generator = torch.Generator(device="cpu").manual_seed(config.seed)
+        self.g_generator = torch.Generator(device="cuda").manual_seed(config.seed)
         self.stationary_sampler1 = Categorical(
             torch.ones(config.ext1_up + config.ext1_down + 1)
         )
@@ -230,9 +233,17 @@ class CRIfuserModel(PreTrainedModel):
             out_channels=1,
             kernel_size=1,
         )
-        self.initialize_weights()
+        self._initialize_model_layer_weights()
 
-    def initialize_weights(self) -> None:
+    def _auto_set_device(self) -> None:
+        if self.device == torch.device("cpu"):
+            self.generator = self.c_generator
+        else:
+            self.generator = self.g_generator
+
+    # huggingface use the name initialize_weights, use another name here.
+    def _initialize_model_layer_weights(self) -> None:
+        self._auto_set_device()
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
@@ -257,21 +268,21 @@ class CRIfuserModel(PreTrainedModel):
         batch_size, _, ref2_dim, ref1_dim = condition.shape  # b, c, r2, r1
         x = torch.cat(
             (
-                einsum(
-                    x1t,
-                    x2t,
-                    "b r1, b r2 -> b 1 r2 r1",
-                    b=batch_size,
-                    r1=ref1_dim,
-                    r2=ref2_dim,
+                rearrange(
+                    einsum(
+                        F.one_hot(x1t.to(self.device), num_classes=ref1_dim),
+                        F.one_hot(x2t.to(self.device), num_classes=ref2_dim),
+                        "b r1, b r2 -> b r2 r1",
+                    ),
+                    "b r2 r1 -> b 1 r2 r1",
                 ),
-                condition,
+                condition.to(self.device),
             ),
             dim=1,
         )
         t_emb = self.time_emb(
             get_timestep_embedding(
-                t,
+                t.to(self.device),
                 embedding_dim=self.config.unet_channels[0],
                 flip_sin_to_cos=True,
                 downscale_freq_shift=0,
@@ -300,78 +311,217 @@ class CRIfuserModel(PreTrainedModel):
                 + rearrange(self.up_time_embs[i](t_emb), "b c -> b c 1 1", b=batch_size)
             )
         p_theta_0_on_t_logit = self.out_cov(x)
-        return p_theta_0_on_t_logit
+        return rearrange(p_theta_0_on_t_logit, "b 1 r2 r1 -> b r2 r1")
 
-    def forward(
-        self,
-        condition: torch.Tensor,
-        observation: Optional[torch.Tensor] = None,
-    ):
-        batch_size, _, ref2_dim, ref1_dim = condition.shape  # b, c, r2, r1
-        t = torch.randint(
-            1, self.config.noise_timesteps + 1, (batch_size,), generator=self.generator
+    def forward(self, input: dict, label: dict) -> dict:
+        self._auto_set_device()
+        batch_size, _, ref2_dim, ref1_dim = input["condition"].shape  # b, c, r2, r1
+        observation = torch.stack(
+            [
+                ob[
+                    c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
+                    c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                ]
+                for ob, c1, c2 in zip(
+                    label["observation"], label["cut1"], label["cut2"]
+                )
+            ]
         )
-        if observation:
-            x_cross0 = Categorical(probs=observation.view(batch_size, -1)).sample()
-            x20 = x_cross0 // ref1_dim
-            x10 = x_cross0 % ref1_dim
-            x1t, x2t = self.add_noise(x10, x20, t)
-        else:
-            x1t = self.stationary_sampler1.sample(sample_shape=(batch_size,))
-            x2t = self.stationary_sampler2.sample(sample_shape=(batch_size,))
+        t = torch.randint(
+            1,
+            self.config.noise_timesteps,
+            (batch_size,),
+            generator=self.generator,
+            device=self.device,
+        )
+        # handle zero observation case
+        x_cross0 = Categorical(
+            probs=rearrange(
+                observation + rearrange(observation.sum(dim=[1, 2]) == 0, "b -> b 1 1"),
+                "b r2 r1 -> b (r2 r1)",
+            )
+        ).sample()
+        x20 = x_cross0 // ref1_dim
+        x10 = x_cross0 % ref1_dim
+        x1t, x2t = self._add_noise(x10, x20, t)
 
-        p_theta_0_on_t_logit = self.single_pass(condition, x1t, x2t, t)
-        if observation:
-            loss = 0
-            if "double_sample_negative_ELBO" in self.config.loss_weights:
-                loss += (
-                    self.double_sample_negative_ELBO(condition, x1t, x2t, t)
-                    * self.config.loss_weights["double_sample_negative_ELBO"]
-                )
-            if "importance_sample_negative_ELBO" in self.config.loss_weights:
-                loss += (
-                    self.importance_sample_negative_ELBO(
-                        condition,
-                        x10,
-                        x20,
-                        x1t,
-                        x2t,
-                        t,
-                        p_theta_0_on_t_logit,
-                    )
-                ) * self.config.loss_weights["importance_sample_negative_ELBO"]
-            if "forward_negative_ELBO" in self.config.loss_weights:
-                loss += (
-                    self.forward_negative_ELBO(x1t, x2t, t, p_theta_0_on_t_logit)
-                    * self.config.loss_weights["forward_negative_ELBO"]
-                )
-            if "reverse_negative_ELBO" in self.config.loss_weights:
-                loss += (
-                    self.reverse_negative_ELBO(
-                        x1t, x2t, t, p_theta_0_on_t_logit, observation
-                    )
-                    * self.config.loss_weights["reverse_negative_ELBO"]
-                )
-            if "sample_CE" in self.config.loss_weights:
-                loss += (
-                    self.sample_CE(x10, x20, p_theta_0_on_t_logit)
-                    * self.config.loss_weights["sample_CE"]
-                )
-            if "non_sample_CE" in self.config.loss_weights:
-                loss += (
-                    self.non_sample_CE(x1t, x2t, t, p_theta_0_on_t_logit, observation)
-                    * self.config.loss_weights["non_sample_CE"]
-                )
-            loss = (loss * observation.sum(dim=[1, 2]) * self.beta(t)).sum()
-            return {
-                "p_theta_0_on_t_logit": p_theta_0_on_t_logit,
-                "loss": loss,
-            }
+        p_theta_0_on_t_logit = self.single_pass(input["condition"], x1t, x2t, t)
         return {
             "p_theta_0_on_t_logit": p_theta_0_on_t_logit,
+            "loss": self.loss_fun(
+                input["condition"],
+                x10,
+                x20,
+                x1t,
+                x2t,
+                t,
+                p_theta_0_on_t_logit,
+                observation,
+            ),
         }
 
-    def q_s_on_0_t(
+    def loss_fun(
+        self,
+        condition: torch.Tensor,
+        x10: torch.Tensor,
+        x20: torch.Tensor,
+        x1t: torch.Tensor,
+        x2t: torch.Tensor,
+        t: torch.Tensor,
+        p_theta_0_on_t_logit: torch.Tensor,
+        observation: torch.Tensor,
+    ) -> float:
+        loss = 0
+        if "double_sample_negative_ELBO" in self.config.loss_weights:
+            loss += (
+                self._double_sample_negative_ELBO(condition, x1t, x2t, t)
+                * self.config.loss_weights["double_sample_negative_ELBO"]
+            )
+        if "importance_sample_negative_ELBO" in self.config.loss_weights:
+            loss += (
+                self._importance_sample_negative_ELBO(
+                    x10,
+                    x20,
+                    x1t,
+                    x2t,
+                    t,
+                    p_theta_0_on_t_logit,
+                )
+            ) * self.config.loss_weights["importance_sample_negative_ELBO"]
+        if "forward_negative_ELBO" in self.config.loss_weights:
+            loss += (
+                self._forward_negative_ELBO(x1t, x2t, t, p_theta_0_on_t_logit)
+                * self.config.loss_weights["forward_negative_ELBO"]
+            )
+        if "reverse_negative_ELBO" in self.config.loss_weights:
+            loss += (
+                self._reverse_negative_ELBO(
+                    x1t, x2t, t, p_theta_0_on_t_logit, observation
+                )
+                * self.config.loss_weights["reverse_negative_ELBO"]
+            )
+        if "sample_CE" in self.config.loss_weights:
+            loss += (
+                self._sample_CE(x10, x20, p_theta_0_on_t_logit)
+                * self.config.loss_weights["sample_CE"]
+            )
+        if "non_sample_CE" in self.config.loss_weights:
+            loss += (
+                self._non_sample_CE(x1t, x2t, t, p_theta_0_on_t_logit, observation)
+                * self.config.loss_weights["non_sample_CE"]
+            )
+        loss = (loss * observation.sum(dim=[1, 2]) * self._beta(t)).sum()
+        return loss
+
+    def eval_output(self, batch: dict) -> pd.DataFrame:
+        batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape
+        probas = []
+        for i in range(batch_size):
+            proba = torch.ones(ref2_dim, ref1_dim, device=self.device) / (
+                ref2_dim * ref1_dim
+            )
+            for step in range(self.config.noise_timesteps - 1, 0, -1):
+                p_theta_0_on_t_logit = self.single_pass(
+                    condition=repeat(
+                        batch["input"]["condition"][i],
+                        "c r2 r1 -> b c r2 r1",
+                        b=ref1_dim * ref2_dim,
+                    ),
+                    x1t=repeat(
+                        torch.arange(ref1_dim),
+                        "r1 -> (r2 r1)",
+                        r2=ref2_dim,
+                    ),
+                    x2t=repeat(
+                        torch.arange(ref2_dim),
+                        "r2 -> (r2 r1)",
+                        r1=ref1_dim,
+                    ),
+                    t=torch.full((ref1_dim * ref2_dim,), step),
+                )
+                p_theta_0_on_t = rearrange(
+                    F.softmax(
+                        rearrange(p_theta_0_on_t_logit, "b r2 r1 -> b (r2 r1)"),
+                        dim=1,
+                    ),
+                    "b (r2 r1) -> b r2 r1",
+                    r1=ref1_dim,
+                    r2=ref2_dim,
+                )
+                q_tm1_on_0_t_1 = self._q_s_on_0_t(
+                    t=torch.full((ref1_dim**2,), step, device=self.device),
+                    s=torch.full((ref1_dim**2,), step - 1, device=self.device),
+                    x0=repeat(
+                        torch.arange(ref1_dim, device=self.device),
+                        "r10 -> (r1t r10)",
+                        r1t=ref1_dim,
+                    ),
+                    xt=repeat(
+                        torch.arange(ref1_dim, device=self.device),
+                        "r1t -> (r1t r10)",
+                        r10=ref1_dim,
+                    ),
+                    stationary_sampler=self.stationary_sampler1,
+                )
+                q_tm1_on_0_t_2 = self._q_s_on_0_t(
+                    t=torch.full((ref2_dim**2,), step, device=self.device),
+                    s=torch.full((ref2_dim**2,), step - 1, device=self.device),
+                    x0=repeat(
+                        torch.arange(ref2_dim, device=self.device),
+                        "r20 -> (r2t r20)",
+                        r2t=ref2_dim,
+                    ),
+                    xt=repeat(
+                        torch.arange(ref2_dim, device=self.device),
+                        "r2t -> (r2t r20)",
+                        r20=ref2_dim,
+                    ),
+                    stationary_sampler=self.stationary_sampler2,
+                )
+                proba = einsum(
+                    proba,
+                    rearrange(
+                        p_theta_0_on_t,
+                        "(r2t r1t) r20 r10 -> r2t r1t r20 r10",
+                        r1t=ref1_dim,
+                    ),
+                    rearrange(
+                        q_tm1_on_0_t_1, "(r1t r10) r1tm1 -> r1t r10 r1tm1", r1t=ref1_dim
+                    ),
+                    rearrange(
+                        q_tm1_on_0_t_2, "(r2t r20) r2tm1 -> r2t r20 r2tm1", r2t=ref2_dim
+                    ),
+                    "r2t r1t, r2t r1t r20 r10, r1t r10 r1tm1, r2t r20 r2tm1 -> r2tm1 r1tm1",
+                )
+            probas.append(proba)
+        probas = torch.stack(probas).cpu().numpy()
+
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size),
+                    "b -> (b r2 r1)",
+                    r1=ref1_dim,
+                    r2=ref2_dim,
+                ),
+                "proba": probas.flatten(),
+                "rpos1": repeat(
+                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    "r1 -> (b r2 r1)",
+                    b=batch_size,
+                    r2=ref2_dim,
+                ),
+                "rpos2": repeat(
+                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    "r2 -> (b r2 r1)",
+                    b=batch_size,
+                    r1=ref1_dim,
+                ),
+            }
+        )
+        return df
+
+    def _q_s_on_0_t(
         self,
         t: torch.Tensor,
         s: torch.Tensor,
@@ -383,19 +533,24 @@ class CRIfuserModel(PreTrainedModel):
         xt_one_hot = F.one_hot(xt, num_classes=stationary_sampler._num_events)
         return (
             (
-                einsum(self.alpha(t, s), xt_one_hot, "b, b r -> b r")
+                einsum(self._alpha(t, s), xt_one_hot, "b, b r -> b r")
                 + rearrange(
-                    (1 - self.alpha(t, s)) * stationary_sampler.probs[xt],
+                    (1 - self._alpha(t, s))
+                    * stationary_sampler.probs.to(self.device)[xt],
                     "b -> b 1",
                 )
             )
             * (
-                einsum(self.alpha(s), x0_one_hot, "b, b r -> b r")
-                + einsum((1 - self.alpha(s)), stationary_sampler.probs, "b, r -> b r")
+                einsum(self._alpha(s), x0_one_hot, "b, b r -> b r")
+                + einsum(
+                    (1 - self._alpha(s)),
+                    stationary_sampler.probs.to(self.device),
+                    "b, r -> b r",
+                )
             )
             / rearrange(
-                self.alpha(t) * (xt == x0)
-                + (1 - self.alpha(t)) * stationary_sampler.probs[xt],
+                self._alpha(t) * (xt == x0)
+                + (1 - self._alpha(t)) * stationary_sampler.probs.to(self.device)[xt],
                 "b -> b 1",
             )
         )
@@ -407,23 +562,25 @@ class CRIfuserModel(PreTrainedModel):
         x2t: torch.Tensor,
         t: torch.Tensor,
     ) -> tuple:
-
+        x1t = x1t.to(self.device)
+        x2t = x2t.to(self.device)
+        t = t.to(self.device)
         s = torch.ceil(t) - 1
-        batch_size = p_theta_0_on_t_logit.shape[0]
+        batch_size, ref2_dim, ref1_dim = p_theta_0_on_t_logit.shape
         x_cross0 = Categorical(
             logits=p_theta_0_on_t_logit.view(batch_size, -1)
         ).sample()
-        x20 = x_cross0 // (self.stationary_sampler1._num_events)
-        x10 = x_cross0 % (self.stationary_sampler1._num_events)
+        x20 = x_cross0 // ref1_dim
+        x10 = x_cross0 % ref1_dim
         x1s = Categorical(
-            probs=self.q_s_on_0_t(t, s, x10, x1t, self.stationary_sampler1)
+            probs=self._q_s_on_0_t(t, s, x10, x1t, self.stationary_sampler1)
         ).sample()
         x2s = Categorical(
-            probs=self.q_s_on_0_t(t, s, x20, x2t, self.stationary_sampler2)
+            probs=self._q_s_on_0_t(t, s, x20, x2t, self.stationary_sampler2)
         ).sample()
         return x1s, x2s, s
 
-    def add_noise(
+    def _add_noise(
         self,
         x10: torch.Tensor,
         x20: torch.Tensor,
@@ -431,30 +588,34 @@ class CRIfuserModel(PreTrainedModel):
     ) -> tuple:
         # sample time and forward diffusion
         batch_size = t.shape[0]
-        mask = torch.rand(batch_size) < self.alpha(t)
+        mask = torch.rand(
+            batch_size, generator=self.generator, device=self.device
+        ) < self._alpha(t)
         x1t = (
             x10 * mask
-            + self.stationary_sampler1.sample(torch.Size([batch_size])) * ~mask
+            + self.stationary_sampler1.sample((batch_size,)).to(self.device) * ~mask
         )
-        mask = torch.rand(batch_size) < self.alpha(t)
+        mask = torch.rand(
+            batch_size, generator=self.generator, device=self.device
+        ) < self._alpha(t)
         x2t = (
             x20 * mask
-            + self.stationary_sampler2.sample(torch.Size([batch_size])) * ~mask
+            + self.stationary_sampler2.sample((batch_size,)).to(self.device) * ~mask
         )
         return x1t, x2t
 
-    def alpha(self, t: torch.Tensor, s: Optional[torch.Tensor] = None) -> torch.Tensor:
-        if not s:
-            s = torch.zeros(t.shape)
-        if self.noise_scheduler == "linear":
-            return (self.config.num_train_timesteps - t) / (
-                self.config.num_train_timesteps - s
+    def _alpha(self, t: torch.Tensor, s: Optional[torch.Tensor] = None) -> torch.Tensor:
+        if s is None:
+            s = torch.zeros(t.shape, device=self.device)
+        if self.config.noise_scheduler == "linear":
+            return (self.config.noise_timesteps - t) / (
+                self.config.noise_timesteps - s
             ).maximum(torch.tensor(torch.finfo(torch.float32).tiny))
-        if self.noise_scheduler == "cosine":
+        if self.config.noise_scheduler == "cosine":
 
             def cosine_frac(t: torch.Tensor) -> torch.Tensor:
                 return torch.cos(
-                    (t / self.config.num_train_timesteps + self.config.cosine_factor)
+                    (t / self.config.noise_timesteps + self.config.cosine_factor)
                     / (1 + self.config.cosine_factor)
                     * torch.pi
                     / 2
@@ -463,52 +624,48 @@ class CRIfuserModel(PreTrainedModel):
             return cosine_frac(t) / cosine_frac(s).maximum(
                 torch.tensor(torch.finfo(torch.float32).tiny)
             )
-        if self.noise_scheduler == "exp":
+        if self.config.noise_scheduler == "exp":
             return torch.exp(
-                self.config.num_train_timesteps
+                self.config.noise_timesteps
                 * self.config.exp_scale
                 * (
-                    self.config.exp_base ** (s / self.config.num_train_timesteps)
-                    - self.config.exp_base ** (t / self.config.num_train_timesteps)
+                    self.config.exp_base ** (s / self.config.noise_timesteps)
+                    - self.config.exp_base ** (t / self.config.noise_timesteps)
                 )
             )
         assert (
-            self.noise_scheduler == "uniform"
+            self.config.noise_scheduler == "uniform"
         ), "supported noise schedulers are linear, cosine, exp, uniform"
         return torch.exp(self.config.uniform_scale * (s - t))
 
-    def beta(self, t: torch.Tensor) -> torch.Tensor:
-        if self.noise_scheduler == "linear":
-            return 1 / (self.config.num_train_timesteps - t).maximum(
+    def _beta(self, t: torch.Tensor) -> torch.Tensor:
+        if self.config.noise_scheduler == "linear":
+            return 1 / (self.config.noise_timesteps - t).maximum(
                 torch.tensor(torch.finfo(torch.float32).tiny)
             )
-        if self.noise_scheduler == "cosine":
+        if self.config.noise_scheduler == "cosine":
             return (
                 torch.pi
                 * torch.tan(
-                    (t / self.config.num_train_timesteps + self.config.cosine_factor)
+                    (t / self.config.noise_timesteps + self.config.cosine_factor)
                     / (1 + self.config.cosine_factor)
                     * torch.pi
                     / 2
                 )
-                / (
-                    2
-                    * self.config.num_train_timesteps
-                    * (1 + self.config.cosine_factor)
-                )
+                / (2 * self.config.noise_timesteps * (1 + self.config.cosine_factor))
             )
-        if self.noise_scheduler == "exp":
+        if self.config.noise_scheduler == "exp":
             return (
                 self.config.exp_scale
-                * self.config.exp_base ** (t / self.config.num_train_timesteps)
+                * self.config.exp_base ** (t / self.config.noise_timesteps)
                 * torch.log(self.config.exp_base)
             )
         assert (
-            self.noise_scheduler == "uniform"
+            self.config.noise_scheduler == "uniform"
         ), "supported noise schedulers are linear, cosine, exp, uniform"
         return torch.full(t.shape, self.config.uniform_scale)
 
-    def q_rkm_d(
+    def _q_rkm_d(
         self,
         t: torch.Tensor,
         xt: torch.Tensor,
@@ -516,11 +673,11 @@ class CRIfuserModel(PreTrainedModel):
     ) -> torch.Tensor:
         # xt: batch_size X ref_dim
         return einsum(
-            self.alpha(t),
+            self._alpha(t),
             F.one_hot(xt, stationary_sampler._num_events),
             "b, b r -> b r",
         ) + rearrange(
-            (1 - self.alpha(t)) * stationary_sampler.probs[xt],
+            (1 - self._alpha(t)) * stationary_sampler.probs.to(self.device)[xt],
             "b -> b 1",
         )
 
@@ -532,29 +689,27 @@ class CRIfuserModel(PreTrainedModel):
         observation: torch.Tensor,
     ) -> torch.Tensor:
         batch_size, ref2_dim, ref1_dim = observation.shape
-        q_rkm_1 = self.q_rkm_d(t, x1t, self.stationary_sampler1)
-        q_rkm_2 = self.q_rkm_d(t, x2t, self.stationary_sampler2)
+        q_rkm_1 = self._q_rkm_d(t, x1t, self.stationary_sampler1)
+        q_rkm_2 = self._q_rkm_d(t, x2t, self.stationary_sampler2)
         return rearrange(
             F.normalize(
-                einsum(
-                    observation,
-                    q_rkm_1,
-                    q_rkm_2,
-                    "b r2 r1, b r1, b r2 -> b (r2 r1)",
-                    b=batch_size,
-                    r1=ref1_dim,
-                    r2=ref2_dim,
+                rearrange(
+                    einsum(
+                        observation,
+                        q_rkm_1,
+                        q_rkm_2,
+                        "b r2 r1, b r1, b r2 -> b r2 r1",
+                    ),
+                    "b r2 r1 -> b (r2 r1)",
                 ),
                 p=1.0,
                 dim=1,
             ),
             "b (r2 r1) -> b r2 r1",
-            b=batch_size,
             r1=ref1_dim,
-            r2=ref2_dim,
         )
 
-    def g_theta_d(
+    def _g_theta_d(
         self,
         t: torch.Tensor,
         xt: torch.Tensor,
@@ -562,7 +717,9 @@ class CRIfuserModel(PreTrainedModel):
         dim: int,
         stationary_sampler: Categorical,
     ) -> torch.Tensor:
-        auxilary_term = 1 + (1 / self.alpha(t) - 1) * stationary_sampler.probs[xt]
+        auxilary_term = (
+            1 + (1 / self._alpha(t) - 1) * stationary_sampler.probs.to(self.device)[xt]
+        )
         xt_one_hot = F.one_hot(xt, stationary_sampler._num_events)
         p_theta_d_0 = p_theta_0.sum(dim=dim)
         return (
@@ -572,19 +729,19 @@ class CRIfuserModel(PreTrainedModel):
                     - p_theta_d_0[torch.arange(p_theta_d_0.shape[0]), xt]
                     / auxilary_term
                 ),
-                stationary_sampler.probs,
+                stationary_sampler.probs.to(self.device),
                 "b, r -> b r",
             )
             + einsum(
-                self.alpha(t) / (1 - self.alpha(t)),
+                self._alpha(t) / (1 - self._alpha(t)),
                 p_theta_d_0,
                 "b, b r -> b r",
             )
         ) * (1 - xt_one_hot) / rearrange(
-            stationary_sampler.probs[xt], "b -> b 1"
+            stationary_sampler.probs.to(self.device)[xt], "b -> b 1"
         ) + xt_one_hot
 
-    def sample_CE(
+    def _sample_CE(
         self,
         x10: torch.Tensor,
         x20: torch.Tensor,
@@ -604,7 +761,7 @@ class CRIfuserModel(PreTrainedModel):
         )
         return -log_p_theta_0_on_t[torch.arange(batch_size), x20, x10]
 
-    def non_sample_CE(
+    def _non_sample_CE(
         self,
         x1t: torch.Tensor,
         x2t: torch.Tensor,
@@ -627,7 +784,7 @@ class CRIfuserModel(PreTrainedModel):
         q_0_on_t = self.q_0_on_t(x1t, x2t, t, observation)
         return -einsum(log_p_theta_0_on_t, q_0_on_t, "b r2 r1, b r2 r1 -> b")
 
-    def common_negative_ELBO(
+    def _common_negative_ELBO(
         self,
         x1t: torch.Tensor,
         x2t: torch.Tensor,
@@ -647,42 +804,50 @@ class CRIfuserModel(PreTrainedModel):
             r1=ref1_dim,
         )
 
-        g_theta_1_t = self.g_theta_d(t, x1t, p_theta_0, 1, self.stationary_sampler1)
-        g_theta_2_t = self.g_theta_d(t, x2t, p_theta_0, 2, self.stationary_sampler2)
+        g_theta_1_t = self._g_theta_d(t, x1t, p_theta_0, 1, self.stationary_sampler1)
+        g_theta_2_t = self._g_theta_d(t, x2t, p_theta_0, 2, self.stationary_sampler2)
 
         return (
-            einsum(self.stationary_sampler1.probs[x1t], g_theta_1_t, "b, b r1 -> b")
-            + einsum(self.stationary_sampler2.probs[x2t], g_theta_2_t, "b, b r2 -> b"),
+            einsum(
+                self.stationary_sampler1.probs.to(self.device)[x1t],
+                g_theta_1_t,
+                "b, b r1 -> b",
+            )
+            + einsum(
+                self.stationary_sampler2.probs.to(self.device)[x2t],
+                g_theta_2_t,
+                "b, b r2 -> b",
+            ),
             g_theta_1_t,
             g_theta_2_t,
         )
 
-    def forward_negative_ELBO(
+    def _forward_negative_ELBO(
         self,
         x1t: torch.Tensor,
         x2t: torch.Tensor,
         t: torch.Tensor,
         p_theta_0_on_t_logit: torch.Tensor,
     ):
-        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self.common_negative_ELBO(
+        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self._common_negative_ELBO(
             x1t, x2t, t, p_theta_0_on_t_logit
         )
 
         return (
             common_negative_ELBO
             + einsum(
-                self.stationary_sampler1.probs,
+                self.stationary_sampler1.probs.to(self.device),
                 g_theta_1_t.log().clamp_min(-1000),
                 "r1, b r1 -> b",
             )
             + einsum(
-                self.stationary_sampler2.probs,
+                self.stationary_sampler2.probs.to(self.device),
                 g_theta_2_t.log().clamp_min(-1000),
                 "r2, b r2 -> b",
             )
         )
 
-    def reverse_negative_ELBO(
+    def _reverse_negative_ELBO(
         self,
         x1t: torch.Tensor,
         x2t: torch.Tensor,
@@ -690,14 +855,14 @@ class CRIfuserModel(PreTrainedModel):
         p_theta_0_on_t_logit: torch.Tensor,
         observation: torch.Tensor,
     ):
-        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self.common_negative_ELBO(
+        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self._common_negative_ELBO(
             x1t, x2t, t, p_theta_0_on_t_logit
         )
 
-        q_0_on_t = q_0_on_t = self.q_0_on_t(x1t, x2t, t, observation)
+        q_0_on_t = self.q_0_on_t(x1t, x2t, t, observation)
 
-        g_1_t = self.g_theta_d(t, x1t, q_0_on_t, 1, self.stationary_sampler1)
-        g_2_t = self.g_theta_d(t, x2t, q_0_on_t, 2, self.stationary_sampler2)
+        g_1_t = self._g_theta_d(t, x1t, q_0_on_t, 1, self.stationary_sampler1)
+        g_2_t = self._g_theta_d(t, x2t, q_0_on_t, 2, self.stationary_sampler2)
 
         return (
             common_negative_ELBO
@@ -705,42 +870,47 @@ class CRIfuserModel(PreTrainedModel):
             - einsum(g_2_t, g_theta_2_t.log().clamp_min(-1000), "b r2, b r2 -> b")
         )
 
-    def double_sample_negative_ELBO(
+    def _double_sample_negative_ELBO(
         self,
         condition: torch.Tensor,
         x1t: torch.Tensor,
         x2t: torch.Tensor,
         t: torch.Tensor,
     ) -> float:
-        batch_size, ref2_dim, ref1_dim = p_theta_0_on_t_logit.shape
-        barR1 = repeat(self.stationary_sampler1.probs, "r1 -> b r1", b=batch_size)
+        batch_size, _, ref2_dim, ref1_dim = condition.shape
+        barR1 = repeat(
+            self.stationary_sampler1.probs.to(self.device), "r1 -> b r1", b=batch_size
+        ).clone()
         barR1[torch.arange(batch_size), x1t] = 0
-        barR2 = repeat(self.stationary_sampler2.probs, "r2 -> b r2", b=batch_size)
+        barR2 = repeat(
+            self.stationary_sampler2.probs.to(self.device), "r2 -> b r2", b=batch_size
+        ).clone()
         barR2[torch.arange(batch_size), x2t] = 0
         yt = Categorical(probs=torch.cat((barR1, barR2), dim=1)).sample()
         mask = yt < ref1_dim
         y1t = mask * yt + ~mask * x1t
         y2t = ~mask * (yt - ref1_dim) + mask * x2t
         p_theta_0_on_t_logit = self.single_pass(condition, x1t, x2t, t)
-        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self.common_negative_ELBO(
+        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self._common_negative_ELBO(
             y1t, y2t, t, p_theta_0_on_t_logit
         )
         return common_negative_ELBO - (
-            2 - self.stationary_sampler1[x1t] - self.stationary_sampler2[x2t]
+            2
+            - self.stationary_sampler1.probs.to(self.device)[x1t]
+            - self.stationary_sampler2.probs.to(self.device)[x2t]
         ) * (
-            self.stationary_sampler1[y1t]
+            self.stationary_sampler1.probs.to(self.device)[y1t]
             * (y1t != x1t)
             * g_theta_1_t[torch.arange(batch_size), x1t]
-            + self.stationary_sampler2[y2t]
+            + self.stationary_sampler2.probs.to(self.device)[y2t]
             * (y2t != x2t)
             * g_theta_2_t[torch.arange(batch_size), x2t]
         ).log().clamp_min(
             -1000
         )
 
-    def importance_sample_negative_ELBO(
+    def _importance_sample_negative_ELBO(
         self,
-        condition: torch.Tensor,
         x10: torch.Tensor,
         x20: torch.Tensor,
         x1t: torch.Tensor,
@@ -749,25 +919,29 @@ class CRIfuserModel(PreTrainedModel):
         p_theta_0_on_t_logit: torch.Tensor,
     ) -> float:
         batch_size, ref2_dim, ref1_dim = p_theta_0_on_t_logit.shape
-        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self.common_negative_ELBO(
+        common_negative_ELBO, g_theta_1_t, g_theta_2_t = self._common_negative_ELBO(
             x1t, x2t, t, p_theta_0_on_t_logit
         )
 
         q_t_on_0_1 = einsum(
-            self.stationary_sampler1.probs, 1 - self.alpha(t), "r1, b -> b r1"
+            self.stationary_sampler1.probs.to(self.device),
+            1 - self._alpha(t),
+            "r1, b -> b r1",
         )
-        q_t_on_0_1[torch.arange(batch_size), x10] += self.alpha(t)
+        q_t_on_0_1[torch.arange(batch_size), x10] += self._alpha(t)
         q_t_on_0_2 = einsum(
-            self.stationary_sampler2.probs, 1 - self.alpha(t), "r1, b -> b r1"
+            self.stationary_sampler2.probs.to(self.device),
+            1 - self._alpha(t),
+            "r1, b -> b r1",
         )
-        q_t_on_0_2[torch.arange(batch_size), x20] += self.alpha(t)
+        q_t_on_0_2[torch.arange(batch_size), x20] += self._alpha(t)
 
         return (
             common_negative_ELBO
             - einsum(q_t_on_0_1, g_theta_1_t.log().clamp_min(-1000), "b r1, b r1 -> b")
             / q_t_on_0_1[torch.arange(batch_size), x1t]
-            * self.stationary_sampler1[x1t]
+            * self.stationary_sampler1.probs.to(self.device)[x1t]
             - einsum(q_t_on_0_2, g_theta_2_t.log().clamp_min(-1000), "b r2, b r2 -> b")
             / q_t_on_0_2[torch.arange(batch_size), x2t]
-            * self.stationary_sampler2[x2t]
+            * self.stationary_sampler2.probs.to(self.device)[x2t]
         )

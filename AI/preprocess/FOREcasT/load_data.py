@@ -16,16 +16,11 @@ class DataCollator:
             self.feature_DelLoc,
             self.feature_InsSeq,
             self.feature_fix,
-        ) = self.pre_calculation()
-        self.get_mh = None
+        ) = self._pre_calculation()
+        self.get_mh = GetMH()
         self.output_label = output_label
 
-    def features_pairwise(
-        self, features1: torch.Tensor, features2: torch.Tensor
-    ) -> torch.Tensor:
-        return (features1.unsqueeze(-1) * features2.unsqueeze(-2)).flatten(start_dim=-2)
-
-    def pre_calculation(self) -> tuple:
+    def _pre_calculation(self) -> tuple:
         lefts = np.concatenate(
             [np.arange(-DEL_SIZE, 1) for DEL_SIZE in range(self.max_del_size, -1, -1)]
             + [np.zeros(20, np.int64)]
@@ -139,7 +134,7 @@ class DataCollator:
 
         feature_fix = torch.cat(
             [
-                self.features_pairwise(feature_DelSize, feature_DelLoc),
+                self._features_pairwise(feature_DelSize, feature_DelLoc),
                 feature_InsSize,
                 feature_DelSize,
                 feature_DelLoc,
@@ -160,7 +155,156 @@ class DataCollator:
             feature_fix,
         )
 
-    def get_feature_LocalCutSiteSequence(self, ref: str, cut: int) -> torch.Tensor:
+    def _features_pairwise(
+        self, features1: torch.Tensor, features2: torch.Tensor
+    ) -> torch.Tensor:
+        return (features1.unsqueeze(-1) * features2.unsqueeze(-2)).flatten(start_dim=-2)
+
+    @torch.no_grad()
+    def __call__(
+        self,
+        examples: list[dict],
+    ) -> dict:
+        features = []
+        if self.output_label:
+            counts, observation_list, cut1s, cut2s = [], [], []
+        for example in examples:
+            cut = example["cut1"]
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+            )
+            self._assert_reference_length_and_cut(ref, cut)
+            if self.output_label:
+                mh_matrix, _, _, mh_rep_num = self.get_mh(
+                    example["ref1"],
+                    example["ref2"],
+                    example["cut1"],
+                    example["cut2"],
+                    ext1=0,
+                    ext2=0,
+                )
+                observation = self.get_mh.get_observation(
+                    example, mh_matrix, mh_rep_num
+                )
+                observation_list.append(observation)
+                cut1s.append(example["cut1"])
+                cut2s.append(example["cut2"])
+                # the last 20 elements of lefts and rights correspond to insert_count
+                count = torch.cat(
+                    [
+                        torch.from_numpy(
+                            observation[
+                                self.rights[:-20] + example["cut2"],
+                                self.lefts[:-20] + example["cut1"],
+                            ],
+                        ),
+                        torch.tensor(example["insert_count"][:20], dtype=torch.float32),
+                    ],
+                    dim=0,
+                )
+                counts.append(count)
+
+            (
+                feature_I1or2Rpt,
+                feature_LocalCutSiteSequence,
+                feature_LocalCutSiteSeqMatches,
+                feature_LocalRelativeSequence,
+                feature_SeqMatches,
+                feature_microhomology,
+            ) = ([], [], [], [], [], [])
+            for left, right, ins_seq in zip(
+                self.lefts.tolist(), self.rights.tolist(), self.inss
+            ):
+                feature_I1or2Rpt.append(
+                    self._get_feature_I1or2Rpt(ref, cut, left, ins_seq)
+                )
+                feature_LocalCutSiteSequence.append(
+                    self._get_feature_LocalCutSiteSequence(ref, cut)
+                )
+                feature_LocalCutSiteSeqMatches.append(
+                    self._get_feature_LocalCutSiteSeqMatches(ref, cut)
+                )
+                feature_LocalRelativeSequence.append(
+                    self._get_feature_LocalRelativeSequence(
+                        ref, cut, left, right, ins_seq
+                    )
+                )
+                feature_SeqMatches.append(
+                    self._get_feature_SeqMatches(ref, cut, left, right, ins_seq)
+                )
+                feature_microhomology.append(
+                    self._get_feature_microhomology(ref, cut, left, right, ins_seq)
+                )
+            feature_I1or2Rpt = torch.stack(feature_I1or2Rpt)
+            feature_LocalCutSiteSequence = torch.stack(feature_LocalCutSiteSequence)
+            feature_LocalCutSiteSeqMatches = torch.stack(feature_LocalCutSiteSeqMatches)
+            feature_LocalRelativeSequence = torch.stack(feature_LocalRelativeSequence)
+            feature_SeqMatches = torch.stack(feature_SeqMatches)
+            feature_microhomology = torch.tensor(feature_microhomology)
+            feature_var = torch.cat(
+                [
+                    self._features_pairwise(
+                        feature_LocalCutSiteSequence,
+                        torch.cat([self.feature_InsSize, self.feature_DelSize], dim=-1),
+                    ),
+                    self._features_pairwise(
+                        torch.cat(
+                            [feature_microhomology, feature_LocalRelativeSequence],
+                            dim=-1,
+                        ),
+                        torch.cat(
+                            [self.feature_DelSize, self.feature_DelLoc],
+                            dim=-1,
+                        ),
+                    ),
+                    self._features_pairwise(
+                        torch.cat(
+                            [feature_LocalCutSiteSeqMatches, feature_SeqMatches], dim=-1
+                        ),
+                        self.feature_DelSize,
+                    ),
+                    self._features_pairwise(
+                        torch.cat(
+                            [
+                                self.feature_InsSeq,
+                                feature_LocalCutSiteSequence,
+                                feature_LocalCutSiteSeqMatches,
+                            ],
+                            dim=-1,
+                        ),
+                        feature_I1or2Rpt,
+                    ),
+                    feature_I1or2Rpt,
+                    feature_LocalCutSiteSequence,
+                    feature_LocalCutSiteSeqMatches,
+                    feature_LocalRelativeSequence,
+                    feature_SeqMatches,
+                    feature_microhomology,
+                ],
+                dim=-1,
+            ).to(torch.float32)
+            feature = torch.cat([self.feature_fix, feature_var], dim=-1)
+            features.append(feature)
+
+        if self.output_label:
+            return {
+                "input": {
+                    "feature": torch.stack(features),
+                },
+                "label": {
+                    "count": torch.stack(counts),
+                    "observation": torch.from_numpy(np.stack(observation_list)),
+                    "cut1": np.array(cut1s),
+                    "cut2": np.array(cut2s),
+                },
+            }
+        return {
+            "input": {
+                "feature": torch.stack(features),
+            },
+        }
+
+    def _get_feature_LocalCutSiteSequence(self, ref: str, cut: int) -> torch.Tensor:
         return F.one_hot(
             torch.from_numpy(
                 (np.frombuffer(ref[cut - 5 : cut + 4].encode(), dtype=np.int8) % 5)
@@ -170,7 +314,7 @@ class DataCollator:
             num_classes=4,
         ).flatten()
 
-    def get_feature_LocalCutSiteSeqMatches(self, ref: str, cut: int) -> torch.Tensor:
+    def _get_feature_LocalCutSiteSeqMatches(self, ref: str, cut: int) -> torch.Tensor:
         offset1_bases = (
             ref[cut - 2] + ref[cut - 1] * 2 + ref[cut] * 3 + ref[cut + 1] * 4
         )
@@ -199,7 +343,7 @@ class DataCollator:
             ).flatten()
         )
 
-    def get_feature_LocalRelativeSequence(
+    def _get_feature_LocalRelativeSequence(
         self, ref: str, cut: int, left: int, right: int, ins_seq: str
     ) -> torch.Tensor:
         if len(ins_seq) > 0:
@@ -237,7 +381,7 @@ class DataCollator:
             ]
         )
 
-    def get_feature_SeqMatches(
+    def _get_feature_SeqMatches(
         self, ref: str, cut: int, left: int, right: int, ins_seq: str
     ) -> torch.Tensor:
         if len(ins_seq) > 0:
@@ -256,7 +400,7 @@ class DataCollator:
             num_classes=2,
         ).flatten()
 
-    def get_feature_I1or2Rpt(
+    def _get_feature_I1or2Rpt(
         self, ref: str, cut: int, left: int, ins_seq: str
     ) -> torch.Tensor:
         if len(ins_seq) == 0:
@@ -270,43 +414,13 @@ class DataCollator:
             ]
         ).logical_and(torch.tensor(left == 0))
 
-    def getLeftMH(
-        self, ref: str, cut: int, left: int, right: int, mh_max: int = 16
-    ) -> tuple[int]:
-        left_mh = None
-        for i in range(1, mh_max + 2):
-            if i > mh_max or ref[cut + left - i] != ref[cut + right - i]:
-                if left_mh is None:
-                    left_mh = i - 1
-                else:
-                    left_mh_1 = i - 1
-                    break
-        if left_mh == mh_max:
-            left_mh_1 = mh_max
-        return left_mh, left_mh_1
-
-    def getRightMH(
-        self, ref: str, cut: int, left: int, right: int, mh_max=16
-    ) -> tuple[int]:
-        right_mh = None
-        for i in range(0, mh_max + 1):
-            if i >= mh_max or ref[cut + left + i] != ref[cut + right + i]:
-                if right_mh is None:
-                    right_mh = i
-                else:
-                    right_mh_1 = i
-                    break
-        if right_mh == mh_max:
-            right_mh_1 = mh_max
-        return right_mh, right_mh_1
-
-    def get_feature_microhomology(
+    def _get_feature_microhomology(
         self, ref: str, cut: int, left: int, right: int, ins_seq: str
     ) -> list[bool]:
         if len(ins_seq) > 0:
             return [False] * 21
-        left_mh, left_mh_1 = self.getLeftMH(ref, cut, left, right)
-        right_mh, right_mh_1 = self.getRightMH(ref, cut, left, right)
+        left_mh, left_mh_1 = self._getLeftMH(ref, cut, left, right)
+        right_mh, right_mh_1 = self._getRightMH(ref, cut, left, right)
         return [
             left_mh == 1,
             right_mh == 1,
@@ -338,186 +452,37 @@ class DataCollator:
             or right_mh_1 >= 16,
         ]
 
-    def data_collator_single_example(self, example: dict) -> tuple:
-        cut = example["cut1"]
-        ref = example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
-        self.assert_reference_length_and_cut(ref, cut)
-        if self.output_label:
-            if (
-                not self.get_mh
-                or self.get_mh.ref1len != len(example["ref1"])
-                or self.get_mh.ref2len != len(example["ref2"])
-            ):
-                self.get_mh = GetMH(
-                    ref1len=len(example["ref1"]),
-                    ref2len=len(example["ref2"]),
-                )
-            mh_matrix, _, _, mh_rep_num = self.get_mh(
-                example["ref1"],
-                example["ref2"],
-                example["cut1"],
-                example["cut2"],
-                ext1=0,
-                ext2=0,
-            )
-            mh_idx = mh_matrix.nonzero()
-            mh_val = mh_matrix[mh_idx]
-            # construct observations
-            observations = np.zeros(
-                (example["random_insert_uplimit"] + 2)
-                * (len(example["ref2"]) + 1)
-                * (len(example["ref1"]) + 1),
-                dtype=np.float32,
-            )
-            observations[example["ob_idx"]] = np.array(
-                example["ob_val"], dtype=np.float32
-            )
-            observations = observations.reshape(
-                example["random_insert_uplimit"] + 2,
-                len(example["ref2"]) + 1,
-                len(example["ref1"]) + 1,
-            )
-            # correct observations
-            observations = self.get_mh.correct_observation(
-                observations, mh_matrix, mh_rep_num
-            )
-            # cumulate observations for all random insertion size
-            observation = observations.sum(axis=0).flatten()
-            # distribute count to all positions in single micro-homology diagonal
-            observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
-            observation = observation.reshape(
-                len(example["ref2"]) + 1, len(example["ref1"]) + 1
-            )
-            # the last 20 elements of lefts and rights correspond to insert_count
-            count = torch.cat(
-                [
-                    torch.from_numpy(
-                        observation[
-                            self.rights[:-20] + example["cut2"],
-                            self.lefts[:-20] + example["cut1"],
-                        ],
-                    ),
-                    torch.tensor(example["insert_count"][:20], dtype=torch.float32),
-                ],
-                dim=0,
-            )
+    def _getLeftMH(
+        self, ref: str, cut: int, left: int, right: int, mh_max: int = 16
+    ) -> tuple[int]:
+        left_mh = None
+        for i in range(1, mh_max + 2):
+            if i > mh_max or ref[cut + left - i] != ref[cut + right - i]:
+                if left_mh is None:
+                    left_mh = i - 1
+                else:
+                    left_mh_1 = i - 1
+                    break
+        if left_mh == mh_max:
+            left_mh_1 = mh_max
+        return left_mh, left_mh_1
 
-        (
-            feature_I1or2Rpt,
-            feature_LocalCutSiteSequence,
-            feature_LocalCutSiteSeqMatches,
-            feature_LocalRelativeSequence,
-            feature_SeqMatches,
-            feature_microhomology,
-        ) = ([], [], [], [], [], [])
-        for left, right, ins_seq in zip(
-            self.lefts.tolist(), self.rights.tolist(), self.inss
-        ):
-            feature_I1or2Rpt.append(self.get_feature_I1or2Rpt(ref, cut, left, ins_seq))
-            feature_LocalCutSiteSequence.append(
-                self.get_feature_LocalCutSiteSequence(ref, cut)
-            )
-            feature_LocalCutSiteSeqMatches.append(
-                self.get_feature_LocalCutSiteSeqMatches(ref, cut)
-            )
-            feature_LocalRelativeSequence.append(
-                self.get_feature_LocalRelativeSequence(ref, cut, left, right, ins_seq)
-            )
-            feature_SeqMatches.append(
-                self.get_feature_SeqMatches(ref, cut, left, right, ins_seq)
-            )
-            feature_microhomology.append(
-                self.get_feature_microhomology(ref, cut, left, right, ins_seq)
-            )
-        feature_I1or2Rpt = torch.stack(feature_I1or2Rpt)
-        feature_LocalCutSiteSequence = torch.stack(feature_LocalCutSiteSequence)
-        feature_LocalCutSiteSeqMatches = torch.stack(feature_LocalCutSiteSeqMatches)
-        feature_LocalRelativeSequence = torch.stack(feature_LocalRelativeSequence)
-        feature_SeqMatches = torch.stack(feature_SeqMatches)
-        feature_microhomology = torch.tensor(feature_microhomology)
-        feature_var = torch.cat(
-            [
-                self.features_pairwise(
-                    feature_LocalCutSiteSequence,
-                    torch.cat([self.feature_InsSize, self.feature_DelSize], dim=-1),
-                ),
-                self.features_pairwise(
-                    torch.cat(
-                        [feature_microhomology, feature_LocalRelativeSequence],
-                        dim=-1,
-                    ),
-                    torch.cat(
-                        [self.feature_DelSize, self.feature_DelLoc],
-                        dim=-1,
-                    ),
-                ),
-                self.features_pairwise(
-                    torch.cat(
-                        [feature_LocalCutSiteSeqMatches, feature_SeqMatches], dim=-1
-                    ),
-                    self.feature_DelSize,
-                ),
-                self.features_pairwise(
-                    torch.cat(
-                        [
-                            self.feature_InsSeq,
-                            feature_LocalCutSiteSequence,
-                            feature_LocalCutSiteSeqMatches,
-                        ],
-                        dim=-1,
-                    ),
-                    feature_I1or2Rpt,
-                ),
-                feature_I1or2Rpt,
-                feature_LocalCutSiteSequence,
-                feature_LocalCutSiteSeqMatches,
-                feature_LocalRelativeSequence,
-                feature_SeqMatches,
-                feature_microhomology,
-            ],
-            dim=-1,
-        ).to(torch.float32)
-        feature = torch.cat([self.feature_fix, feature_var], dim=-1)
-        if self.output_label:
-            return feature, count
-        return feature
+    def _getRightMH(
+        self, ref: str, cut: int, left: int, right: int, mh_max=16
+    ) -> tuple[int]:
+        right_mh = None
+        for i in range(0, mh_max + 1):
+            if i >= mh_max or ref[cut + left + i] != ref[cut + right + i]:
+                if right_mh is None:
+                    right_mh = i
+                else:
+                    right_mh_1 = i
+                    break
+        if right_mh == mh_max:
+            right_mh_1 = mh_max
+        return right_mh, right_mh_1
 
-    @torch.no_grad()
-    def __call__(
-        self,
-        examples: list[dict],
-    ) -> dict:
-        features = []
-        if self.output_label:
-            counts = []
-        for example in examples:
-            if self.output_label:
-                feature, count = self.data_collator_single_example(example)
-            else:
-                feature = self.data_collator_single_example(example)
-            features.append(feature)
-            if self.output_label:
-                counts.append(count)
-        if self.output_label:
-            return {
-                "feature": torch.stack(features),
-                "count": torch.stack(counts),
-            }
-        return {
-            "feature": torch.stack(features),
-        }
-
-    @torch.no_grad()
-    def inference(self, examples: list[dict]) -> dict:
-        assert not self.output_label, "inference cannot output count"
-        for example in examples:
-            ref, cut = example.pop("ref"), example.pop("cut")
-            self.assert_reference_length_and_cut(ref, cut)
-            example["ref1"] = example["ref2"] = ref
-            example["cut1"] = example["cut2"] = cut
-        return examples
-
-    def assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
+    def _assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert (
             cut >= self.max_del_size
         ), f"ref upstream to cut ({cut}) is less than max_del_size ({self.max_del_size}), extend ref to upstream"

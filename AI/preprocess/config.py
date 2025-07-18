@@ -94,6 +94,23 @@ class Scheduler:
     warmup_ratio: float
 
 
+@dataclass
+class Metric:
+    """Parameters for metric.
+
+    Args:
+        metric_ext1_up: upstream limit of the resection of the upstream end.
+        metric_ext1_down: downstream limit of the templated insertion of the upstream end.
+        metric_ext2_up: upstream limit of the templated insertion of the downstream end.
+        metric_ext2_down: downstream limit of the resection of the downstream end.
+    """
+
+    metric_ext1_up: int
+    metric_ext1_down: int
+    metric_ext2_up: int
+    metric_ext2_down: int
+
+
 preprocess_to_model = {
     "inDelphi": ["inDelphi"],
     "FOREcasT": ["FOREcasT"],
@@ -154,6 +171,7 @@ def get_config() -> jsonargparse.Namespace:
     parser.add_argument("--dataset", type=Dataset)
     parser.add_argument("--optimizer", type=Optimizer)
     parser.add_argument("--scheduler", type=Scheduler)
+    parser.add_argument("--metric", type=Metric)
 
     parser_subcommands = parser.add_subcommands(required=False, dest="preprocess")
     for preprocess, model_names in preprocess_to_model.items():

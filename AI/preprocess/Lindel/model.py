@@ -1,8 +1,15 @@
+import numpy as np
+import pandas as pd
 from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Optional, Literal
+
+
+# torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
+from torch.backends import opt_einsum
+from einops import einsum, repeat
 
 
 class LindelConfig(PretrainedConfig):
@@ -54,9 +61,10 @@ class LindelModel(PreTrainedModel):
             out_features=class_dim,
         )
 
-        self.initialize_weights()
+        self._initialize_model_layer_weights()
 
-    def initialize_weights(self):
+    # huggingface use the name initialize_weights, use another name here.
+    def _initialize_model_layer_weights(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
@@ -71,17 +79,21 @@ class LindelModel(PreTrainedModel):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, input: dict, count: Optional[dict] = None) -> torch.Tensor:
+    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         logit_indel = self.model_indel(input["input_indel"])
         logit_ins = self.model_ins(input["input_ins"])
         logit_del = self.model_del(input["input_del"])
-        if count is not None:
-            loss = (
-                self.cross_entropy_reg(
-                    logit_indel, count["count_indel"], self.model_indel
-                )
-                + self.cross_entropy_reg(logit_ins, count["count_ins"], self.model_ins)
-                + self.cross_entropy_reg(logit_del, count["count_del"], self.model_del)
+        if label is not None:
+            loss = self.loss_fun(
+                logit_indel=logit_indel,
+                count_indel=label["count_indel"],
+                model_indel=self.model_indel,
+                logit_ins=logit_ins,
+                count_ins=label["count_ins"],
+                model_ins=self.model_ins,
+                logit_del=logit_del,
+                count_del=label["count_del"],
+                model_del=self.model_del,
             )
             return {
                 "logit_indel": logit_indel,
@@ -95,17 +107,131 @@ class LindelModel(PreTrainedModel):
             "logit_del": logit_del,
         }
 
-    def cross_entropy_reg(
+    def loss_fun(
+        self,
+        logit_indel: torch.Tensor,
+        count_indel: torch.Tensor,
+        model_indel: nn.Linear,
+        logit_ins: torch.Tensor,
+        count_ins: torch.Tensor,
+        model_ins: nn.Linear,
+        logit_del: torch.Tensor,
+        count_del: torch.Tensor,
+        model_del: nn.Linear,
+    ) -> float:
+        return (
+            self._cross_entropy_reg(logit_indel, count_indel, model_indel)
+            + self._cross_entropy_reg(logit_ins, count_ins, model_ins)
+            + self._cross_entropy_reg(logit_del, count_del, model_del)
+        )
+
+    def _cross_entropy_reg(
         self, logit: torch.Tensor, count: torch.Tensor, linear: nn.Linear
     ) -> float:
         if self.reg_mode == "l2":
             reg_term = (linear.weight**2).sum()
         elif self.reg_mode == "l1":
             reg_term = abs(linear.weight).sum()
+        batch_size = logit.shape[0]
         return (
-            -(
-                F.log_softmax(logit, dim=1)
-                * F.normalize(count.to(torch.float32), p=1.0, dim=1)
-            ).sum()
-            + logit.shape[0] * self.reg_const * reg_term
+            -einsum(
+                F.log_softmax(logit, dim=1),
+                F.normalize(count.to(torch.float32), p=1.0, dim=1),
+                "b m, b m ->",
+            )
+            + batch_size * self.reg_const * reg_term
         )
+
+    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+        result = self(batch["input"])
+
+        batch_size = len(examples)
+        left_shift = np.zeros((batch_size, 20), dtype=int)
+        right_shift = np.zeros((batch_size, 20), dtype=int)
+        ins_shift = np.full((batch_size, 20), "", dtype="U2")
+        for i, example in enumerate(examples):
+            ref = (
+                example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
+            )
+            cut = example["cut1"]
+            for j, ins in enumerate(self.inss):
+                if ref[cut] == ins[0]:
+                    if len(ins) == 2 and ref[cut + 1] == ins[1]:
+                        left_shift[i, j] = 2
+                    else:
+                        left_shift[i, j] = 1
+                if ref[cut - 1] == ins[-1]:
+                    if len(ins) == 2 and ref[cut - 2] == ins[-2]:
+                        right_shift[i, j] = 2
+                    else:
+                        right_shift[i, j] = 1
+                ins_shift[i, j] = ins[left_shift[i, j] : (len(ins) - right_shift[i, j])]
+
+        ins_lens = np.array([len(ins) for ins in self.inss])
+        left_shift = np.minimum(ins_lens - right_shift, left_shift)
+
+        indel_probas = F.softmax(result["logit_indel"], dim=1).cpu().numpy()
+        ins_probas = F.softmax(result["logit_ins"], dim=1).cpu().numpy()
+        del_probas = F.softmax(result["logit_del"], dim=1).cpu().numpy()
+        long_ins_proba = ins_probas[:, -1] * indel_probas[:, 1]
+        indel_probas[:, 1] = indel_probas[:, 1] - long_ins_proba
+        indel_probas[:, 0] = indel_probas[:, 0] / (1 - long_ins_proba)
+        indel_probas[:, 1] = indel_probas[:, 1] / (1 - long_ins_proba)
+        ins_probas = ins_probas[:, :-1]
+
+        probas = np.concatenate(
+            [
+                del_probas * indel_probas[:, [0]],
+                ins_probas * indel_probas[:, [1]],
+            ],
+            axis=1,
+        )
+        batch_size, feature_size = probas.shape
+        rpos1s = np.concatenate(
+            [
+                repeat(
+                    np.concatenate(
+                        [np.arange(-dl - 2, 3) for dl in range(1, self.dlen)]
+                    ),
+                    "f -> b f",
+                    b=batch_size,
+                ),
+                left_shift,
+            ],
+            axis=1,
+        )
+        rpos2s = np.concatenate(
+            [
+                repeat(
+                    np.concatenate(
+                        [np.arange(-2, dl + 3) for dl in range(1, self.dlen)]
+                    ),
+                    "f -> b f",
+                    b=batch_size,
+                ),
+                -right_shift,
+            ],
+            axis=1,
+        )
+        random_ins = np.concatenate(
+            [
+                np.full((batch_size, feature_size - 20), "", dtype="U2"),
+                ins_shift,
+            ],
+            axis=1,
+        )
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size),
+                    "b -> (b f)",
+                    f=feature_size,
+                ),
+                "proba": probas.flatten(),
+                "rpos1": rpos1s.flatten(),
+                "rpos2": rpos2s.flatten(),
+                "random_ins": random_ins.flatten(),
+            }
+        )
+
+        return df
