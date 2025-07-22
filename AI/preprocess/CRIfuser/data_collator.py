@@ -4,11 +4,11 @@ import numpy as np
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import repeat, rearrange
-from ..data_collator import DataCollatorBase
-from ..utils import SeqTokenizer
+from ..utils import MicroHomologyTool
+from ...dataset.utils import SeqTokenizer
 
 
-class DataCollator(DataCollatorBase):
+class DataCollator:
     preprocess = "CRIfuser"
 
     def __init__(
@@ -25,7 +25,7 @@ class DataCollator(DataCollatorBase):
         self.ext2_down = ext2_down
         self.max_micro_homology = max_micro_homology
         self.seq_tokenizer = SeqTokenizer("ACGT")
-        super().__init__()
+        self.micro_homology_tool = MicroHomologyTool()
 
     @torch.no_grad()
     def __call__(self, examples: list[dict], output_label: bool) -> dict:
@@ -38,7 +38,7 @@ class DataCollator(DataCollatorBase):
             )
             cut = example["cut1"]
             self._assert_reference_length_and_cut(ref, cut)
-            mh_matrix, _, _, mh_rep_num = self.get_mh(
+            mh_matrix, _, _, mh_rep_num = self.micro_homology_tool.get_mh(
                 example["ref1"],
                 example["ref2"],
                 example["cut1"],
@@ -47,7 +47,9 @@ class DataCollator(DataCollatorBase):
                 ext2=0,
             )
             if output_label:
-                observation = self.get_observation(example, mh_matrix, mh_rep_num)
+                observation = self.micro_homology_tool.get_observation(
+                    example, mh_matrix, mh_rep_num
+                )
                 observation_list.append(observation)
 
             mh_matrix = (

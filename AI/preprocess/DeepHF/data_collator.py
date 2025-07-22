@@ -3,8 +3,8 @@ import torch
 import more_itertools
 import Bio.SeqUtils.MeltingTemp as Tm
 import subprocess
-from ..data_collator import DataCollatorBase
-from ..utils import SeqTokenizer
+from ..utils import MicroHomologyTool
+from ...dataset.utils import SeqTokenizer
 
 
 class TwoMerEnergy:
@@ -27,7 +27,7 @@ class TwoMerEnergy:
         ].sum()
 
 
-class DataCollator(DataCollatorBase):
+class DataCollator:
     preprocess = "DeepHF"
 
     def __init__(
@@ -45,7 +45,7 @@ class DataCollator(DataCollatorBase):
         self.two_mer_energy = TwoMerEnergy()
         self.energy_records = {}
         self.ext_stem = "(((((((((.((((....))))...)))))))"
-        super().__init__()
+        self.micro_homology_tool = MicroHomologyTool()
 
     @torch.no_grad()
     def __call__(self, examples: list[dict], output_label: bool) -> dict:
@@ -62,7 +62,7 @@ class DataCollator(DataCollatorBase):
             cut = example["cut1"]
             self._assert_reference_length_and_cut(ref, cut)
             if output_label:
-                mh_matrix, _, _, mh_rep_num = self.get_mh(
+                mh_matrix, _, _, mh_rep_num = self.micro_homology_tool.get_mh(
                     example["ref1"],
                     example["ref2"],
                     example["cut1"],
@@ -70,7 +70,9 @@ class DataCollator(DataCollatorBase):
                     ext1=0,
                     ext2=0,
                 )
-                observation = self.get_observation(example, mh_matrix, mh_rep_num)
+                observation = self.micro_homology_tool.get_observation(
+                    example, mh_matrix, mh_rep_num
+                )
                 observation_list.append(observation)
 
             sgRNA21mer = example["ref1"][example["cut1"] - 17 : example["cut1"] + 4]

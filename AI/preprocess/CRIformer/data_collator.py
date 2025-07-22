@@ -1,10 +1,10 @@
 import torch
 import numpy as np
-from ..data_collator import DataCollatorBase
-from ..utils import SeqTokenizer
+from ..utils import MicroHomologyTool
+from ...dataset.utils import SeqTokenizer
 
 
-class DataCollator(DataCollatorBase):
+class DataCollator:
     preprocess = "CRIformer"
 
     def __init__(
@@ -19,7 +19,7 @@ class DataCollator(DataCollatorBase):
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
         self.seq_tokenizer = SeqTokenizer("ACGT")
-        super().__init__()
+        self.micro_homology_tool = MicroHomologyTool()
 
     def __call__(self, examples: list[dict], output_label: bool) -> dict:
         refcodes = []
@@ -41,7 +41,7 @@ class DataCollator(DataCollatorBase):
             )
             refcodes.append(self.seq_tokenizer(ref_input))
             if output_label:
-                mh_matrix, _, _, mh_rep_num = self.get_mh(
+                mh_matrix, _, _, mh_rep_num = self.micro_homology_tool.get_mh(
                     example["ref1"],
                     example["ref2"],
                     example["cut1"],
@@ -49,7 +49,9 @@ class DataCollator(DataCollatorBase):
                     ext1=0,
                     ext2=0,
                 )
-                observation = self.get_observation(example, mh_matrix, mh_rep_num)
+                observation = self.micro_homology_tool.get_observation(
+                    example, mh_matrix, mh_rep_num
+                )
                 observation_list.append(observation)
 
         if output_label:

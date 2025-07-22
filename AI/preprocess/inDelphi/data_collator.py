@@ -1,10 +1,10 @@
 import torch
 import numpy as np
-from ..data_collator import DataCollatorBase
-from ..utils import SeqTokenizer
+from ..utils import MicroHomologyTool
+from ...dataset.utils import SeqTokenizer
 
 
-class DataCollator(DataCollatorBase):
+class DataCollator:
     preprocess = "inDelphi"
 
     def __init__(self, DELLEN_LIMIT: int) -> None:
@@ -24,7 +24,7 @@ class DataCollator(DataCollatorBase):
         self.del_lens = self.rights - self.lefts
         self.seq_tokenizer = SeqTokenizer("ACGT")
         self.epsilon = 1e-6
-        super().__init__()
+        self.micro_homology_tool = MicroHomologyTool()
 
     def __call__(self, examples: list[dict], output_label: bool) -> dict:
         mh_inputs, mh_del_lens, onebp_features, m654s, rightests = [], [], [], [], []
@@ -48,13 +48,15 @@ class DataCollator(DataCollatorBase):
             )
             cut = example["cut1"]
             self._assert_reference_length_and_cut(ref, cut)
-            mh_matrix, mh_idx_align_ref1, _, mh_rep_num = self.get_mh(
-                example["ref1"],
-                example["ref2"],
-                example["cut1"],
-                example["cut2"],
-                ext1=0,
-                ext2=0,
+            mh_matrix, mh_idx_align_ref1, _, mh_rep_num = (
+                self.micro_homology_tool.get_mh(
+                    example["ref1"],
+                    example["ref2"],
+                    example["cut1"],
+                    example["cut2"],
+                    ext1=0,
+                    ext2=0,
+                )
             )
             all_mh_lens = mh_matrix.reshape(
                 len(example["ref2"]) + 1,
@@ -128,7 +130,7 @@ class DataCollator(DataCollatorBase):
                     len(example["ref1"]) + 1,
                 )
                 # correct observations
-                observations = self.correct_observation(
+                observations = self.micro_homology_tool.correct_observation(
                     observations, mh_matrix, mh_rep_num
                 )
                 # cumulate observations for all random insertion size

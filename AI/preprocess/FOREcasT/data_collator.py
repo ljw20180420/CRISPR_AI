@@ -1,10 +1,10 @@
 import torch.nn.functional as F
 import numpy as np
 import torch
-from ..data_collator import DataCollatorBase
+from ..utils import MicroHomologyTool
 
 
-class DataCollator(DataCollatorBase):
+class DataCollator:
     preprocess = "FOREcasT"
 
     def __init__(self, max_del_size: int) -> None:
@@ -19,7 +19,7 @@ class DataCollator(DataCollatorBase):
             self.feature_InsSeq,
             self.feature_fix,
         ) = self._pre_calculation()
-        super().__init__()
+        self.micro_homology_tool = MicroHomologyTool()
 
     def _pre_calculation(self) -> tuple:
         lefts = np.concatenate(
@@ -173,7 +173,7 @@ class DataCollator(DataCollatorBase):
             )
             self._assert_reference_length_and_cut(ref, cut)
             if output_label:
-                mh_matrix, _, _, mh_rep_num = self.get_mh(
+                mh_matrix, _, _, mh_rep_num = self.micro_homology_tool.get_mh(
                     example["ref1"],
                     example["ref2"],
                     example["cut1"],
@@ -181,7 +181,9 @@ class DataCollator(DataCollatorBase):
                     ext1=0,
                     ext2=0,
                 )
-                observation = self.get_observation(example, mh_matrix, mh_rep_num)
+                observation = self.micro_homology_tool.get_observation(
+                    example, mh_matrix, mh_rep_num
+                )
                 observation_list.append(observation)
                 # the last 20 elements of lefts and rights correspond to insert_count
                 count = torch.cat(

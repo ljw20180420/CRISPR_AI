@@ -1,11 +1,11 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-from ..data_collator import DataCollatorBase
-from ..utils import SeqTokenizer
+from ..utils import MicroHomologyTool
+from ...dataset.utils import SeqTokenizer
 
 
-class DataCollator(DataCollatorBase):
+class DataCollator:
     preprocess = "Lindel"
 
     def __init__(self, dlen: int, mh_len: int) -> None:
@@ -19,7 +19,7 @@ class DataCollator(DataCollatorBase):
         )
         self.del_lens = self.rights - self.lefts
         self.seq_tokenzier = SeqTokenizer("ACGT")
-        super().__init__()
+        self.micro_homology_tool = MicroHomologyTool()
 
     def __call__(self, examples: list[dict], output_label: bool) -> dict:
         input_indels, input_inss, input_dels = [], [], []
@@ -36,13 +36,15 @@ class DataCollator(DataCollatorBase):
             )
             cut = example["cut1"]
             self._assert_reference_length_and_cut(ref, cut)
-            mh_matrix, mh_idx_align_ref1, _, mh_rep_num = self.get_mh(
-                example["ref1"],
-                example["ref2"],
-                example["cut1"],
-                example["cut2"],
-                ext1=0,
-                ext2=0,
+            mh_matrix, mh_idx_align_ref1, _, mh_rep_num = (
+                self.micro_homology_tool.get_mh(
+                    example["ref1"],
+                    example["ref2"],
+                    example["cut1"],
+                    example["cut2"],
+                    ext1=0,
+                    ext2=0,
+                )
             )
             all_mh_lens = mh_matrix.reshape(
                 len(example["ref2"]) + 1,
@@ -121,7 +123,7 @@ class DataCollator(DataCollatorBase):
                     len(example["ref1"]) + 1,
                 )
                 # correct observations
-                observations = self.correct_observation(
+                observations = self.micro_homology_tool.correct_observation(
                     observations, mh_matrix, mh_rep_num
                 )
                 # cumulate observations for all random insertion size
@@ -137,9 +139,6 @@ class DataCollator(DataCollatorBase):
                 observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
                 observation = observation.reshape(
                     len(example["ref2"]) + 1, len(example["ref1"]) + 1
-                )
-                observation = self.get_mh.get_observation(
-                    example, mh_matrix, mh_rep_num
                 )
                 observation_list.append(observation)
                 # count_inss
