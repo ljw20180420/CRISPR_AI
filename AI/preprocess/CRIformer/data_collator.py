@@ -1,29 +1,30 @@
 import torch
 import numpy as np
-from ..utils import GetMH, SeqTokenizer
+from ..data_collator import DataCollatorBase
+from ..utils import SeqTokenizer
 
 
-class DataCollator:
+class DataCollator(DataCollatorBase):
+    preprocess = "CRIformer"
+
     def __init__(
         self,
         ext1_up: int,
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
-        output_label: bool,
     ) -> None:
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
         self.seq_tokenizer = SeqTokenizer("ACGT")
-        self.get_mh = GetMH()
-        self.output_label = output_label
+        super().__init__()
 
-    def __call__(self, examples: list[dict]) -> dict:
+    def __call__(self, examples: list[dict], output_label: bool) -> dict:
         refcodes = []
-        if self.output_label:
-            observation_list, cut1s, cut2s = [], [], []
+        if output_label:
+            observation_list = []
         for example in examples:
             ref = (
                 example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
@@ -39,7 +40,7 @@ class DataCollator:
                 ]
             )
             refcodes.append(self.seq_tokenizer(ref_input))
-            if self.output_label:
+            if output_label:
                 mh_matrix, _, _, mh_rep_num = self.get_mh(
                     example["ref1"],
                     example["ref2"],
@@ -48,22 +49,16 @@ class DataCollator:
                     ext1=0,
                     ext2=0,
                 )
-                observation = self.get_mh.get_observation(
-                    example, mh_matrix, mh_rep_num
-                )
+                observation = self.get_observation(example, mh_matrix, mh_rep_num)
                 observation_list.append(observation)
-                cut1s.append(example["cut1"])
-                cut2s.append(example["cut2"])
 
-        if self.output_label:
+        if output_label:
             return {
                 "input": {
                     "refcode": torch.from_numpy(np.stack(refcodes)),
                 },
                 "label": {
                     "observation": torch.from_numpy(np.stack(observation_list)),
-                    "cut1": np.array(cut1s),
-                    "cut2": np.array(cut2s),
                 },
             }
         return {

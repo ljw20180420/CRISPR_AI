@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
@@ -9,19 +8,17 @@ from typing import Optional
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import rearrange, einsum, repeat
+from ..model import BaseModel, BaseConfig
 
 
-class FOREcasTConfig(PretrainedConfig):
+class FOREcasTConfig(BaseConfig):
     model_type = "FOREcasT"
-    label_names = ["label"]
 
-    # Config must have default value to prevent error in Trainer.
     def __init__(
         self,
-        max_del_size: Optional[int] = None,
-        reg_const: Optional[float] = None,
-        i1_reg_const: Optional[float] = None,
-        seed: Optional[int] = None,
+        max_del_size: int,
+        reg_const: float,
+        i1_reg_const: float,
         **kwargs,
     ) -> None:
         """FOREcasT arguments.
@@ -34,17 +31,14 @@ class FOREcasTConfig(PretrainedConfig):
         self.max_del_size = max_del_size
         self.reg_const = reg_const
         self.i1_reg_const = i1_reg_const
-        self.seed = seed
         super().__init__(**kwargs)
 
 
-class FOREcasTModel(PreTrainedModel):
+class FOREcasTModel(BaseModel):
     config_class = FOREcasTConfig
 
     def __init__(self, config: FOREcasTConfig) -> None:
         super().__init__(config)
-        # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.generator = torch.Generator().manual_seed(config.seed)
         is_delete = torch.tensor(
             ["I" not in label for label in self._get_feature_label()]
         )
@@ -191,22 +185,6 @@ class FOREcasTModel(PreTrainedModel):
             for label2 in features2_label:
                 features_label.append(f"PW_{label1}_vs_{label2}")
         return features_label
-
-    # huggingface use the name initialize_weights, use another name here.
-    def _initialize_model_layer_weights(self) -> None:
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         logit = rearrange(self.linear(input["feature"]), "b m 1 -> b m")

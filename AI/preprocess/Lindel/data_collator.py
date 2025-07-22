@@ -1,11 +1,14 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-from ..utils import GetMH, SeqTokenizer
+from ..data_collator import DataCollatorBase
+from ..utils import SeqTokenizer
 
 
-class DataCollator:
-    def __init__(self, dlen: int, mh_len: int, output_label: bool) -> None:
+class DataCollator(DataCollatorBase):
+    preprocess = "Lindel"
+
+    def __init__(self, dlen: int, mh_len: int) -> None:
         self.dlen = dlen
         self.mh_len = mh_len
         self.lefts = np.concatenate(
@@ -16,15 +19,12 @@ class DataCollator:
         )
         self.del_lens = self.rights - self.lefts
         self.seq_tokenzier = SeqTokenizer("ACGT")
-        self.get_mh = GetMH()
-        self.output_label = output_label
+        super().__init__()
 
-    def __call__(self, examples: list[dict]) -> dict:
+    def __call__(self, examples: list[dict], output_label: bool) -> dict:
         input_indels, input_inss, input_dels = [], [], []
-        if self.output_label:
-            count_indels, count_inss, count_dels, observation_list, cut1s, cut2s = (
-                [],
-                [],
+        if output_label:
+            count_indels, count_inss, count_dels, observation_list = (
                 [],
                 [],
                 [],
@@ -102,7 +102,7 @@ class DataCollator:
                     example["ref1"][example["cut1"] - 3 : example["cut1"] + 3]
                 )
             )
-            if self.output_label:
+            if output_label:
                 mh_idx = mh_matrix.nonzero()
                 mh_val = mh_matrix[mh_idx]
                 # construct observations
@@ -121,7 +121,7 @@ class DataCollator:
                     len(example["ref1"]) + 1,
                 )
                 # correct observations
-                observations = self.get_mh.correct_observation(
+                observations = self.correct_observation(
                     observations, mh_matrix, mh_rep_num
                 )
                 # cumulate observations for all random insertion size
@@ -142,8 +142,6 @@ class DataCollator:
                     example, mh_matrix, mh_rep_num
                 )
                 observation_list.append(observation)
-                cut1s.append(example["cut1"])
-                cut2s.append(example["cut2"])
                 # count_inss
                 count_ins = np.append(
                     np.array(example["insert_count"], dtype=np.float32),
@@ -156,12 +154,12 @@ class DataCollator:
         input_indels = torch.from_numpy(np.stack(input_indels))
         input_dels = torch.from_numpy(np.stack(input_dels))
         input_inss = torch.from_numpy(np.stack(input_inss))
-        if self.output_label:
+        if output_label:
             count_indels = torch.tensor(count_indels)
             count_dels = torch.from_numpy(np.stack(count_dels))
             count_inss = torch.from_numpy(np.stack(count_inss))
 
-        if self.output_label:
+        if output_label:
             return {
                 "input": {
                     "input_indel": input_indels,
@@ -173,8 +171,6 @@ class DataCollator:
                     "count_del": count_dels,
                     "count_ins": count_inss,
                     "observation": torch.from_numpy(np.stack(observation_list)),
-                    "cut1": np.array(cut1s),
-                    "cut2": np.array(cut2s),
                 },
             }
         return {

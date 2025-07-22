@@ -1,12 +1,15 @@
 import jsonargparse
 import pathlib
-import logging
-import sys
 import importlib
 from dataclasses import dataclass
 from typing import Literal
 import importlib
 import inspect
+from .model import BaseConfig
+from .generator import MyGenerator
+from .dataset import MyDataset
+from .optimizer import MyOptimizer
+from .lr_scheduler import MyLRScheduler
 
 
 @dataclass
@@ -14,101 +17,26 @@ class Common:
     """Common parameters.
 
     Args:
+        trial_name: name of the training trial
         output_dir: Output directory.
         batch_size: Batch size.
-        seed: Random seed.
+        num_epochs: Total number of training epochs to perform.
         device: Device.
         log_level: Logging level.
         inference_data: The data file of inference.
         inference_output: The output file of inference.
     """
 
+    trial_name: str
     output_dir: pathlib.Path
     batch_size: int
-    seed: int
+    num_epochs: int
     device: Literal["cpu", "cuda"]
     log_level: Literal[
         "CRITICAL", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"
     ]
     inference_data: pathlib.Path
     inference_output: pathlib.Path
-
-
-@dataclass
-class Dataset:
-    """Parameters of dataset.
-
-    Args:
-        data_name: Data name for training. Generally correpond to Cas protein name.
-        test_ratio: Proportion for test samples.
-        validation_ratio: Proportion for validation samples.
-        random_insert_uplimit: The maximal discriminated length of random insertion.
-        insert_uplimit: The maximal insertion length to count.
-        owner: huggingface user name.
-    """
-
-    data_name: Literal["SX_spcas9", "SX_spymac", "SX_ispymac"]
-    test_ratio: float
-    validation_ratio: float
-    random_insert_uplimit: int
-    insert_uplimit: int
-    owner: str
-
-
-@dataclass
-class Optimizer:
-    """Parameters of optimizer.
-
-    Args:
-        optimizer: Name of optimizer.
-        learning_rate: Learn rate of the optimizer.
-    """
-
-    optimizer: Literal["adamw_torch", "adamw_torch", "adamw_torch_fused", "adafactor"]
-    learning_rate: float
-
-
-@dataclass
-class Scheduler:
-    """Parameters for learning rate scheduler.
-
-    Args:
-        scheduler: The scheduler type to use.
-        num_epochs: Total number of training epochs to perform (if not an integer, will perform the decimal part percents of the last epoch before stopping training).
-        warmup_ratio: Ratio of total training steps used for a linear warmup from 0 to learning_rate.
-    """
-
-    scheduler: Literal[
-        "linear",
-        "cosine",
-        "cosine_with_restarts",
-        "polynomial",
-        "constant",
-        "constant_with_warmup",
-        "inverse_sqrt",
-        "reduce_lr_on_plateau",
-        "cosine_with_min_lr",
-        "warmup_stable_decay",
-    ]
-    num_epochs: float
-    warmup_ratio: float
-
-
-@dataclass
-class Metric:
-    """Parameters for metric.
-
-    Args:
-        metric_ext1_up: upstream limit of the resection of the upstream end.
-        metric_ext1_down: downstream limit of the templated insertion of the upstream end.
-        metric_ext2_up: upstream limit of the templated insertion of the downstream end.
-        metric_ext2_down: downstream limit of the resection of the downstream end.
-    """
-
-    metric_ext1_up: int
-    metric_ext1_down: int
-    metric_ext2_up: int
-    metric_ext2_down: int
 
 
 preprocess_to_model = {
@@ -119,6 +47,8 @@ preprocess_to_model = {
     "CRIformer": ["CRIformer"],
     "CRIfuser": ["CRIfuser"],
 }
+
+metrics = ["NonWildTypeCrossEntropy"]
 
 
 def get_config() -> jsonargparse.Namespace:
@@ -131,47 +61,27 @@ def get_config() -> jsonargparse.Namespace:
 
     parser.add_argument("--config", action="config")
 
-    # Add commands. The run order is: train -> test -> upload -> inference -> app -> space
-    parser_command = parser.add_mutually_exclusive_group(
-        required=True,
-    )
-    parser_command.add_argument(
-        "--train",
-        action="store_true",
-        help="Train the model.",
-    )
-    parser_command.add_argument(
-        "--test",
-        action="store_true",
-        help="Test the model.",
-    )
-    parser_command.add_argument(
-        "--upload",
-        action="store_true",
-        help="Upload the model.",
-    )
-    parser_command.add_argument(
-        "--inference",
-        action="store_true",
-        help="Inference by the model.",
-    )
-    parser_command.add_argument(
-        "--app",
-        action="store_true",
-        help="Start model app.",
-    )
-    parser_command.add_argument(
-        "--space",
-        action="store_true",
-        help="Deploy the model app as huggingface space.",
+    parser.add_argument(
+        "command",
+        type=Literal["train", "test", "upload", "inference", "app", "space"],
+        help="The command. The run order is: train -> test -> upload -> inference -> app -> space.",
     )
 
     # Add global arguments.
     parser.add_class_arguments(theclass=Common)
-    parser.add_argument("--dataset", type=Dataset)
-    parser.add_argument("--optimizer", type=Optimizer)
-    parser.add_argument("--scheduler", type=Scheduler)
-    parser.add_argument("--metric", type=Metric)
+    parser.add_class_arguments(theclass=BaseConfig, nested_key="base_model")
+    parser.add_class_arguments(theclass=MyGenerator, nested_key="generator")
+    parser.add_class_arguments(theclass=MyDataset, nested_key="dataset")
+    parser.add_class_arguments(theclass=MyOptimizer, nested_key="optimizer")
+    parser.add_class_arguments(theclass=MyLRScheduler, nested_key="lr_scheduler")
+    for metric in metrics:
+        parser.add_class_arguments(
+            theclass=getattr(
+                importlib.import_module(f"preprocess.metric"),
+                metric,
+            ),
+            nested_key=f"metric.{metric}",
+        )
 
     parser_subcommands = parser.add_subcommands(required=False, dest="preprocess")
     for preprocess, model_names in preprocess_to_model.items():
@@ -191,41 +101,11 @@ def get_config() -> jsonargparse.Namespace:
             )
             preprocess_subcommands.add_subcommand(model_name, model_command)
             model_command.add_argument("--config", action="config")
-            # Construct dynamic function from model config class
-            theclass = getattr(
-                importlib.import_module(f"preprocess.{preprocess}.model"),
-                f"{model_name}Config",
-            )
-
-            signature = inspect.Signature(
-                parameters=[
-                    sig_value.replace(
-                        annotation=sig_value.annotation.__reduce__()[1][1][0],
-                        default=inspect._empty,
-                    )
-                    for sig_key, sig_value in inspect.signature(
-                        theclass.__init__
-                    ).parameters.items()
-                    if sig_key not in ["self", "args", "kwargs"]
-                ]
-            )
-
-            def dynamic_func(*args, **kwargs):
-                pass
-
-            dynamic_func.__signature__ = signature
-            dynamic_func.__doc__ = theclass.__init__.__doc__
-            model_command.add_function_arguments(
-                function=dynamic_func,
-                skip={"seed"},
+            model_command.add_class_arguments(
+                theclass=getattr(
+                    importlib.import_module(f"preprocess.{preprocess}.model"),
+                    f"{model_name}Config",
+                ),
             )
 
     return parser.parse_args()
-
-
-def get_logger(log_level):
-    logger = logging.getLogger("logger")
-    handler = logging.StreamHandler(stream=sys.stdout)
-    handler.setLevel(log_level)
-    logger.addHandler(handler)
-    return logger

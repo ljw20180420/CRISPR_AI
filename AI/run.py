@@ -4,22 +4,69 @@ import os
 import pathlib
 import importlib
 import inspect
+import numpy as np
 
 # change directory to the current script
 os.chdir(pathlib.Path(__file__).parent)
 
+# common
+## parse arguments
 from preprocess.config import get_config, get_logger
 
 args = get_config()
+
 if not args.preprocess:
     raise ReferenceError("No preprocess")
 model_name = args[args.preprocess].model_name
 if not model_name:
     raise ReferenceError("No model name")
 
-if args.train:
-    from preprocess.train import train
+## generator
+from preprocess.generator import MyGenerator
 
+my_generator = MyGenerator(seed=args.generator.seed)
+
+## dataset
+from preprocess.dataset import MyDataset
+
+my_dataset = MyDataset(
+    name=args.dataset.name,
+    test_ratio=args.dataset.test_ratio,
+    validation_ratio=args.dataset.validation_ratio,
+    random_insert_uplimit=args.dataset.random_insert_uplimit,
+    insert_uplimit=args.dataset.insert_uplimit,
+    owner=args.dataset.owner,
+)
+
+## optimizer
+from preprocess.optimizer import MyOptimizer
+
+my_optimizer = MyOptimizer(
+    name=args.optimizer.optimizer,
+    learning_rate=args.optimizer.learning_rate,
+    weight_decay=args.optimizer.weight_decay,
+)
+
+## scheduler
+from preprocess.lr_scheduler import MyLRScheduler
+
+my_lr_scheduler = MyLRScheduler(
+    name=args.lr_scheduler.name, warmup_ratio=args.lr_scheduler.warmup_ratio
+)
+
+## metric
+metric_module = importlib.import_module(f"preprocess.metric")
+metrics = {
+    metric: getattr(metric_module, metric)(**dict(params.items()))
+    for metric, params in vars(args.metric).items()
+}
+
+
+# commands
+if args.train:
+    my_generator()
+    my_dataset(generator=my_generator.np_rng)
+    ## model
     model_parameters = {
         param: value
         for param, value in getattr(
@@ -31,19 +78,37 @@ if args.train:
         ).items()
         if param not in ["config", "__default_config__"]
     }
-    model_parameters["seed"] = args.seed
-
-    signature = inspect.signature(
-        getattr(
-            importlib.import_module(f"preprocess.{args.preprocess}.load_data"),
-            "DataCollator",
-        ).__init__
+    model_module = importlib.import_module(f"preprocess.{args.preprocess}.model")
+    getattr(model_module, f"{model_name}Config").register_for_auto_class()
+    config = getattr(model_module, f"{model_name}Config")(
+        **model_parameters,
     )
+    getattr(model_module, f"{model_name}Model").register_for_auto_class()
+    model = getattr(model_module, f"{model_name}Model")(config)
+    assert model_name == model.config.model_type, "model name is not consistent"
+    ##
+    my_optimizer(model)
+    my_lr_scheduler(
+        dataset=my_dataset.dataset,
+        batch_size=args.batch_size,
+        num_epochs=args.num_epochs,
+        optimizer=my_optimizer.optimizer,
+    )
+
+    ## data collator
+    DataCollator = getattr(
+        importlib.import_module(f"preprocess.{args.preprocess}.load_data"),
+        "DataCollator",
+    )
+    signature = inspect.signature(DataCollator.__init__)
     data_collator_parameters = {
-        param: (model_parameters[param] if param != "output_label" else True)
+        param: model_parameters[param]
         for param in signature.parameters.keys()
-        if param not in ["self", "args", "kwargs"]
+        if param != "self"
     }
+    data_collator = DataCollator(**data_collator_parameters)
+
+    from preprocess.train import train
 
     train(
         preprocess=args.preprocess,

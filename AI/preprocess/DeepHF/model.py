@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
@@ -10,32 +9,26 @@ from typing import Literal, Optional
 from torch.backends import opt_einsum
 from einops.layers.torch import Rearrange
 from einops import rearrange, einsum, repeat
+from ..model import BaseModel, BaseConfig
 
 
-class DeepHFConfig(PretrainedConfig):
+class DeepHFConfig(BaseConfig):
     model_type = "DeepHF"
-    label_names = ["label"]
 
     def __init__(
         self,
-        ext1_up: Optional[int] = None,
-        ext1_down: Optional[int] = None,
-        ext2_up: Optional[int] = None,
-        ext2_down: Optional[int] = None,
-        seed: Optional[int] = None,
-        seq_length: Optional[int] = None,
-        em_drop: Optional[float] = None,
-        fc_drop: Optional[float] = None,
-        initializer: Optional[
-            Literal["lecun_uniform", "normal", "he_normal", "he_uniform"]
-        ] = None,
-        em_dim: Optional[int] = None,
-        rnn_units: Optional[int] = None,
-        fc_num_hidden_layers: Optional[int] = None,
-        fc_num_units: Optional[int] = None,
-        fc_activation: Optional[
-            Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"]
-        ] = None,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        seq_length: int,
+        em_drop: float,
+        fc_drop: float,
+        em_dim: int,
+        rnn_units: int,
+        fc_num_hidden_layers: int,
+        fc_num_units: int,
+        fc_activation: Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
         **kwargs,
     ) -> None:
         """DeepHF arguments.
@@ -48,7 +41,6 @@ class DeepHFConfig(PretrainedConfig):
             seq_length: input sequence length.
             em_drop: dropout probability of embedding.
             fc_drop: dropout probability of fully connected layer.
-            initializer: initializer method of DeepHF.
             em_dim: embedding dimension.
             rnn_units: BiLSTM output dimension.
             fc_num_hidden_layers: number of output fully connected layers.
@@ -62,23 +54,19 @@ class DeepHFConfig(PretrainedConfig):
         self.seq_length = seq_length
         self.em_drop = em_drop
         self.fc_drop = fc_drop
-        self.initializer = initializer
         self.em_dim = em_dim
         self.rnn_units = rnn_units
         self.fc_num_hidden_layers = fc_num_hidden_layers
         self.fc_num_units = fc_num_units
         self.fc_activation = fc_activation
-        self.seed = seed
         super().__init__(**kwargs)
 
 
-class DeepHFModel(PreTrainedModel):
+class DeepHFModel(BaseModel):
     config_class = DeepHFConfig
 
     def __init__(self, config) -> None:
         super().__init__(config)
-        # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.generator = torch.Generator().manual_seed(config.seed)
 
         self.embedding = nn.Embedding(
             num_embeddings=6,
@@ -143,37 +131,6 @@ class DeepHFModel(PreTrainedModel):
         self.mix_output = nn.Linear(self.config.fc_num_units, out_dim)
 
         self._initialize_model_layer_weights()
-
-    # huggingface use the name initialize_weights, use another name here.
-    def _initialize_model_layer_weights(self) -> None:
-        if self.config.initializer == "lecun_uniform":
-            init_func = (
-                lambda weight, generator=self.generator: nn.init.kaiming_uniform_(
-                    weight, nonlinearity="linear", generator=generator
-                )
-            )
-        elif self.config.initializer == "normal":
-            init_func = lambda weight, generator=self.generator: nn.init.normal_(
-                weight, generator=generator
-            )
-        elif self.config.initializer == "he_normal":
-            init_func = nn.init.kaiming_normal_
-        elif self.config.initializer == "he_uniform":
-            init_func = nn.init.kaiming_uniform_
-
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                init_func(m.weight)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         X = self.embedding(input["X"])

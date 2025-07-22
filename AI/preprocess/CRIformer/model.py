@@ -1,4 +1,4 @@
-from transformers import PreTrainedModel, RoFormerConfig, RoFormerModel
+from transformers import RoFormerConfig, RoFormerModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
@@ -9,26 +9,25 @@ from typing import Optional
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat, rearrange
+from ..model import BaseConfig, BaseModel
 
 
-class CRIformerConfig(RoFormerConfig):
+class CRIformerConfig(BaseConfig):
     model_type = "CRIformer"
-    label_names = ["label"]
 
     def __init__(
         self,
-        ext1_up: Optional[int] = None,
-        ext1_down: Optional[int] = None,
-        ext2_up: Optional[int] = None,
-        ext2_down: Optional[int] = None,
-        hidden_size: Optional[int] = None,
-        num_hidden_layers: Optional[int] = None,
-        num_attention_heads: Optional[int] = None,
-        intermediate_size: Optional[int] = None,
-        hidden_dropout_prob: Optional[float] = None,
-        attention_probs_dropout_prob: Optional[float] = None,
-        seed: Optional[int] = None,
-        **kwargs
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        hidden_size: int,
+        num_hidden_layers: int,
+        num_attention_heads: int,
+        intermediate_size: int,
+        hidden_dropout_prob: float,
+        attention_probs_dropout_prob: float,
+        **kwargs,
     ):
         """CRIformer parameters.
 
@@ -48,57 +47,49 @@ class CRIformerConfig(RoFormerConfig):
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.seed = seed
-        if ext1_up and ext1_down and ext2_up and ext2_down:
-            # The maximum sequence length that this model might ever be used with. Typically set this to something large just in case (e.g., 512 or 1024 or 1536).
-            max_position_embeddings = 2 ** int(
-                np.ceil(np.log2(ext1_up + ext1_down + ext2_up + ext2_down + 2))
-            )
-        else:
-            max_position_embeddings = 1
-        # vocab_size and max_position_embeddings are not in the signature of CRIformerConfig, so they will be in kwargs when loading the model. Set them in kwargs.
-        kwargs["vocab_size"] = 4  # ACGT
-        kwargs["max_position_embeddings"] = max_position_embeddings
-        super().__init__(
-            hidden_size=hidden_size,
-            num_hidden_layers=num_hidden_layers,
-            num_attention_heads=num_attention_heads,
-            intermediate_size=intermediate_size,
-            hidden_dropout_prob=hidden_dropout_prob,
-            attention_probs_dropout_prob=attention_probs_dropout_prob,
-            **kwargs,
-        )
+        self.hidden_size = hidden_size
+        self.num_hidden_layers = num_hidden_layers
+        self.num_attention_heads = num_attention_heads
+        self.intermediate_size = intermediate_size
+        self.hidden_dropout_prob = hidden_dropout_prob
+        self.attention_probs_dropout_prob = attention_probs_dropout_prob
+        super().__init__(**kwargs)
 
 
-class CRIformerModel(PreTrainedModel):
+class CRIformerModel(BaseModel):
     config_class = CRIformerConfig
 
     def __init__(self, config: CRIformerConfig) -> None:
         super().__init__(config)
-        self.generator = torch.Generator().manual_seed(config.seed)
-        self.model = RoFormerModel(config)
+        self.model = RoFormerModel(
+            RoFormerConfig(
+                vocab_size=4,  # ACGT
+                hidden_size=config.hidden_size,
+                num_hidden_layers=config.num_hidden_layers,
+                num_attention_heads=config.num_attention_heads,
+                intermediate_size=config.intermediate_size,
+                hidden_dropout_prob=config.hidden_dropout_prob,
+                attention_probs_dropout_prob=config.attention_probs_dropout_prob,
+                max_position_embeddings=2
+                ** int(
+                    np.ceil(
+                        np.log2(
+                            config.ext1_up
+                            + config.ext1_down
+                            + config.ext2_up
+                            + config.ext2_down
+                            + 2
+                        )
+                    )
+                ),
+            )
+        )
         self.mlp = nn.Linear(
             in_features=config.hidden_size,
             out_features=(config.ext1_up + config.ext1_down + 1)
             * (config.ext2_up + config.ext2_down + 1),
         )
         self._initialize_model_layer_weights()
-
-    # huggingface use the name initialize_weights, use another name here.
-    def _initialize_model_layer_weights(self) -> None:
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         # refcode: batch_size X (ext1_up + ext1_down + ext2_up + ext2_down)

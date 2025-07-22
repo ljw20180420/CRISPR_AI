@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
+import numpy as np
 import re
 import datasets
 from typing import Callable
-import torch
-import numpy as np
 from typing import Optional
 from .utils import GetInsertionCount, GetObservation
 
@@ -43,10 +42,10 @@ class CRISPRDataConfig(datasets.BuilderConfig):
         file_filter: Optional[Callable],
         test_ratio: float,
         validation_ratio: float,
-        seed: int,
-        features: datasets.Features,
         random_insert_uplimit: int,
         insert_uplimit: int,
+        generator: np.random.Generator,
+        features: datasets.Features,
         **kwargs
     ):
         """BuilderConfig for CRISPR_data.
@@ -59,10 +58,10 @@ class CRISPRDataConfig(datasets.BuilderConfig):
             file_filter: *function*, file_filter(file, ref1[optional], ref2[optional], cut1[optional], cut2[optional], author[optional]) -> bool.
             test_ratio: *float*, the ratio of data for test.
             validation_ratio: *float*, the ratio of data for validation.
-            seed: *int*, the random seed.
-            features: include the data structure in config (for auto generation of model card when test dataset).
             random_insert_uplimit: upper limit of random insertion size discriminated in observations.
             insert_uplimit: upper limit of insertion. Insertion longer than insert_uplimit is count in insert_count_long.
+            generator: the numpy random generator.
+            features: include the data structure in config (for auto generation of model card when test dataset).
             **kwargs: keyword arguments forwarded to super.
         """
         super().__init__(**kwargs)
@@ -72,7 +71,7 @@ class CRISPRDataConfig(datasets.BuilderConfig):
         self.file_filter = file_filter
         self.test_ratio = test_ratio
         self.validation_ratio = validation_ratio
-        self.seed = seed
+        self.generator = generator
         self.features = features
         self.random_insert_uplimit = random_insert_uplimit
         self.insert_uplimit = insert_uplimit
@@ -193,10 +192,10 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             ),
             test_ratio=0.05,
             validation_ratio=0.05,
-            seed=63036,
-            features=features,
             random_insert_uplimit=0,
             insert_uplimit=2,
+            generator=np.random.default_rng(63036),
+            features=features,
             name="SX_spcas9",
             version=VERSION,
             description="Data of spcas9",
@@ -210,10 +209,10 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             ),
             test_ratio=0.05,
             validation_ratio=0.05,
-            seed=63036,
-            features=features,
             random_insert_uplimit=0,
             insert_uplimit=2,
+            generator=np.random.default_rng(63036),
+            features=features,
             name="SX_spymac",
             version=VERSION,
             description="Data of spymac",
@@ -227,10 +226,10 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
             ),
             test_ratio=0.05,
             validation_ratio=0.05,
-            seed=63036,
-            features=features,
             random_insert_uplimit=0,
             insert_uplimit=2,
+            generator=np.random.default_rng(63036),
+            features=features,
             name="SX_ispymac",
             version=VERSION,
             description="Data of ispymac",
@@ -360,7 +359,7 @@ class CRISPRData(datasets.GeneratorBasedBuilder):
         ds = ds["train"].train_test_split(
             test_size=self.config.test_ratio + self.config.validation_ratio,
             shuffle=True,
-            seed=self.config.seed,
+            generator=self.config.generator,
         )
         ds_valid_test = ds["test"].train_test_split(
             test_size=self.config.test_ratio

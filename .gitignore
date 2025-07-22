@@ -12,7 +12,6 @@ AI/preprocess/FOREcasT/indelmap/CMakeFiles
 AI/preprocess/FOREcasT/indelmap/generated
 AI/preprocess/FOREcasT/indelmap/cmake_install.cmake
 AI/preprocess/FOREcasT/indelmap/CMakeCache.txt
-pipeline
 reference
 inference.output
 .env

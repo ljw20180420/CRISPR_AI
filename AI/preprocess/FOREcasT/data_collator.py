@@ -1,11 +1,13 @@
 import torch.nn.functional as F
 import numpy as np
 import torch
-from ..utils import GetMH
+from ..data_collator import DataCollatorBase
 
 
-class DataCollator:
-    def __init__(self, max_del_size: int, output_label: bool) -> None:
+class DataCollator(DataCollatorBase):
+    preprocess = "FOREcasT"
+
+    def __init__(self, max_del_size: int) -> None:
         self.max_del_size = max_del_size
         (
             self.lefts,
@@ -17,8 +19,7 @@ class DataCollator:
             self.feature_InsSeq,
             self.feature_fix,
         ) = self._pre_calculation()
-        self.get_mh = GetMH()
-        self.output_label = output_label
+        super().__init__()
 
     def _pre_calculation(self) -> tuple:
         lefts = np.concatenate(
@@ -161,20 +162,17 @@ class DataCollator:
         return (features1.unsqueeze(-1) * features2.unsqueeze(-2)).flatten(start_dim=-2)
 
     @torch.no_grad()
-    def __call__(
-        self,
-        examples: list[dict],
-    ) -> dict:
+    def __call__(self, examples: list[dict], output_label: bool) -> dict:
         features = []
-        if self.output_label:
-            counts, observation_list, cut1s, cut2s = [], [], []
+        if output_label:
+            counts, observation_list = []
         for example in examples:
             cut = example["cut1"]
             ref = (
                 example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
             )
             self._assert_reference_length_and_cut(ref, cut)
-            if self.output_label:
+            if output_label:
                 mh_matrix, _, _, mh_rep_num = self.get_mh(
                     example["ref1"],
                     example["ref2"],
@@ -183,12 +181,8 @@ class DataCollator:
                     ext1=0,
                     ext2=0,
                 )
-                observation = self.get_mh.get_observation(
-                    example, mh_matrix, mh_rep_num
-                )
+                observation = self.get_observation(example, mh_matrix, mh_rep_num)
                 observation_list.append(observation)
-                cut1s.append(example["cut1"])
-                cut2s.append(example["cut2"])
                 # the last 20 elements of lefts and rights correspond to insert_count
                 count = torch.cat(
                     [
@@ -286,7 +280,7 @@ class DataCollator:
             feature = torch.cat([self.feature_fix, feature_var], dim=-1)
             features.append(feature)
 
-        if self.output_label:
+        if output_label:
             return {
                 "input": {
                     "feature": torch.stack(features),
@@ -294,8 +288,6 @@ class DataCollator:
                 "label": {
                     "count": torch.stack(counts),
                     "observation": torch.from_numpy(np.stack(observation_list)),
-                    "cut1": np.array(cut1s),
-                    "cut2": np.array(cut2s),
                 },
             }
         return {

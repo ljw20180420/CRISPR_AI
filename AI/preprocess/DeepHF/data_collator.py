@@ -3,7 +3,8 @@ import torch
 import more_itertools
 import Bio.SeqUtils.MeltingTemp as Tm
 import subprocess
-from ..utils import GetMH, SeqTokenizer
+from ..data_collator import DataCollatorBase
+from ..utils import SeqTokenizer
 
 
 class TwoMerEnergy:
@@ -26,14 +27,15 @@ class TwoMerEnergy:
         ].sum()
 
 
-class DataCollator:
+class DataCollator(DataCollatorBase):
+    preprocess = "DeepHF"
+
     def __init__(
         self,
         ext1_up: int,
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
-        output_label: bool,
     ) -> None:
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
@@ -42,17 +44,16 @@ class DataCollator:
         self.seq_tokenizer = SeqTokenizer("PSACGT")
         self.two_mer_energy = TwoMerEnergy()
         self.energy_records = {}
-        self.get_mh = GetMH()
-        self.output_label = output_label
         self.ext_stem = "(((((((((.((((....))))...)))))))"
+        super().__init__()
 
     @torch.no_grad()
-    def __call__(self, examples: list[dict]) -> dict:
+    def __call__(self, examples: list[dict], output_label: bool) -> dict:
         self._get_energy(examples)
 
         Xs, biological_inputs = [], []
-        if self.output_label:
-            observation_list, cut1s, cut2s = [], [], []
+        if output_label:
+            observation_list = []
 
         for example in examples:
             ref = (
@@ -60,7 +61,7 @@ class DataCollator:
             )
             cut = example["cut1"]
             self._assert_reference_length_and_cut(ref, cut)
-            if self.output_label:
+            if output_label:
                 mh_matrix, _, _, mh_rep_num = self.get_mh(
                     example["ref1"],
                     example["ref2"],
@@ -69,12 +70,8 @@ class DataCollator:
                     ext1=0,
                     ext2=0,
                 )
-                observation = self.get_mh.get_observation(
-                    example, mh_matrix, mh_rep_num
-                )
+                observation = self.get_observation(example, mh_matrix, mh_rep_num)
                 observation_list.append(observation)
-                cut1s.append(example["cut1"])
-                cut2s.append(example["cut2"])
 
             sgRNA21mer = example["ref1"][example["cut1"] - 17 : example["cut1"] + 4]
             Xs.append(self.seq_tokenizer("S" + sgRNA21mer))
@@ -100,7 +97,7 @@ class DataCollator:
                 ]
             )
 
-        if self.output_label:
+        if output_label:
             return {
                 "input": {
                     "X": torch.from_numpy(np.stack(Xs)),
@@ -111,8 +108,6 @@ class DataCollator:
                 },
                 "label": {
                     "observation": torch.from_numpy(np.stack(observation_list)),
-                    "cut1": np.array(cut1s),
-                    "cut2": np.array(cut2s),
                 },
             }
         return {

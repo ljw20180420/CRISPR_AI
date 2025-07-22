@@ -13,9 +13,6 @@ from plotnine import (
     coord_trans,
 )
 from AI_models.benchmark.bench_lib import all_benchmark
-from AI_models.proxy import proxy
-
-proxy(url="socks5h://127.0.0.1:1080")
 
 black_list = [[27], [100]]
 for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:

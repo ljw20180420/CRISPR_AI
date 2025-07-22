@@ -1,28 +1,25 @@
 import numpy as np
 import pandas as pd
-from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Optional, Literal
 
-
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat
+from ..model import BaseModel, BaseConfig
 
 
-class LindelConfig(PretrainedConfig):
+class LindelConfig(BaseConfig):
     model_type = "Lindel"
-    label_names = ["count"]
 
     def __init__(
         self,
-        dlen: Optional[int] = None,
-        mh_len: Optional[int] = None,
-        reg_mode: Optional[Literal["l2", "l1"]] = None,
-        reg_const: Optional[float] = None,
-        seed: Optional[int] = None,
+        dlen: int,
+        mh_len: int,
+        reg_mode: Literal["l2", "l1"],
+        reg_const: float,
         **kwargs,
     ):
         """Lindel parameters
@@ -37,17 +34,14 @@ class LindelConfig(PretrainedConfig):
         self.mh_len = mh_len
         self.reg_mode = reg_mode
         self.reg_const = reg_const
-        self.seed = seed
         super().__init__(**kwargs)
 
 
-class LindelModel(PreTrainedModel):
+class LindelModel(BaseModel):
     config_class = LindelConfig
 
     def __init__(self, config: LindelConfig) -> None:
         super().__init__(config)
-        # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.generator = torch.Generator().manual_seed(config.seed)
         self.reg_mode = config.reg_mode
         self.reg_const = config.reg_const
         # onehotencoder(ref[cut-17:cut+3])
@@ -62,22 +56,6 @@ class LindelModel(PreTrainedModel):
         )
 
         self._initialize_model_layer_weights()
-
-    # huggingface use the name initialize_weights, use another name here.
-    def _initialize_model_layer_weights(self) -> None:
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         logit_indel = self.model_indel(input["input_indel"])

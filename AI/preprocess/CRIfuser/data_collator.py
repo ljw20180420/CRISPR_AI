@@ -4,10 +4,13 @@ import numpy as np
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import repeat, rearrange
-from ..utils import GetMH, SeqTokenizer
+from ..data_collator import DataCollatorBase
+from ..utils import SeqTokenizer
 
 
-class DataCollator:
+class DataCollator(DataCollatorBase):
+    preprocess = "CRIfuser"
+
     def __init__(
         self,
         ext1_up: int,
@@ -15,7 +18,6 @@ class DataCollator:
         ext2_up: int,
         ext2_down: int,
         max_micro_homology: int,
-        output_label: bool,
     ):
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
@@ -23,14 +25,13 @@ class DataCollator:
         self.ext2_down = ext2_down
         self.max_micro_homology = max_micro_homology
         self.seq_tokenizer = SeqTokenizer("ACGT")
-        self.get_mh = GetMH()
-        self.output_label = output_label
+        super().__init__()
 
     @torch.no_grad()
-    def __call__(self, examples: list[dict]) -> dict:
+    def __call__(self, examples: list[dict], output_label: bool) -> dict:
         conditions = []
-        if self.output_label:
-            observation_list, cut1s, cut2s = [], [], []
+        if output_label:
+            observation_list = []
         for example in examples:
             ref = (
                 example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
@@ -45,13 +46,9 @@ class DataCollator:
                 ext1=0,
                 ext2=0,
             )
-            if self.output_label:
-                observation = self.get_mh.get_observation(
-                    example, mh_matrix, mh_rep_num
-                )
+            if output_label:
+                observation = self.get_observation(example, mh_matrix, mh_rep_num)
                 observation_list.append(observation)
-                cut1s.append(example["cut1"])
-                cut2s.append(example["cut2"])
 
             mh_matrix = (
                 rearrange(
@@ -112,15 +109,13 @@ class DataCollator:
                     dtype=np.float32,
                 )
             )
-        if self.output_label:
+        if output_label:
             return {
                 "input": {
                     "condition": torch.from_numpy(np.stack(conditions)),
                 },
                 "label": {
                     "observation": torch.from_numpy(np.stack(observation_list)),
-                    "cut1": np.array(cut1s),
-                    "cut2": np.array(cut2s),
                 },
             }
         return {

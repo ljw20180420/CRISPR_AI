@@ -1,14 +1,10 @@
-from transformers import PretrainedConfig, PreTrainedModel
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from typing import Optional
 import pickle
 from sklearn.neighbors import KNeighborsRegressor
-from huggingface_hub import HfFileSystem
 import os
-import pathlib
-import logging
 import datasets
 from torch.utils.data import DataLoader
 import numpy as np
@@ -18,17 +14,17 @@ from tqdm import tqdm
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat
+from .data_collator import DataCollator
+from ..model import BaseModel, BaseConfig
 
 
-class inDelphiConfig(PretrainedConfig):
+class inDelphiConfig(BaseConfig):
     model_type = "inDelphi"
-    label_names = ["label"]
 
     def __init__(
         self,
-        DELLEN_LIMIT: Optional[int] = None,
-        mid_dim: Optional[int] = None,
-        seed: Optional[int] = None,
+        DELLEN_LIMIT: int,
+        mid_dim: int,
         **kwargs,
     ) -> None:
         """inDelphi paramters.
@@ -39,17 +35,14 @@ class inDelphiConfig(PretrainedConfig):
         """
         self.DELLEN_LIMIT = DELLEN_LIMIT
         self.mid_dim = mid_dim
-        self.seed = seed
         super().__init__(**kwargs)
 
 
-class inDelphiModel(PreTrainedModel):
+class inDelphiModel(BaseModel):
     config_class = inDelphiConfig
 
     def __init__(self, config: inDelphiConfig) -> None:
         super().__init__(config)
-        # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.generator = torch.Generator().manual_seed(config.seed)
         self.DELLEN_LIMIT = config.DELLEN_LIMIT
         self.register_buffer(
             "del_lens", torch.arange(1, config.DELLEN_LIMIT, dtype=torch.float32)
@@ -77,22 +70,6 @@ class inDelphiModel(PreTrainedModel):
         return torch.exp(logits.squeeze() - 0.25 * del_lens) * (
             del_lens < self.DELLEN_LIMIT
         )
-
-    # huggingface use the name initialize_weights, use another name here.
-    def _initialize_model_layer_weights(self) -> None:
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         batch_size = input["mh_input"].shape[0]
@@ -177,15 +154,18 @@ class inDelphiModel(PreTrainedModel):
         self,
         examples: list[dict],
         batch: dict,
-        auxilary_model: PreTrainedModel,
     ) -> pd.DataFrame:
         result = self(batch["input"])
-        insert_probabilities, insert_1bps = auxilary_model(
-            result["total_del_len_weight"],
-            batch["onebp_feature"],
-            batch["m654"],
-            use_m654=False,
+        knn_feature = self._get_knn_feature(
+            result["total_del_len_weight"], batch["input"]["onebp_features"]
         )
+        insert_probabilities = self.knn.predict(
+            (knn_feature - self.knn_feature_mean) / self.knn_feature_std
+        )
+        insert_1bps = self.m4s[
+            batch["input"]["m654"] % 4
+        ]  # insert_1bps = self.m654s[batch["input"]["m654"]]
+
         batch_size = result["mh_weight"].shape[0]
         delete_probabilities = einsum(
             F.normalize(
@@ -299,31 +279,51 @@ class inDelphiModel(PreTrainedModel):
 
         return df
 
+    def load_checkpoint(self, checkpoint_path: os.PathLike) -> None:
+        super().load_checkpoint(checkpoint_path)
+        with open(os.path.join(os.fspath(checkpoint_path), "knn.pkl"), "rb") as fd:
+            (
+                self.knn,
+                self.knn_feature_mean,
+                self.knn_feature_std,
+                self.m654s,
+                self.m4s,
+            ) = pickle.load(fd)
 
-class inDelphiAuxilary(PreTrainedModel):
-    config_class = inDelphiConfig
-
-    def __init__(self, config: inDelphiConfig) -> None:
-        super().__init__(config)
-        self.workaround_to_save_the_model = nn.Parameter(torch.zeros(1))
-
-    def load_auxilary(self, model_pickle_file: str | pathlib.Path) -> None:
-        if os.path.exists(model_pickle_file):
-            with open(model_pickle_file, "rb") as fd:
-                knn_features, insert_probabilities, m654s = pickle.load(fd)
-        else:
-            fs = HfFileSystem()
-            with fs.open(model_pickle_file, "rb") as fd:
-                knn_features, insert_probabilities, m654s = pickle.load(fd)
-
-        self._compose_auxilary(knn_features, insert_probabilities, m654s)
-
-    def _compose_auxilary(
+    def train_scikit_learn(
         self,
-        knn_features: np.ndarray,
-        insert_probabilities: np.ndarray,
-        m654s: np.ndarray,
+        data_collator: DataCollator,
+        ds: datasets.Dataset,
+        batch_size: int,
     ) -> None:
+        dl = DataLoader(
+            dataset=ds["train"],
+            batch_size=batch_size,
+            collate_fn=lambda examples: examples,
+        )
+
+        with torch.no_grad():
+            knn_features = []
+            insert_probabilities = []
+            m654s = np.zeros((4**3, 4), dtype=int)
+            for examples in tqdm(dl):
+                batch = data_collator(examples, output_label=True)
+                result = self(batch["input"])
+                knn_features.append(
+                    self._get_knn_feature(
+                        result["total_del_len_weight"],
+                        batch["input"]["onebp_feature"],
+                    )
+                )
+                np.add.at(
+                    m654s,
+                    batch["input"]["m654"],
+                    batch["label"]["insert_1bp"],
+                )
+                insert_probabilities.append(batch["label"]["insert_probability"])
+            knn_features = np.concatenate(knn_features, axis=0)
+            insert_probabilities = np.concatenate(insert_probabilities, axis=0)
+
         self.knn_feature_mean = knn_features.mean(axis=0)
         self.knn_feature_std = knn_features.std(axis=0)
         self.knn = KNeighborsRegressor(weights="distance").fit(
@@ -339,91 +339,6 @@ class inDelphiAuxilary(PreTrainedModel):
             np.linalg.norm(self.m4s, ord=1, axis=1, keepdims=True),
             1e-6,
         )
-
-    def __call__(
-        self,
-        total_del_len_weights: torch.Tensor,
-        onebp_features: np.ndarray,
-        m654s: np.ndarray,
-        use_m654: bool,
-    ) -> tuple[np.ndarray]:
-        knn_feature = self._get_knn_feature(total_del_len_weights, onebp_features)
-        insert_probabilities = self.knn.predict(
-            (knn_feature - self.knn_feature_mean) / self.knn_feature_std
-        )
-
-        if use_m654:
-            insert_1bps = self.m654s[m654s]
-        else:
-            insert_1bps = self.m4s[m654s % 4]
-
-        return insert_probabilities, insert_1bps
-
-    def train_auxilary(
-        self,
-        preprocess: str,
-        model_name: str,
-        data_collator,  # Type hint make model.py depends on load_data.py, thereby utils.py.
-        data_name: str,
-        ds: datasets.Dataset,
-        output_dir: pathlib.Path,
-        batch_size: int,
-        device: str,
-        logger: logging.Logger,
-    ) -> None:
-        logger.info("loading model")
-        model = inDelphiModel.from_pretrained(
-            output_dir / preprocess / model_name / data_name / "core_model"
-        ).to(device)
-
-        logger.info("loading data")
-        dl = DataLoader(
-            dataset=ds["train"],
-            batch_size=batch_size,
-            collate_fn=lambda examples: examples,
-        )
-
-        logger.info("train inDelphi insertion model")
-        with torch.no_grad():
-            knn_features = []
-            insert_probabilities = []
-            m654s = np.zeros((4**3, 4), dtype=int)
-            for examples in tqdm(dl):
-                data_collator.output_label = True
-                batch = data_collator(examples)
-                result = model(
-                    batch["mh_input"].to(model.device),
-                    batch["mh_del_len"].to(model.device),
-                )
-                knn_features.append(
-                    self._get_knn_feature(
-                        result["total_del_len_weight"],
-                        batch["onebp_feature"],
-                    )
-                )
-                np.add.at(
-                    m654s,
-                    batch["m654"],
-                    batch["insert_1bp"],
-                )
-                insert_probabilities.append(batch["insert_probability"])
-            knn_features = np.concatenate(knn_features, axis=0)
-            insert_probabilities = np.concatenate(insert_probabilities, axis=0)
-
-        logger.info("save")
-        self.save_pretrained(
-            output_dir / preprocess / model_name / data_name / "auxilary_model"
-        )
-        with open(
-            output_dir
-            / preprocess
-            / model_name
-            / data_name
-            / "auxilary_model"
-            / "auxilary.pkl",
-            "wb",
-        ) as fd:
-            pickle.dump([knn_features, insert_probabilities, m654s], fd)
 
     def _get_knn_feature(
         self, total_del_len_weights: torch.Tensor, onebp_features: np.ndarray

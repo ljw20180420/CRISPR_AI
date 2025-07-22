@@ -22,10 +22,8 @@ def test(
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
-    metric_ext1_up: int,
-    metric_ext1_down: int,
-    metric_ext2_up: int,
-    metric_ext2_down: int,
+    trial_name: str,
+    metrics: dict,
     output_dir: pathlib.Path,
     batch_size: int,
     seed: int,
@@ -40,7 +38,7 @@ def test(
         models["core_model"] = getattr(
             model_module, f"{model_name}Model"
         ).from_pretrained(
-            output_dir / preprocess / model_name / data_name / "core_model"
+            output_dir / preprocess / model_name / data_name / trial_name / "core_model"
         )
         assert (
             model_name == models["core_model"].config.model_type
@@ -51,13 +49,19 @@ def test(
         models["auxilary_model"] = getattr(
             model_module, f"{model_name}Auxilary"
         ).from_pretrained(
-            output_dir / preprocess / model_name / data_name / "auxilary_model"
+            output_dir
+            / preprocess
+            / model_name
+            / data_name
+            / trial_name
+            / "auxilary_model"
         )
         models["auxilary_model"].load_auxilary(
             model_pickle_file=output_dir
             / preprocess
             / model_name
             / data_name
+            / trial_name
             / "auxilary_model"
             / "auxilary.pkl"
         )
@@ -87,17 +91,9 @@ def test(
     )
 
     logger.info("test pipeline")
-    os.makedirs(
-        f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}",
-        exist_ok=True,
-    )
-    non_wild_type_cross_entropy = NonWildTypeCrossEntropy(
-        metric_ext1_up=metric_ext1_up,
-        metric_ext1_down=metric_ext1_down,
-        metric_ext2_up=metric_ext2_up,
-        metric_ext2_down=metric_ext2_down,
-    )
-    dfs, total_loss, total_loss_num, accum_sample_idx = [], 0, 0, 0
+    dfs, accum_sample_idx = [], 0
+    total_loss = {metric: 0.0 for metric in metrics.keys()}
+    total_loss_num = {metric: 0 for metric in metrics.keys()}
     for examples in tqdm(dl):
         current_batch_size = len(examples)
         df, loss, loss_num = pipe(
@@ -109,7 +105,12 @@ def test(
         total_loss += loss
         total_loss_num += loss_num
     with open(
-        f"preprocess/{preprocess}/pipeline/{model_name}/{data_name}/mean_test_loss.txt",
+        output_dir
+        / preprocess
+        / model_name
+        / data_name
+        / trial_name
+        / "test_metric.json",
         "w",
     ) as fd:
         fd.write(f"{total_loss / total_loss_num}\n")

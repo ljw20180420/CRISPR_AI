@@ -1,10 +1,13 @@
 import torch
 import numpy as np
-from ..utils import GetMH, SeqTokenizer
+from ..data_collator import DataCollatorBase
+from ..utils import SeqTokenizer
 
 
-class DataCollator:
-    def __init__(self, DELLEN_LIMIT: int, output_label: bool) -> None:
+class DataCollator(DataCollatorBase):
+    preprocess = "inDelphi"
+
+    def __init__(self, DELLEN_LIMIT: int) -> None:
         self.DELLEN_LIMIT = DELLEN_LIMIT
         self.lefts = np.concatenate(
             [
@@ -21,23 +24,18 @@ class DataCollator:
         self.del_lens = self.rights - self.lefts
         self.seq_tokenizer = SeqTokenizer("ACGT")
         self.epsilon = 1e-6
-        self.get_mh = GetMH()
-        self.output_label = output_label
+        super().__init__()
 
-    def __call__(self, examples: list[dict]) -> dict:
+    def __call__(self, examples: list[dict], output_label: bool) -> dict:
         mh_inputs, mh_del_lens, onebp_features, m654s, rightests = [], [], [], [], []
-        if self.output_label:
+        if output_label:
             (
                 genotype_counts,
                 total_del_len_counts,
                 insert_1bps,
                 insert_probabilities,
                 observation_list,
-                cut1s,
-                cut2s,
             ) = (
-                [],
-                [],
                 [],
                 [],
                 [],
@@ -111,7 +109,7 @@ class DataCollator:
                     base=4,
                 )
             )
-            if self.output_label:
+            if output_label:
                 mh_idx = mh_matrix.nonzero()
                 mh_val = mh_matrix[mh_idx]
                 # construct observations
@@ -130,7 +128,7 @@ class DataCollator:
                     len(example["ref1"]) + 1,
                 )
                 # correct observations
-                observations = self.get_mh.correct_observation(
+                observations = self.correct_observation(
                     observations, mh_matrix, mh_rep_num
                 )
                 # cumulate observations for all random insertion size
@@ -147,8 +145,6 @@ class DataCollator:
                     len(example["ref2"]) + 1, len(example["ref1"]) + 1
                 )
                 observation_list.append(observation)
-                cut1s.append(example["cut1"])
-                cut2s.append(example["cut2"])
                 # del_count
                 del_count = observations[
                     self.rights + example["cut2"],
@@ -206,7 +202,7 @@ class DataCollator:
         )
         onebp_features = np.stack(onebp_features)
         m654s = np.array(m654s)
-        if self.output_label:
+        if output_label:
             genotype_counts = torch.stack(
                 [
                     torch.from_numpy(
@@ -230,7 +226,7 @@ class DataCollator:
             )
             insert_probabilities = np.array(insert_probabilities)
             insert_1bps = np.array(insert_1bps)
-        if self.output_label:
+        if output_label:
             return {
                 "input": {
                     "mh_input": mh_inputs,
@@ -245,8 +241,6 @@ class DataCollator:
                     "insert_probability": insert_probabilities,
                     "insert_1bp": insert_1bps,
                     "observation": torch.from_numpy(np.stack(observation_list)),
-                    "cut1": np.array(cut1s),
-                    "cut2": np.array(cut2s),
                 },
             }
         return {

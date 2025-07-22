@@ -37,6 +37,7 @@ def train(
     random_insert_uplimit: int,
     insert_uplimit: int,
     owner: str,
+    trial_name: str,
     optimizer: str,
     learning_rate: float,
     scheduler: str,
@@ -83,6 +84,7 @@ def train(
             / preprocess
             / model.config.model_type
             / data_name
+            / trial_name
             / "core_model",
             seed=seed,
             logging_strategy="epoch",
@@ -131,6 +133,7 @@ def train(
             data_collator=data_collator,  # pass data collator to inDelphi_insert.train so that model.py does not depend on load_data.py, thereby does not depend on utils.py
             data_name=data_name,
             ds=ds,
+            trial_name=trial_name,
             output_dir=output_dir,
             batch_size=batch_size,
             device=device,

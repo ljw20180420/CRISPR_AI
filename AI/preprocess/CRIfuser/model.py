@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from diffusers.models.embeddings import get_timestep_embedding
-from transformers import PretrainedConfig, PreTrainedModel
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
@@ -11,40 +10,37 @@ from typing import Optional, Literal
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, rearrange, repeat
+from ..model import BaseModel, BaseConfig
 
 
-class CRIfuserConfig(PretrainedConfig):
+class CRIfuserConfig(BaseConfig):
     model_type = "CRIfuser"
-    label_names = ["label"]
 
     def __init__(
         self,
-        ext1_up: Optional[int] = None,
-        ext1_down: Optional[int] = None,
-        ext2_up: Optional[int] = None,
-        ext2_down: Optional[int] = None,
-        max_micro_homology: Optional[int] = None,
-        loss_weights: Optional[
-            dict[
-                Literal[
-                    "double_sample_negative_ELBO",
-                    "importance_sample_negative_ELBO",
-                    "forward_negative_ELBO",
-                    "reverse_negative_ELBO",
-                    "sample_CE",
-                    "non_sample_CE",
-                ],
-                float,
-            ]
-        ] = None,
-        unet_channels: Optional[list[int]] = None,
-        noise_scheduler: Optional[Literal["linear", "cosine", "exp", "uniform"]] = None,
-        noise_timesteps: Optional[int] = None,
-        cosine_factor: Optional[float] = None,
-        exp_scale: Optional[float] = None,
-        exp_base: Optional[float] = None,
-        uniform_scale: Optional[float] = None,
-        seed: Optional[int] = None,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        max_micro_homology: int,
+        loss_weights: dict[
+            Literal[
+                "double_sample_negative_ELBO",
+                "importance_sample_negative_ELBO",
+                "forward_negative_ELBO",
+                "reverse_negative_ELBO",
+                "sample_CE",
+                "non_sample_CE",
+            ],
+            float,
+        ],
+        unet_channels: list[int],
+        noise_scheduler: Literal["linear", "cosine", "exp", "uniform"],
+        noise_timesteps: int,
+        cosine_factor: float,
+        exp_scale: float,
+        exp_base: float,
+        uniform_scale: float,
         **kwargs,
     ):
         """CRIfuser arguments.
@@ -77,18 +73,14 @@ class CRIfuserConfig(PretrainedConfig):
         self.exp_scale = exp_scale
         self.exp_base = exp_base
         self.uniform_scale = uniform_scale
-        self.seed = seed
         super().__init__(**kwargs)
 
 
-class CRIfuserModel(PreTrainedModel):
+class CRIfuserModel(BaseModel):
     config_class = CRIfuserConfig
 
     def __init__(self, config: CRIfuserConfig) -> None:
         super().__init__(config)
-        # In more recent versions of PyTorch, you no longer need to explicitly register_parameter, it's enough to set a member of your nn.Module with nn.Parameter to "notify" pytorch that this variable should be treated as a trainable parameter (https://stackoverflow.com/questions/59234238/how-to-add-parameters-in-module-class-in-pytorch-custom-model).
-        self.c_generator = torch.Generator(device="cpu").manual_seed(config.seed)
-        self.g_generator = torch.Generator(device="cuda").manual_seed(config.seed)
         self.stationary_sampler1 = Categorical(
             torch.ones(config.ext1_up + config.ext1_down + 1)
         )
@@ -235,29 +227,6 @@ class CRIfuserModel(PreTrainedModel):
         )
         self._initialize_model_layer_weights()
 
-    def _auto_set_device(self) -> None:
-        if self.device == torch.device("cpu"):
-            self.generator = self.c_generator
-        else:
-            self.generator = self.g_generator
-
-    # huggingface use the name initialize_weights, use another name here.
-    def _initialize_model_layer_weights(self) -> None:
-        self._auto_set_device()
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, mean=0, std=1, generator=self.generator)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
     def single_pass(
         self,
         condition: torch.Tensor,
@@ -314,7 +283,7 @@ class CRIfuserModel(PreTrainedModel):
         return rearrange(p_theta_0_on_t_logit, "b 1 r2 r1 -> b r2 r1")
 
     def forward(self, input: dict, label: dict) -> dict:
-        self._auto_set_device()
+        self._auto_set_generator()
         batch_size, _, ref2_dim, ref1_dim = input["condition"].shape  # b, c, r2, r1
         observation = torch.stack(
             [
@@ -346,18 +315,21 @@ class CRIfuserModel(PreTrainedModel):
         x1t, x2t = self._add_noise(x10, x20, t)
 
         p_theta_0_on_t_logit = self.single_pass(input["condition"], x1t, x2t, t)
+        loss, loss_num = self.loss_fun(
+            input["condition"],
+            x10,
+            x20,
+            x1t,
+            x2t,
+            t,
+            p_theta_0_on_t_logit,
+            observation,
+        )
+
         return {
             "p_theta_0_on_t_logit": p_theta_0_on_t_logit,
-            "loss": self.loss_fun(
-                input["condition"],
-                x10,
-                x20,
-                x1t,
-                x2t,
-                t,
-                p_theta_0_on_t_logit,
-                observation,
-            ),
+            "loss": loss,
+            "loss_num": loss_num,
         }
 
     def loss_fun(
@@ -410,8 +382,10 @@ class CRIfuserModel(PreTrainedModel):
                 self._non_sample_CE(x1t, x2t, t, p_theta_0_on_t_logit, observation)
                 * self.config.loss_weights["non_sample_CE"]
             )
-        loss = (loss * observation.sum(dim=[1, 2]) * self._beta(t)).sum()
-        return loss
+        loss_num = observation.sum(dim=[1, 2]) * self._beta(t)
+        loss = (loss * loss_num).sum()
+        loss_num = loss_num.sum()
+        return loss, loss_num
 
     def eval_output(self, batch: dict) -> pd.DataFrame:
         batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape

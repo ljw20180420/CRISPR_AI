@@ -237,10 +237,21 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+Use os.PathLike
+Add base class for model
+Output both loss and loss_num from model forward
+implement load and save in model
+do not include DataCollator in the model
+remove pipeline
+use auto_cli of jsonargparse
+custom train loop, so that PretrainConfig does not need default values
+separate generator
 In the paper, remove dependency of beta on d, and apply beta_t to both ELBO and CE.
+specify model parameters by include model yaml in the total config.yaml, so that required=True comes back, and it is not necessary to check whether subcommands are given
+support multiple metrics
+add trial_name
 save test result and pipeline in the ouput directory instead of project directory
-include load_data in model, and include model in pipeline
-custom train loop
+do pre-computation when initialize data collator and model so that subsequent computations are faster
 Remove auxilary model
 add non-wild-type metric to the trainer
 learning rate
