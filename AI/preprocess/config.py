@@ -4,9 +4,8 @@ import importlib
 from dataclasses import dataclass
 from typing import Literal
 import importlib
-import inspect
-from .model import BaseConfig
 from .generator import MyGenerator
+from .initializer import MyInitializer
 from .dataset import MyDataset
 from .optimizer import MyOptimizer
 from .lr_scheduler import MyLRScheduler
@@ -69,8 +68,8 @@ def get_config() -> jsonargparse.Namespace:
 
     # Add global arguments.
     parser.add_class_arguments(theclass=Common)
-    parser.add_class_arguments(theclass=BaseConfig, nested_key="base_model")
     parser.add_class_arguments(theclass=MyGenerator, nested_key="generator")
+    parser.add_class_arguments(theclass=MyInitializer, nested_key="initializer")
     parser.add_class_arguments(theclass=MyDataset, nested_key="dataset")
     parser.add_class_arguments(theclass=MyOptimizer, nested_key="optimizer")
     parser.add_class_arguments(theclass=MyLRScheduler, nested_key="lr_scheduler")

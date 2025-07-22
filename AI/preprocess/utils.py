@@ -1,5 +1,7 @@
 import numpy as np
 import logging
+import inspect
+import sys
 
 
 def get_logger(log_level):
@@ -19,3 +21,11 @@ class SeqTokenizer:
 
     def __call__(self, seq: str) -> np.ndarray:
         return self.int2idx[np.frombuffer(seq.encode(), dtype=np.int8)]
+
+
+def config_dict(obj: object) -> dict:
+    return {
+        param: getattr(obj, param)
+        for param in inspect.signature(obj.__init__).parameters.keys()
+        if param != "self"
+    }

@@ -1,6 +1,7 @@
 import numpy as np
 from datasets import load_dataset
 from typing import Literal
+from .generator import MyGenerator
 
 
 class MyDataset:
@@ -30,7 +31,7 @@ class MyDataset:
         self.insert_uplimit = insert_uplimit
         self.owner = owner
 
-    def __call__(self, generator: np.random.Generator) -> None:
+    def __call__(self, my_generator: MyGenerator) -> object:
         self.dataset = load_dataset(
             path=f"{self.owner}/CRISPR_data",
             name=self.name,
@@ -39,5 +40,6 @@ class MyDataset:
             validation_ratio=self.validation_ratio,
             random_insert_uplimit=self.random_insert_uplimit,
             insert_uplimit=self.insert_uplimit,
-            generator=generator,
+            generator=my_generator.np_rng,
         )
+        return self

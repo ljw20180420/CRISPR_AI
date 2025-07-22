@@ -23,7 +23,6 @@ class Train:
         num_epochs: int,
         device: str,
         resume_from_checkpoint: bool,
-        logger: logging.Logger,
     ):
         """Train arguments.
 
@@ -33,16 +32,12 @@ class Train:
             batch_size: Batch size.
             num_epochs: Total number of training epochs to perform.
             device: Device.
-            resume_from_checkpoint: Continue training from the last checkpoint.
-            log_level: Log level.
         """
         self.output_dir = output_dir
         self.trial_name = trial_name
         self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.device = device
-        self.resume_from_checkpoint = resume_from_checkpoint
-        self.logger = logger
 
     def load_checkpoint(self, checkpoint_path: str, model: PreTrainedModel):
         self.logger.info(f"Loading model from {checkpoint_path}.")
@@ -64,6 +59,7 @@ class Train:
         my_optimizer: MyOptimizer,
         my_lr_scheduler: MyLRScheduler,
         metrics: dict,
+        logger: logging.Logger,
     ):
         os.makedirs(self.output_dir, exist_ok=True)
 

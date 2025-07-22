@@ -9,10 +9,10 @@ from typing import Literal, Optional
 from torch.backends import opt_einsum
 from einops.layers.torch import Rearrange
 from einops import rearrange, einsum, repeat
-from ..model import BaseModel, BaseConfig
+from transformers import PreTrainedModel, PretrainedConfig
 
 
-class DeepHFConfig(BaseConfig):
+class DeepHFConfig(PretrainedConfig):
     model_type = "DeepHF"
 
     def __init__(
@@ -62,7 +62,7 @@ class DeepHFConfig(BaseConfig):
         super().__init__(**kwargs)
 
 
-class DeepHFModel(BaseModel):
+class DeepHFModel(PreTrainedModel):
     config_class = DeepHFConfig
 
     def __init__(self, config) -> None:
@@ -129,8 +129,6 @@ class DeepHFModel(BaseModel):
             self.config.ext2_up + self.config.ext2_down + 1
         )
         self.mix_output = nn.Linear(self.config.fc_num_units, out_dim)
-
-        self._initialize_model_layer_weights()
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         X = self.embedding(input["X"])

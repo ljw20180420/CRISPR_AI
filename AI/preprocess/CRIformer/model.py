@@ -1,4 +1,9 @@
-from transformers import RoFormerConfig, RoFormerModel
+from transformers import (
+    PreTrainedModel,
+    PretrainedConfig,
+    RoFormerConfig,
+    RoFormerModel,
+)
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
@@ -10,10 +15,9 @@ from typing import Optional
 from torch.backends import opt_einsum
 from einops import einsum, repeat, rearrange
 from .data_collator import DataCollator
-from ..model import BaseConfig, BaseModel
 
 
-class CRIformerConfig(BaseConfig):
+class CRIformerConfig(PretrainedConfig):
     model_type = "CRIformer"
 
     def __init__(
@@ -57,7 +61,7 @@ class CRIformerConfig(BaseConfig):
         super().__init__(**kwargs)
 
 
-class CRIformerModel(BaseModel):
+class CRIformerModel(PreTrainedModel):
     config_class = CRIformerConfig
 
     def __init__(self, config: CRIformerConfig) -> None:
@@ -90,7 +94,6 @@ class CRIformerModel(BaseModel):
             out_features=(config.ext1_up + config.ext1_down + 1)
             * (config.ext2_up + config.ext2_down + 1),
         )
-        self._initialize_model_layer_weights()
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         # refcode: batch_size X (ext1_up + ext1_down + ext2_up + ext2_down)

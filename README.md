@@ -237,6 +237,8 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+Do not forget to initialize model
+Do not use inherit for data_collator, put methods into utils through compositions.
 Use os.PathLike
 implement load and save in base model and scikit-learn related models, say inDelphi
 do not include DataCollator in the model

@@ -33,7 +33,7 @@ class MyLRScheduler:
 
     def __call__(
         self, dataset: Dataset, batch_size: int, num_epochs: int, optimizer: Optimizer
-    ) -> None:
+    ) -> object:
         num_training_steps = np.ceil(len(dataset) / batch_size) * num_epochs
         self.lr_scheduler = get_scheduler(
             name=self.name,
@@ -42,3 +42,5 @@ class MyLRScheduler:
             num_training_steps=num_training_steps,
             scheduler_specific_kwargs={},
         )
+
+        return self

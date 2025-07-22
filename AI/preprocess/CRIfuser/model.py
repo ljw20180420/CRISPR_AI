@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
+from transformers import PreTrainedModel, PretrainedConfig
 from typing import Optional, Literal
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -12,10 +13,10 @@ import matplotlib.animation as animation
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, rearrange, repeat
-from ..model import BaseModel, BaseConfig
+from ..generator import MyGenerator
 
 
-class CRIfuserConfig(BaseConfig):
+class CRIfuserConfig(PretrainedConfig):
     model_type = "CRIfuser"
 
     def __init__(
@@ -78,7 +79,7 @@ class CRIfuserConfig(BaseConfig):
         super().__init__(**kwargs)
 
 
-class CRIfuserModel(BaseModel):
+class CRIfuserModel(PreTrainedModel):
     config_class = CRIfuserConfig
 
     def __init__(self, config: CRIfuserConfig) -> None:
@@ -227,7 +228,6 @@ class CRIfuserModel(BaseModel):
             out_channels=1,
             kernel_size=1,
         )
-        self._initialize_model_layer_weights()
 
     def single_pass(
         self,
@@ -284,8 +284,8 @@ class CRIfuserModel(BaseModel):
         p_theta_0_on_t_logit = self.out_cov(x)
         return rearrange(p_theta_0_on_t_logit, "b 1 r2 r1 -> b r2 r1")
 
-    def forward(self, input: dict, label: dict) -> dict:
-        self._auto_set_generator()
+    def forward(self, input: dict, label: dict, my_generator: MyGenerator) -> dict:
+        generator = my_generator.get_torch_generator_by_device(self.device)
         batch_size, _, ref2_dim, ref1_dim = input["condition"].shape  # b, c, r2, r1
         observation = torch.stack(
             [
@@ -302,7 +302,7 @@ class CRIfuserModel(BaseModel):
             1,
             self.config.noise_timesteps,
             (batch_size,),
-            generator=self.generator,
+            generator=generator,
             device=self.device,
         )
         # handle zero observation case
@@ -561,18 +561,20 @@ class CRIfuserModel(BaseModel):
         x10: torch.Tensor,
         x20: torch.Tensor,
         t: torch.Tensor,
+        my_generator: MyGenerator,
     ) -> tuple:
+        generator = my_generator.get_torch_generator_by_device(self.device)
         # sample time and forward diffusion
         batch_size = t.shape[0]
         mask = torch.rand(
-            batch_size, generator=self.generator, device=self.device
+            batch_size, generator=generator, device=self.device
         ) < self._alpha(t)
         x1t = (
             x10 * mask
             + self.stationary_sampler1.sample((batch_size,)).to(self.device) * ~mask
         )
         mask = torch.rand(
-            batch_size, generator=self.generator, device=self.device
+            batch_size, generator=generator, device=self.device
         ) < self._alpha(t)
         x2t = (
             x20 * mask

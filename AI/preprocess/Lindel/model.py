@@ -4,14 +4,14 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Optional, Literal
+from transformers import PreTrainedModel, PretrainedConfig
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat
-from ..model import BaseModel, BaseConfig
 
 
-class LindelConfig(BaseConfig):
+class LindelConfig(PretrainedConfig):
     model_type = "Lindel"
 
     def __init__(
@@ -37,7 +37,7 @@ class LindelConfig(BaseConfig):
         super().__init__(**kwargs)
 
 
-class LindelModel(BaseModel):
+class LindelModel(PreTrainedModel):
     config_class = LindelConfig
 
     def __init__(self, config: LindelConfig) -> None:
@@ -54,8 +54,6 @@ class LindelModel(BaseModel):
             in_features=class_dim * (config.mh_len + 1) + 20 * 4 + 19 * 16,
             out_features=class_dim,
         )
-
-        self._initialize_model_layer_weights()
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         logit_indel = self.model_indel(input["input_indel"])

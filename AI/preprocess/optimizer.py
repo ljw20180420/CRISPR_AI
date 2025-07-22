@@ -22,7 +22,7 @@ class MyOptimizer:
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
 
-    def __call__(self, model: PreTrainedModel) -> None:
+    def __call__(self, model: PreTrainedModel) -> object:
         forbidden_name_patterns = [
             r"bias",
             r"layernorm",
@@ -73,3 +73,5 @@ class MyOptimizer:
                 eps=1e-8,
                 fused=fused,
             )
+
+        return self

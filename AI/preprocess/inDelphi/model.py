@@ -10,15 +10,15 @@ from torch.utils.data import DataLoader
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from transformers import PreTrainedModel, PretrainedConfig
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat
 from .data_collator import DataCollator
-from ..model import BaseModel, BaseConfig
 
 
-class inDelphiConfig(BaseConfig):
+class inDelphiConfig(PretrainedConfig):
     model_type = "inDelphi"
 
     def __init__(
@@ -38,7 +38,7 @@ class inDelphiConfig(BaseConfig):
         super().__init__(**kwargs)
 
 
-class inDelphiModel(BaseModel):
+class inDelphiModel(PreTrainedModel):
     config_class = inDelphiConfig
 
     def __init__(self, config: inDelphiConfig) -> None:
@@ -59,7 +59,6 @@ class inDelphiModel(BaseModel):
         self.mhless_out_layer = nn.Linear(in_features=config.mid_dim, out_features=1)
         self.mid_active = self._sigmoid
         self.out_active = self._logit_to_weight
-        self._initialize_model_layer_weights()
 
     def _sigmoid(self, x: torch.Tensor) -> torch.Tensor:
         return 0.5 * (F.tanh(x) + 1)

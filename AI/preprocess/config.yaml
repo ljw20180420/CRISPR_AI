@@ -7,11 +7,11 @@ log_level: WARNING # CRITICAL, FATAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 inference_data: inference.json.gz
 inference_output: inference.output
 
-base_model:
-  initializer: he_uniform # lecun_uniform, normal, he_normal, he_uniform
-
 generator:
   seed: 63036
+
+initializer:
+  initialize_method: he_uniform # lecun_uniform, normal, he_normal, he_uniform
 
 dataset:
   # name: # SX_spcas9, SX_spymac, SX_ispymac

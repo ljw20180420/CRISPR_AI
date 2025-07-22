@@ -36,23 +36,7 @@ my_dataset = MyDataset(
     random_insert_uplimit=args.dataset.random_insert_uplimit,
     insert_uplimit=args.dataset.insert_uplimit,
     owner=args.dataset.owner,
-)
-
-## optimizer
-from preprocess.optimizer import MyOptimizer
-
-my_optimizer = MyOptimizer(
-    name=args.optimizer.optimizer,
-    learning_rate=args.optimizer.learning_rate,
-    weight_decay=args.optimizer.weight_decay,
-)
-
-## scheduler
-from preprocess.lr_scheduler import MyLRScheduler
-
-my_lr_scheduler = MyLRScheduler(
-    name=args.lr_scheduler.name, warmup_ratio=args.lr_scheduler.warmup_ratio
-)
+)(my_generator=my_generator)
 
 ## metric
 metric_module = importlib.import_module(f"preprocess.metric")
@@ -64,8 +48,6 @@ metrics = {
 
 # commands
 if args.train:
-    my_generator()
-    my_dataset(generator=my_generator.np_rng)
     ## model
     model_parameters = {
         param: value
@@ -86,9 +68,21 @@ if args.train:
     getattr(model_module, f"{model_name}Model").register_for_auto_class()
     model = getattr(model_module, f"{model_name}Model")(config).to(args.device)
     assert model_name == model.config.model_type, "model name is not consistent"
-    ##
-    my_optimizer(model)
-    my_lr_scheduler(
+    ## optimizer
+    from preprocess.optimizer import MyOptimizer
+
+    my_optimizer = MyOptimizer(
+        name=args.optimizer.optimizer,
+        learning_rate=args.optimizer.learning_rate,
+        weight_decay=args.optimizer.weight_decay,
+    )(model)
+
+    ## scheduler
+    from preprocess.lr_scheduler import MyLRScheduler
+
+    my_lr_scheduler = MyLRScheduler(
+        name=args.lr_scheduler.name, warmup_ratio=args.lr_scheduler.warmup_ratio
+    )(
         dataset=my_dataset.dataset,
         batch_size=args.batch_size,
         num_epochs=args.num_epochs,

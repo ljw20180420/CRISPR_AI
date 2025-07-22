@@ -8,10 +8,10 @@ from typing import Optional
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import rearrange, einsum, repeat
-from ..model import BaseModel, BaseConfig
+from transformers import PreTrainedModel, PretrainedConfig
 
 
-class FOREcasTConfig(BaseConfig):
+class FOREcasTConfig(PretrainedConfig):
     model_type = "FOREcasT"
 
     def __init__(
@@ -34,7 +34,7 @@ class FOREcasTConfig(BaseConfig):
         super().__init__(**kwargs)
 
 
-class FOREcasTModel(BaseModel):
+class FOREcasTModel(PreTrainedModel):
     config_class = FOREcasTConfig
 
     def __init__(self, config: FOREcasTConfig) -> None:
@@ -49,7 +49,6 @@ class FOREcasTModel(BaseModel):
         self.linear = nn.Linear(
             in_features=len(self.reg_coff), out_features=1, bias=False
         )
-        self._initialize_model_layer_weights()
 
     def _get_feature_label(self) -> list[str]:
         feature_DelSize_label = ["Any Deletion", "D1", "D2-3", "D4-7", "D8-12", "D>12"]
