@@ -57,8 +57,8 @@ class Train:
 
     def __call__(
         self,
-        model: PreTrainedModel,
         data_collator: Callable,
+        model: PreTrainedModel,
         my_generator: MyGenerator,
         my_dataset: MyDataset,
         my_optimizer: MyOptimizer,

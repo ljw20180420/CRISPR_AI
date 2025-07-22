@@ -9,6 +9,7 @@ from typing import Optional
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat, rearrange
+from .data_collator import DataCollator
 from ..model import BaseConfig, BaseModel
 
 
@@ -122,23 +123,28 @@ class CRIformerModel(BaseModel):
                     )
                 ]
             ).to(self.device)
+            # negative log likelihood
+            loss, loss_num = self.loss_fun(
+                logit,
+                observation,
+            )
             return {
                 "logit": logit,
-                "loss": self.loss_fun(
-                    logit,
-                    observation,
-                ),
+                "loss": loss,
+                "loss_num": loss_num,
             }
         return {"logit": logit}
 
     def loss_fun(self, logit: torch.Tensor, observation: torch.Tensor) -> float:
-        return -einsum(
+        loss = -einsum(
             F.log_softmax(logit, dim=1),
             rearrange(observation, "b r2 r1 -> b (r2 r1)"),
             "b f, b f ->",
         )
+        loss_num = einsum(observation, "b r2 r1 ->")
+        return loss, loss_num
 
-    def eval_output(self, batch: dict) -> pd.DataFrame:
+    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
         result = self(input=batch["input"])
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]

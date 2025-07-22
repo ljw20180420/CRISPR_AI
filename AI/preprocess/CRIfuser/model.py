@@ -6,6 +6,8 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
 from typing import Optional, Literal
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -387,7 +389,7 @@ class CRIfuserModel(BaseModel):
         loss_num = loss_num.sum()
         return loss, loss_num
 
-    def eval_output(self, batch: dict) -> pd.DataFrame:
+    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
         batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape
         probas = []
         for i in range(batch_size):
@@ -919,3 +921,84 @@ class CRIfuserModel(BaseModel):
             / q_t_on_0_2[torch.arange(batch_size), x2t]
             * self.stationary_sampler2.probs.to(self.device)[x2t]
         )
+
+    @torch.no_grad()
+    def reverse_diffusion(
+        self,
+        condition: torch.Tensor,
+        sample_num: int,
+        perfect_ob: Optional[torch.Tensor],
+    ) -> list[tuple[np.ndarray]]:
+        condition = repeat(
+            condition,
+            "c r2 r1 -> b c r2 r1",
+            b=sample_num,
+        )
+        if perfect_ob is not None:
+            perfect_ob = repeat(
+                perfect_ob,
+                "r2 r1 -> b r2 r1",
+                b=sample_num,
+            )
+        x1t = self.stationary_sampler1.sample(sample_num)
+        x2t = self.stationary_sampler2.sample(sample_num)
+        t = torch.full((sample_num,), self.config.noise_timesteps - 1)
+        path = [(x1t.cpu().numpy(), x2t.cpu().numpy())]
+        for step in range(self.config.noise_timesteps - 1, 0, -1):
+            if perfect_ob is None:
+                p_theta_0_on_t_logit = self.single_pass(
+                    condition,
+                    x1t,
+                    x2t,
+                    t,
+                )
+            else:
+                q_0_on_t = self.q_0_on_t(
+                    x1t,
+                    x2t,
+                    t,
+                    perfect_ob,
+                )
+                p_theta_0_on_t_logit = q_0_on_t.log().clamp_min(-1000)
+            x1t, x2t, t = self.step(
+                p_theta_0_on_t_logit,
+                x1t,
+                x2t,
+                t,
+            )
+            path = [(x1t.cpu().numpy(), x2t.cpu().numpy())] + path
+
+    @torch.no_grad()
+    def draw_reverse_diffusion(
+        self,
+        path: list[tuple[np.ndarray]],
+        filestem: str,
+        interval: float = 120,
+        pad: float = 5,
+    ) -> None:
+        fig, ax = plt.subplots()
+        x1t, x2t = path[-1]
+        scat = ax.scatter(
+            x1t - self.config.ext1_up,
+            x2t - self.config.ext2_up,
+            c="b",
+            s=5,
+        )
+        ax.set(
+            xlim=[-self.config.ext1_up, self.config.ext1_down],
+            ylim=[-self.config.ext2_up, self.config.ext2_down],
+            xlabel="ref1",
+            ylabel="ref2",
+        )
+
+        def update(frame):
+            idx = min(len(path) + pad - frame, len(path) - 1)
+            scat.set_offsets(np.stack(path[idx], axis=1))
+            return scat
+
+        ani = animation.FuncAnimation(
+            fig=fig, func=update, frames=len(path) + pad, interval=interval
+        )
+        ani.save(filename=f"{filestem}.gif", writer="pillow")
+        fig.savefig(f"{filestem}.png")
+        plt.close()

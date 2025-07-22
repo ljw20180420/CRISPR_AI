@@ -62,7 +62,7 @@ class LindelModel(BaseModel):
         logit_ins = self.model_ins(input["input_ins"])
         logit_del = self.model_del(input["input_del"])
         if label is not None:
-            loss = self.loss_fun(
+            loss, loss_num = self.loss_fun(
                 logit_indel=logit_indel,
                 count_indel=label["count_indel"],
                 model_indel=self.model_indel,
@@ -78,6 +78,7 @@ class LindelModel(BaseModel):
                 "logit_ins": logit_ins,
                 "logit_del": logit_del,
                 "loss": loss,
+                "loss_num": loss_num,
             }
         return {
             "logit_indel": logit_indel,
@@ -97,11 +98,14 @@ class LindelModel(BaseModel):
         count_del: torch.Tensor,
         model_del: nn.Linear,
     ) -> float:
-        return (
+        batch_size = logit_indel.shape[0]
+        loss = (
             self._cross_entropy_reg(logit_indel, count_indel, model_indel)
             + self._cross_entropy_reg(logit_ins, count_ins, model_ins)
             + self._cross_entropy_reg(logit_del, count_del, model_del)
         )
+        loss_num = batch_size
+        return loss, loss_num
 
     def _cross_entropy_reg(
         self, logit: torch.Tensor, count: torch.Tensor, linear: nn.Linear

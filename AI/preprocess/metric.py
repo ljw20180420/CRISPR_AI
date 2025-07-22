@@ -62,8 +62,8 @@ class NonWildTypeCrossEntropy:
             "b -> b 1 1",
         )
         loss = -einsum(
-            np.log(probas).clip(-1000, 0), observation, "b r2 r1, b r2 r1 ->"
+            np.log(probas).clip(-1000, 0), observation, "b r2 r1, b r2 r1 -> b"
         )
-        loss_num = einsum(observation, "b r2 r1 ->")
+        loss_num = einsum(observation, "b r2 r1 -> b")
 
         return loss, loss_num

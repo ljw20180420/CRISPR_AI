@@ -238,14 +238,10 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 TODO
 ```list
 Use os.PathLike
-Add base class for model
-Output both loss and loss_num from model forward
-implement load and save in model
+implement load and save in base model and scikit-learn related models, say inDelphi
 do not include DataCollator in the model
-remove pipeline
 use auto_cli of jsonargparse
-custom train loop, so that PretrainConfig does not need default values
-separate generator
+custom train loop
 In the paper, remove dependency of beta on d, and apply beta_t to both ELBO and CE.
 specify model parameters by include model yaml in the total config.yaml, so that required=True comes back, and it is not necessary to check whether subcommands are given
 support multiple metrics
@@ -258,7 +254,6 @@ learning rate
 hyperparameter choice (optuna)
 Add api documentation after finish the project
 train use float32
-sk2torch transforms scikitlearn model to pytorch model
 add type hint
 
 parallel data_collator, especially for FOREcasT

@@ -97,7 +97,7 @@ class inDelphiModel(BaseModel):
             + mhless_weight
         )
         if label is not None:
-            loss = self.loss_fun(
+            loss, loss_num = self.loss_fun(
                 mh_weight,
                 mhless_weight,
                 total_del_len_weight,
@@ -109,6 +109,7 @@ class inDelphiModel(BaseModel):
                 "mhless_weight": mhless_weight,
                 "total_del_len_weight": total_del_len_weight,
                 "loss": loss,
+                "loss_num": loss_num,
             }
         return {
             "mh_weight": mh_weight,
@@ -148,7 +149,9 @@ class inDelphiModel(BaseModel):
             "b w, b w ->",
         )
 
-        return -genotype_pearson - total_del_len_pearson
+        loss = -genotype_pearson - total_del_len_pearson
+        loss_num = batch_size
+        return loss, loss_num
 
     def eval_output(
         self,

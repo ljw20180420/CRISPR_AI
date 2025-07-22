@@ -189,25 +189,29 @@ class FOREcasTModel(BaseModel):
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         logit = rearrange(self.linear(input["feature"]), "b m 1 -> b m")
         if label is not None:
+            loss, loss_num = self.loss_fun(
+                logit,
+                label["count"],
+            )
             return {
                 "logit": logit,
-                "loss": self.loss_fun(
-                    logit,
-                    label["count"],
-                ),
+                "loss": loss,
+                "loss_num": loss_num,
             }
         return {"logit": logit}
 
     def loss_fun(self, logit: torch.Tensor, count: torch.Tensor) -> float:
         # kl divergence
         batch_size = logit.shape[0]
-        return F.kl_div(
+        loss = F.kl_div(
             F.log_softmax(logit, dim=1),
             F.normalize(
                 count + 0.5, p=1.0, dim=1
             ),  # add 0.5 to prevent log(0), see loadOligoFeaturesAndReadCounts
             reduction="sum",
         ) + batch_size * einsum(self.reg_coff, self.linear.weight**2, "f, 1 f ->")
+        loss_num = batch_size
+        return loss, loss_num
 
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
         result = self(batch["input"])

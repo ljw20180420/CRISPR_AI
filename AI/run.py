@@ -84,7 +84,7 @@ if args.train:
         **model_parameters,
     )
     getattr(model_module, f"{model_name}Model").register_for_auto_class()
-    model = getattr(model_module, f"{model_name}Model")(config)
+    model = getattr(model_module, f"{model_name}Model")(config).to(args.device)
     assert model_name == model.config.model_type, "model name is not consistent"
     ##
     my_optimizer(model)
@@ -107,6 +107,7 @@ if args.train:
         if param != "self"
     }
     data_collator = DataCollator(**data_collator_parameters)
+    assert args.preprocess == data_collator.preprocess, "preprocess is not consistent"
 
     from preprocess.train import train
 
