@@ -1,8 +1,7 @@
 from typing import Literal
 import numpy as np
-from datasets import Dataset
-from torch.optim import Optimizer
 from transformers.optimization import get_scheduler
+from .optimizer import MyOptimizer
 
 
 class MyLRScheduler:
@@ -21,6 +20,8 @@ class MyLRScheduler:
             "warmup_stable_decay",
         ],
         warmup_ratio: float,
+        num_training_steps: int,
+        my_optimizer: MyOptimizer,
     ) -> None:
         """Parameters for learning rate scheduler.
 
@@ -30,17 +31,11 @@ class MyLRScheduler:
         """
         self.name = name
         self.warmup_ratio = warmup_ratio
-
-    def __call__(
-        self, dataset: Dataset, batch_size: int, num_epochs: int, optimizer: Optimizer
-    ) -> object:
-        num_training_steps = np.ceil(len(dataset) / batch_size) * num_epochs
+        self.num_training_steps = num_training_steps
         self.lr_scheduler = get_scheduler(
             name=self.name,
-            optimizer=optimizer,
-            num_warmup_steps=np.ceil(num_training_steps * self.warmup_ratio),
+            optimizer=my_optimizer.optimizer,
+            num_warmup_steps=int(np.ceil(num_training_steps * self.warmup_ratio)),
             num_training_steps=num_training_steps,
             scheduler_specific_kwargs={},
         )
-
-        return self

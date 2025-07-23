@@ -4,22 +4,16 @@ import os
 import pathlib
 import importlib
 import inspect
-import numpy as np
 
 # change directory to the current script
 os.chdir(pathlib.Path(__file__).parent)
 
-# common
-## parse arguments
-from preprocess.config import get_config, get_logger
+# parse arguments
+from AI.preprocess.config import get_config
 
 args = get_config()
 
-if not args.preprocess:
-    raise ReferenceError("No preprocess")
-model_name = args[args.preprocess].model_name
-if not model_name:
-    raise ReferenceError("No model name")
+breakpoint()
 
 ## generator
 from preprocess.generator import MyGenerator

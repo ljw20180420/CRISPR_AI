@@ -10,6 +10,7 @@ class MyOptimizer:
         name: Literal["adamw_torch", "adamw_torch_fused", "adafactor"],
         learning_rate: float,
         weight_decay: float,
+        model: PreTrainedModel,
     ):
         """Parameters of optimizer.
 
@@ -21,8 +22,6 @@ class MyOptimizer:
         self.name = name
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-
-    def __call__(self, model: PreTrainedModel) -> object:
         forbidden_name_patterns = [
             r"bias",
             r"layernorm",
@@ -73,5 +72,3 @@ class MyOptimizer:
                 eps=1e-8,
                 fused=fused,
             )
-
-        return self

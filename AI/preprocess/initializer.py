@@ -7,33 +7,31 @@ from .generator import MyGenerator
 class MyInitializer:
     def __init__(
         self,
-        initialize_method: Literal[
-            "lecun_uniform", "normal", "he_normal", "he_uniform"
-        ],
+        name: Literal["lecun_uniform", "normal", "he_normal", "he_uniform"],
     ) -> None:
         """Initializer arguments.
 
         Args:
-            initialize_method: Intialization methods for model weights.
+            name: Name of the intialization method for model weights.
         """
-        self.initialize_method = initialize_method
+        self.name = name
 
     def __call__(self, model: PreTrainedModel, my_generator: MyGenerator) -> None:
         generator = my_generator.get_torch_generator_by_device(model.device)
 
-        if self.initialize_method == "lecun_uniform":
+        if self.name == "lecun_uniform":
             init_func = lambda weight, generator=generator: nn.init.kaiming_uniform_(
                 weight, nonlinearity="linear", generator=generator
             )
-        elif self.initialize_method == "normal":
+        elif self.name == "normal":
             init_func = lambda weight, generator=generator: nn.init.normal_(
                 weight, generator=generator
             )
-        elif self.initialize_method == "he_normal":
+        elif self.name == "he_normal":
             init_func = lambda weight, generator=generator: nn.init.kaiming_normal_(
                 weight, generator=generator
             )
-        elif self.initialize_method == "he_uniform":
+        elif self.name == "he_uniform":
             init_func = lambda weight, generator=generator: nn.init.kaiming_uniform_(
                 weight, generator=generator
             )
