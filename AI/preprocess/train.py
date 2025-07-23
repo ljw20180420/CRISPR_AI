@@ -3,18 +3,20 @@ import torch
 import numpy as np
 import os
 import pathlib
-from transformers import PreTrainedModel, __version__
+from transformers import PreTrainedModel
 from torch.utils.data import DataLoader
 import json
 from typing import Literal
 import importlib
 import datasets
+import jsonargparse
 from .generator import MyGenerator
 from .dataset import MyDataset
 from .initializer import MyInitializer
 from .optimizer import MyOptimizer
 from .lr_scheduler import MyLRScheduler
 from .utils import MyLogger
+from .io import target_to_epoch, load_checkpoint, load_my_dataset
 
 
 class MyTrain:
@@ -52,15 +54,66 @@ class MyTrain:
 
     def __call__(
         self,
-        my_generator: MyGenerator,
-        my_dataset: MyDataset,
-        metrics: dict,
-        model: PreTrainedModel,
-        my_initializer: MyInitializer,
-        my_optimizer: MyOptimizer,
-        my_lr_scheduler: MyLRScheduler,
-        my_logger: MyLogger,
-    ):
+        cfg: jsonargparse.Namespace,
+    ) -> None:
+        model_path = (
+            self.output_dir
+            / self.preprocess
+            / self.model_type
+            / cfg.dataset.name
+            / self.trial_name
+        )
+        # initialize components
+        if self.resume_from_checkpoint:
+            epoch = target_to_epoch(
+                checkpoints_path=model_path / "checkpoints", target="resume"
+            )
+            last_epoch = epoch
+            (
+                my_generator,
+                metrics,
+                model,
+                my_initializer,
+                my_optimizer,
+                my_lr_scheduler,
+                my_logger,
+            ) = load_checkpoint(model_path / "checkpoints" / f"checkpoint-{epoch}")
+            my_dataset = load_my_dataset(model_path)
+
+        else:
+            last_epoch = -1
+            my_generator = MyGenerator(**cfg.generator.as_dict())
+            my_dataset = MyDataset(**cfg.dataset.as_dict(), my_generator=my_generator)
+            metric_module = importlib.import_module(f"preprocess.metric")
+            metrics = {
+                metric_name: getattr(metric_module, metric_name)(**metric_params)
+                for metric_name, metric_params in cfg.metric.as_dict()
+            }
+            model_module = importlib.import_module(
+                f"preprocess.{self.preprocess}.model"
+            )
+            model = getattr(model_module, f"{self.model_type}Model")(
+                getattr(model_module, f"{self.model_type}Config")(
+                    **cfg[self.preprocess][self.model_type].as_dict(),
+                )
+            )
+            my_initializer = MyInitializer(**cfg.initializer.as_dict())
+            my_optimizer = MyOptimizer(**cfg.optimizer.as_dict(), model=model)
+            num_training_steps = (
+                int(np.ceil(len(my_dataset.dataset) / self.batch_size))
+                * self.num_epochs
+            )
+            my_lr_scheduler = MyLRScheduler(
+                **cfg.lr_scheduler.as_dict(),
+                num_training_steps=num_training_steps,
+                my_optimizer=my_optimizer,
+            )
+            my_logger = MyLogger(**cfg.logger.as_dict())
+
+        assert (
+            self.preprocess == model.data_collator.preprocess
+            and self.model_type == model.config.model_type
+        ), "preprocess or model type is inconsistent"
         model_path = self.output_dir / preprocess / model_type
         if self.resume_from_checkpoint:
             self.load()

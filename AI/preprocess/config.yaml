@@ -11,6 +11,11 @@ train:
   device: cuda # cuda, cpu
   resume_from_checkpoint: True
 
+test:
+  # model_path:
+  batch_size: 100
+  device: cuda # cuda, cpu
+
 generator:
   seed: 63036
 

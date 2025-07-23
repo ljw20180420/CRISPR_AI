@@ -6,44 +6,52 @@ from tqdm import tqdm
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from transformers import PreTrainedModel
-from .dataset import MyDataset
+from typing import Literal
+from .io import target_to_epoch, load_checkpoint, load_my_dataset
 
 
-class Test:
+class MyTest:
     def __init__(
         self,
-        output_dir: os.PathLike,
-        trial_name: str,
+        model_path: os.PathLike,
         batch_size: int,
+        device: Literal["cpu", "cuda"],
     ) -> None:
         """Test arguments.
 
         Args:
-            output_dir: Output directory.
-            trial_name: name of the training trial
+            model_path: Path to the model.
             batch_size: Batch size.
+            device: Device.
         """
-        self.output_dir = pathlib.Path(os.fspath(output_dir))
-        self.trial_name = trial_name
+        self.model_path = pathlib.Path(os.fspath(model_path))
         self.batch_size = batch_size
+        self.device = device
 
     @torch.no_grad()
-    def __call__(
-        self,
-        model: PreTrainedModel,
-        my_dataset: MyDataset,
-        metrics: dict,
-        logger: logging.Logger,
-    ) -> None:
-        logger.info("load test data")
+    def __call__(self) -> None:
+        epoch = target_to_epoch(
+            self.model_path / "checkpoints", target="NonWildTypeCrossEntropy"
+        )
+        (
+            _,
+            metrics,
+            model,
+            _,
+            _,
+            _,
+            my_logger,
+        ) = load_checkpoint(self.model_path / "checkpoints" / f"checkpoint-{epoch}")
+        my_dataset = load_my_dataset(self.model_path)
+
+        my_logger.info("load test data")
         dl = DataLoader(
             dataset=my_dataset.dataset["test"],
             batch_size=self.batch_size,
             collate_fn=lambda examples: examples,
         )
 
-        logger.info("test model")
+        my_logger.info("test model")
         dfs, accum_sample_idx = [], 0
         for examples in tqdm(dl):
             current_batch_size = len(examples)
@@ -65,13 +73,8 @@ class Test:
             accum_sample_idx += current_batch_size
             dfs.append(df)
 
-        logger.info("output results")
+        my_logger.info("output results")
         pd.concat(dfs).to_csv(
-            self.output_dir
-            / model.data_collator.preprocess
-            / model.config.model_type
-            / my_dataset.name
-            / self.trial_name
-            / "test_result.csv",
+            self.model_path / "test_result.csv",
             index=False,
         )

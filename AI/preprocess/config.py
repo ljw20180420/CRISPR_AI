@@ -1,7 +1,8 @@
 import jsonargparse
 import importlib
-import importlib
+from typing import Literal
 from .train import MyTrain
+from .test import MyTest
 from .generator import MyGenerator
 from .dataset import MyDataset
 from .initializer import MyInitializer
@@ -21,7 +22,7 @@ preprocess_to_model = {
 metrics = ["NonWildTypeCrossEntropy"]
 
 
-def get_config() -> jsonargparse.Namespace:
+def get_config() -> jsonargparse.ArgumentParser:
     parser = jsonargparse.ArgumentParser(
         description="Arguments of AI models.",
         default_config_files=["AI/preprocess/config.yaml"],
@@ -31,9 +32,20 @@ def get_config() -> jsonargparse.Namespace:
 
     parser.add_argument("--config", action="config")
 
+    parser.add_argument(
+        "command",
+        required=True,
+        type=Literal["train", "test", "upload", "inference", "app", "space"],
+        help="The command to run. The order is: train -> test -> upload -> inference -> app -> space.",
+    )
+
     parser.add_class_arguments(
         theclass=MyTrain,
         nested_key="train",
+    )
+    parser.add_class_arguments(
+        theclass=MyTest,
+        nested_key="test",
     )
 
     parser.add_class_arguments(
@@ -83,4 +95,4 @@ def get_config() -> jsonargparse.Namespace:
                 skip=["**kwargs"],
             )
 
-    return parser.parse_args()
+    return parser

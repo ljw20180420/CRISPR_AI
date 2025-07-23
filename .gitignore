@@ -4,7 +4,7 @@
 theory/*
 !theory/theory.tex
 zshit
-AI/benchmark/results
+benchmark/results
 AI/dataset/README.md
 AI/preprocess/inDelphi/reference/temp.csv
 AI/preprocess/inDelphi/reference/temp.log

@@ -239,6 +239,7 @@ TODO
 ```list
 use Namespace.as_dict() to simplify parse
 Do not forget to initialize model
+Do not forget to move model to the device
 Use os.PathLike
 implement load and save in base model and scikit-learn related models, say inDelphi
 do not include DataCollator in the model
