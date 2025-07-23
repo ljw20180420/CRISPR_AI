@@ -9,6 +9,7 @@ from transformers import PreTrainedModel, PretrainedConfig
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat
+from .data_collator import DataCollator
 
 
 class LindelConfig(PretrainedConfig):
@@ -42,6 +43,7 @@ class LindelModel(PreTrainedModel):
 
     def __init__(self, config: LindelConfig) -> None:
         super().__init__(config)
+        self.data_collator = DataCollator(dlen=config.dlen, mh_len=config.mh_len)
         self.reg_mode = config.reg_mode
         self.reg_const = config.reg_const
         # onehotencoder(ref[cut-17:cut+3])

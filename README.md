@@ -237,7 +237,6 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
-put data_collator into model
 use Namespace.as_dict() to simplify parse
 Do not forget to initialize model
 Use os.PathLike

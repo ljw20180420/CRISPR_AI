@@ -66,6 +66,12 @@ class CRIformerModel(PreTrainedModel):
 
     def __init__(self, config: CRIformerConfig) -> None:
         super().__init__(config)
+        self.data_collator = DataCollator(
+            ext1_up=config.ext1_up,
+            ext1_down=config.ext1_down,
+            ext2_up=config.ext2_up,
+            ext2_down=config.ext2_down,
+        )
         self.model = RoFormerModel(
             RoFormerConfig(
                 vocab_size=4,  # ACGT

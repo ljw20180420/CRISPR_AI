@@ -9,6 +9,7 @@ from typing import Optional
 from torch.backends import opt_einsum
 from einops import rearrange, einsum, repeat
 from transformers import PreTrainedModel, PretrainedConfig
+from .data_collator import DataCollator
 
 
 class FOREcasTConfig(PretrainedConfig):
@@ -39,6 +40,7 @@ class FOREcasTModel(PreTrainedModel):
 
     def __init__(self, config: FOREcasTConfig) -> None:
         super().__init__(config)
+        self.data_collator = DataCollator(max_del_size=config.max_del_size)
         is_delete = torch.tensor(
             ["I" not in label for label in self._get_feature_label()]
         )

@@ -10,6 +10,7 @@ from torch.backends import opt_einsum
 from einops.layers.torch import Rearrange
 from einops import rearrange, einsum, repeat
 from transformers import PreTrainedModel, PretrainedConfig
+from .data_collator import DataCollator
 
 
 class DeepHFConfig(PretrainedConfig):
@@ -65,8 +66,14 @@ class DeepHFConfig(PretrainedConfig):
 class DeepHFModel(PreTrainedModel):
     config_class = DeepHFConfig
 
-    def __init__(self, config) -> None:
+    def __init__(self, config: DeepHFConfig) -> None:
         super().__init__(config)
+        self.data_collator = DataCollator(
+            ext1_up=config.ext1_up,
+            ext1_down=config.ext1_down,
+            ext2_up=config.ext2_up,
+            ext2_down=config.ext2_down,
+        )
 
         self.embedding = nn.Embedding(
             num_embeddings=6,

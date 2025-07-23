@@ -50,95 +50,12 @@ class MyTrain:
         self.device = device
         self.resume_from_checkpoint = resume_from_checkpoint
 
-    @classmethod
-    def load(cls, load_path: os.PathLike, target: int | str) -> tuple:
-        """Train load arguments.
-
-        Args:
-            target: For int, load the epoch {target}. For str, load the checkpoint with the loweset metric {str} (including loss).
-        """
-        load_path = pathlib.Path(os.fspath(load_path))
-
-        # Find the target epoch.
-        if isinstance(target, int):
-            epoch = target
-        else:
-            metric_value_min = np.inf
-            for check_epoch in os.listdir(load_path / "checkpoints"):
-                with open(
-                    load_path / "checkpoints" / check_epoch / "meta_data.json", "r"
-                ) as fd:
-                    meta_data = json.load(fd)
-                if target == "loss":
-                    metric_value = (
-                        meta_data["performance"]["eval"]["loss"]
-                        / meta_data["performance"]["eval"]["loss_num"]
-                    )
-                else:
-                    metric_value = (
-                        meta_data["performance"]["eval"][target]["loss"]
-                        / meta_data["performance"]["eval"][target]["loss_num"]
-                    )
-                if metric_value < metric_value_min:
-                    metric_value_min = metric_value
-                    epoch = int(check_epoch.split("-")[1])
-
-        # Load meta data and initialize components
-        with open(
-            load_path / "checkpoints" / f"checkpoint-{epoch}" / "meta_data.json", "r"
-        ) as fd:
-            meta_data = json.load(fd)
-
-        my_generator = MyGenerator(**meta_data["generator"])
-        my_dataset = MyDataset(**meta_data["dataset"])
-        metrics = {
-            metric_name: getattr(importlib.import_module(".metric"), metric_name)(
-                **metric_params
-            )
-            for metric_name, metric_params in meta_data["metric"]
-        }
-        model_module = importlib.import_module(
-            f'preprocess.{meta_data["preprocess"]}.model'
-        )
-        model = getattr(model_module, f'{meta_data["model_type"]}Model')(
-            getattr(model_module, f'{meta_data["model_type"]}Config')(
-                **meta_data["model"]
-            )
-        )
-        my_initializer = MyInitializer(**meta_data["initializer"])
-        my_optimizer = MyOptimizer(**meta_data["optimizer"])
-        my_lr_scheduler = MyLRScheduler(**meta_data["lr_scheduler"])
-        my_logger = MyLogger(**meta_data["logger"])
-
-        # Load checkpoint.
-        checkpoint = torch.load(
-            load_path / "checkpoints" / f"checkpoint-{epoch}" / "checkpoint.pt"
-        )
-        my_generator.load_state_dict(checkpoint["generator"])
-        model.load_state_dict(checkpoint["model"])
-        my_optimizer.optimizer.load_state_dict(checkpoint["optimizer"])
-        my_lr_scheduler.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-
-        # Load dataset.
-        my_dataset.dataset = datasets.load_from_disk(load_path / "datasets")
-
-        return (
-            my_generator,
-            my_dataset,
-            metrics,
-            model,
-            my_initializer,
-            my_optimizer,
-            my_lr_scheduler,
-            my_logger,
-        )
-
     def __call__(
         self,
         my_generator: MyGenerator,
         my_dataset: MyDataset,
         metrics: dict,
-        model_params: PreTrainedModel,
+        model: PreTrainedModel,
         my_initializer: MyInitializer,
         my_optimizer: MyOptimizer,
         my_lr_scheduler: MyLRScheduler,

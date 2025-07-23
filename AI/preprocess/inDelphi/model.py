@@ -43,6 +43,7 @@ class inDelphiModel(PreTrainedModel):
 
     def __init__(self, config: inDelphiConfig) -> None:
         super().__init__(config)
+        self.data_collator = DataCollator(DELLEN_LIMIT=config.DELLEN_LIMIT)
         self.DELLEN_LIMIT = config.DELLEN_LIMIT
         self.register_buffer(
             "del_lens", torch.arange(1, config.DELLEN_LIMIT, dtype=torch.float32)
@@ -294,7 +295,6 @@ class inDelphiModel(PreTrainedModel):
 
     def train_scikit_learn(
         self,
-        data_collator: DataCollator,
         ds: datasets.Dataset,
         batch_size: int,
     ) -> None:
@@ -309,7 +309,7 @@ class inDelphiModel(PreTrainedModel):
             insert_probabilities = []
             m654s = np.zeros((4**3, 4), dtype=int)
             for examples in tqdm(dl):
-                batch = data_collator(examples, output_label=True)
+                batch = self.data_collator(examples, output_label=True)
                 result = self(batch["input"])
                 knn_features.append(
                     self._get_knn_feature(

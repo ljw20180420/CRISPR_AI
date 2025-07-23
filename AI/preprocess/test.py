@@ -7,7 +7,6 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel
-from typing import Callable
 from .dataset import MyDataset
 
 
@@ -32,7 +31,6 @@ class Test:
     @torch.no_grad()
     def __call__(
         self,
-        data_collator: Callable,
         model: PreTrainedModel,
         my_dataset: MyDataset,
         metrics: dict,
@@ -49,7 +47,7 @@ class Test:
         dfs, accum_sample_idx = [], 0
         for examples in tqdm(dl):
             current_batch_size = len(examples)
-            batch = data_collator(examples, output_label=True)
+            batch = model.data_collator(examples, output_label=True)
             df = model.eval_output(examples, batch)
             observations = batch["label"]["observation"].cpu().numpy()
             cut1s = np.array([example["cut1"] for example in examples])
@@ -70,7 +68,7 @@ class Test:
         logger.info("output results")
         pd.concat(dfs).to_csv(
             self.output_dir
-            / data_collator.preprocess
+            / model.data_collator.preprocess
             / model.config.model_type
             / my_dataset.name
             / self.trial_name

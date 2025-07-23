@@ -13,6 +13,7 @@ import matplotlib.animation as animation
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, rearrange, repeat
+from .data_collator import DataCollator
 from ..generator import MyGenerator
 
 
@@ -84,6 +85,13 @@ class CRIfuserModel(PreTrainedModel):
 
     def __init__(self, config: CRIfuserConfig) -> None:
         super().__init__(config)
+        self.data_collator = DataCollator(
+            ext1_up=config.ext1_up,
+            ext1_down=config.ext1_down,
+            ext2_up=config.ext2_up,
+            ext2_down=config.ext2_down,
+            max_micro_homology=config.max_micro_homology,
+        )
         self.stationary_sampler1 = Categorical(
             torch.ones(config.ext1_up + config.ext1_down + 1)
         )
