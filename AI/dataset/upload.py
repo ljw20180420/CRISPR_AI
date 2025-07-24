@@ -7,7 +7,6 @@ import pathlib
 from datasets.commands.test import TestCommand
 import os
 import sys
-import shutil
 
 # Change to the directory of the script
 os.chdir(pathlib.Path(__file__).parent)

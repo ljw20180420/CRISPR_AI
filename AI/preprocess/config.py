@@ -3,12 +3,9 @@ import importlib
 from typing import Literal
 from .train import MyTrain
 from .test import MyTest
-from .generator import MyGenerator
-from .dataset import MyDataset
-from .initializer import MyInitializer
-from .optimizer import MyOptimizer
-from .lr_scheduler import MyLRScheduler
-from .utils import MyLogger
+from .model import get_model
+from .dataset import get_dataset
+from .utils import MyGenerator, get_logger
 
 preprocess_to_model = {
     "inDelphi": ["inDelphi"],
@@ -43,6 +40,22 @@ def get_config() -> jsonargparse.ArgumentParser:
         theclass=MyTrain,
         nested_key="train",
     )
+    parser.add_method_arguments(
+        theclass=MyTrain,
+        themethod="get_initializer",
+        nested_key="train.initializer",
+    )
+    parser.add_method_arguments(
+        theclass=MyTrain,
+        themethod="get_optimizer",
+        nested_key="train.optimizer",
+    )
+    parser.add_method_arguments(
+        theclass=MyTrain,
+        themethod="get_scheduler",
+        nested_key="train.scheduler",
+    )
+
     parser.add_class_arguments(
         theclass=MyTest,
         nested_key="test",
@@ -52,27 +65,18 @@ def get_config() -> jsonargparse.ArgumentParser:
         theclass=MyGenerator,
         nested_key="generator",
     )
-    parser.add_class_arguments(
-        theclass=MyDataset,
+    parser.add_function_arguments(
+        function=get_dataset,
         nested_key="dataset",
         skip=["my_generator"],
     )
-    parser.add_class_arguments(
-        theclass=MyInitializer,
-        nested_key="initializer",
+    parser.add_function_arguments(
+        function=get_model,
+        nested_key="model",
+        skip=["meta_data"],
     )
-    parser.add_class_arguments(
-        theclass=MyOptimizer,
-        nested_key="optimizer",
-        skip=["model"],
-    )
-    parser.add_class_arguments(
-        theclass=MyLRScheduler,
-        nested_key="lr_scheduler",
-        skip=["num_training_steps", "my_optimizer"],
-    )
-    parser.add_class_arguments(
-        theclass=MyLogger,
+    parser.add_function_arguments(
+        function=get_logger,
         nested_key="logger",
     )
     for metric in metrics:
@@ -91,8 +95,8 @@ def get_config() -> jsonargparse.ArgumentParser:
                     importlib.import_module(f"AI.preprocess.{preprocess}.model"),
                     f"{model_type}Config",
                 ),
-                nested_key=f"{preprocess}.{model_type}",
+                nested_key=f"model.{preprocess}.{model_type}",
                 skip=["**kwargs"],
             )
 
-    return parser
+    return parser.parse_args().as_dict()

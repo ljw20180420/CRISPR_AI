@@ -282,49 +282,58 @@ class inDelphiModel(PreTrainedModel):
 
         return df
 
-    def load_checkpoint(self, checkpoint_path: os.PathLike) -> None:
-        super().load_checkpoint(checkpoint_path)
-        with open(os.path.join(os.fspath(checkpoint_path), "knn.pkl"), "rb") as fd:
-            (
-                self.knn,
-                self.knn_feature_mean,
-                self.knn_feature_std,
-                self.m654s,
-                self.m4s,
-            ) = pickle.load(fd)
+    def state_dict(self) -> dict:
+        return {
+            "pytorch_state_dict": super().state_dict(),
+            "scikit_learn_state_dict": {
+                component: getattr(self, component)
+                for component in [
+                    "knn",
+                    "knn_feature_mean",
+                    "knn_feature_std",
+                    "m654s",
+                    "m4s",
+                ]
+            },
+        }
 
+    def load_state_dict(self, state_dict: dict) -> None:
+        super().load_state_dict(state_dict["pytorch_state_dict"])
+        for component in [
+            "knn",
+            "knn_feature_mean",
+            "knn_feature_std",
+            "m654s",
+            "m4s",
+        ]:
+            setattr(self, component, state_dict["scikit_learn_state_dict"][component])
+
+    @torch.no_grad()
     def train_scikit_learn(
         self,
-        ds: datasets.Dataset,
-        batch_size: int,
+        train_dataloader: torch.utils.data.DataLoader,
     ) -> None:
-        dl = DataLoader(
-            dataset=ds["train"],
-            batch_size=batch_size,
-            collate_fn=lambda examples: examples,
-        )
-
-        with torch.no_grad():
-            knn_features = []
-            insert_probabilities = []
-            m654s = np.zeros((4**3, 4), dtype=int)
-            for examples in tqdm(dl):
-                batch = self.data_collator(examples, output_label=True)
-                result = self(batch["input"])
-                knn_features.append(
-                    self._get_knn_feature(
-                        result["total_del_len_weight"],
-                        batch["input"]["onebp_feature"],
-                    )
+        self.eval()
+        knn_features = []
+        insert_probabilities = []
+        m654s = np.zeros((4**3, 4), dtype=int)
+        for examples in tqdm(train_dataloader):
+            batch = self.data_collator(examples, output_label=True)
+            result = self(batch["input"])
+            knn_features.append(
+                self._get_knn_feature(
+                    result["total_del_len_weight"],
+                    batch["input"]["onebp_feature"],
                 )
-                np.add.at(
-                    m654s,
-                    batch["input"]["m654"],
-                    batch["label"]["insert_1bp"],
-                )
-                insert_probabilities.append(batch["label"]["insert_probability"])
-            knn_features = np.concatenate(knn_features, axis=0)
-            insert_probabilities = np.concatenate(insert_probabilities, axis=0)
+            )
+            np.add.at(
+                m654s,
+                batch["input"]["m654"],
+                batch["label"]["insert_1bp"],
+            )
+            insert_probabilities.append(batch["label"]["insert_probability"])
+        knn_features = np.concatenate(knn_features, axis=0)
+        insert_probabilities = np.concatenate(insert_probabilities, axis=0)
 
         self.knn_feature_mean = knn_features.mean(axis=0)
         self.knn_feature_std = knn_features.std(axis=0)

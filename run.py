@@ -10,18 +10,17 @@ from AI.preprocess.test import MyTest
 os.chdir(pathlib.Path(__file__).parent)
 
 # parse arguments
-parser = get_config()
-cfg = parser.parse_args()
+meta_data = get_config()
 
-if cfg.command == "train":
-    my_train = MyTrain(**cfg.train.as_dict())
-    my_train(cfg)
+if meta_data["command"] == "train":
+    my_train = MyTrain(**meta_data["train"])
+    my_train(meta_data)
 
-elif cfg.command == "test":
-    my_test = MyTest(**cfg.test.as_dict())
+elif meta_data["command"] == "test":
+    my_test = MyTest(**meta_data["test"])
     my_test()
 
-elif cfg.command == "upload":
+elif meta_data["command"] == "upload":
     from AI.preprocess.upload import upload
 
     upload(
@@ -32,7 +31,7 @@ elif cfg.command == "upload":
         logger=get_logger(args.log_level),
     )
 
-elif cfg.command == "inference":
+elif meta_data["command"] == "inference":
     from preprocess.inference import inference
 
     inference(
@@ -47,7 +46,7 @@ elif cfg.command == "inference":
         logger=get_logger(args.log_level),
     )
 
-elif cfg.command == "app":
+elif meta_data["command"] == "app":
     from preprocess.app import app
 
     app(
@@ -58,7 +57,7 @@ elif cfg.command == "app":
         device=args.device,
     )
 
-elif cfg.command == "space":
+elif meta_data["command"] == "space":
     from preprocess.space import space
 
     space(

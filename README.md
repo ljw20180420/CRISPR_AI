@@ -237,12 +237,8 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
-use Namespace.as_dict() to simplify parse
-Do not forget to initialize model
-Do not forget to move model to the device
+Use model.eval() in test and inference
 Use os.PathLike
-implement load and save in base model and scikit-learn related models, say inDelphi
-do not include DataCollator in the model
 use auto_cli of jsonargparse
 custom train loop
 In the paper, remove dependency of beta on d, and apply beta_t to both ELBO and CE.

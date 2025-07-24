@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import logging
 import sys
@@ -8,23 +9,94 @@ from torch.backends import opt_einsum
 from einops import repeat, rearrange
 
 
-class MyLogger:
-    def __init__(
-        self,
-        log_level: Literal[
-            "CRITICAL", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"
-        ],
-    ) -> None:
-        """Logger arguments.
+def target_to_epoch(checkpoints_path: os.PathLike, target: str) -> int:
+    """
+    Infer the epoch from either the last checkpoint or the loweset metric (including loss).
+    """
+    checkpoints_path = pathlib.Path(os.fspath(checkpoints_path))
+    check_epochs = [
+        check_epoch
+        for check_epoch in os.listdir(checkpoints_path)
+        if re.search(r"^checkpoint-(\d+)$", check_epoch)
+    ]
+    if len(check_epochs) == 0:
+        return -1
+    if target == "resume":
+        return max(
+            [
+                int(re.search(r"^checkpoint-(\d+)$", check_epoch).group(1))
+                for check_epoch in check_epochs
+            ]
+        )
+
+    metric_value_min = np.inf
+    for check_epoch in os.listdir(checkpoints_path):
+        with open(checkpoints_path / check_epoch / "meta_data.json", "r") as fd:
+            meta_data = json.load(fd)
+        if target == "loss":
+            metric_value = (
+                meta_data["performance"]["eval"]["loss"]
+                / meta_data["performance"]["eval"]["loss_num"]
+            )
+        else:
+            metric_value = (
+                meta_data["performance"]["eval"][target]["loss"]
+                / meta_data["performance"]["eval"][target]["loss_num"]
+            )
+        if metric_value < metric_value_min:
+            metric_value_min = metric_value
+            epoch = int(check_epoch.split("-")[1])
+
+    return epoch
+
+
+class MyGenerator:
+    def __init__(self, seed: int) -> None:
+        """Generator arguments.
 
         Args:
-            log_level: The level of logging.
+            seed: Random seed.
         """
-        self.log_level = log_level
-        self.logger = logging.getLogger("logger")
-        handler = logging.StreamHandler(stream=sys.stdout)
-        handler.setLevel(log_level)
-        self.logger.addHandler(handler)
+        self.seed = seed
+        self.np_rng = np.random.default_rng(self.seed)
+        self.torch_c_rng = torch.Generator(device="cpu").manual_seed(self.seed)
+        self.torch_g_rng = torch.Generator(device="cuda").manual_seed(self.seed)
+
+    def get_torch_generator_by_device(
+        self, device: str | torch.device
+    ) -> torch.Generator:
+        if device == "cpu" or device == torch.device("cpu"):
+            return self.torch_c_rng
+        return self.torch_g_rng
+
+    def state_dict(self) -> dict:
+        return {
+            "np_rng": self.np_rng.bit_generator.state,
+            "torch_c_rng": self.torch_c_rng.get_state(),
+            "torch_g_rng": self.torch_g_rng.get_state(),
+        }
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        self.np_rng.bit_generator.state = state_dict["np_rng"]
+        self.torch_c_rng.set_state(state_dict["torch_c_rng"])
+        self.torch_g_rng.set_state(state_dict["torch_g_rng"])
+
+
+def get_logger(
+    log_level: Literal[
+        "CRITICAL", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"
+    ],
+) -> None:
+    """Logger arguments.
+
+    Args:
+        log_level: The level of logging.
+    """
+    logger = logging.getLogger("logger")
+    handler = logging.StreamHandler(stream=sys.stdout)
+    handler.setLevel(log_level)
+    logger.addHandler(handler)
+    return logger
 
 
 class MicroHomologyTool:

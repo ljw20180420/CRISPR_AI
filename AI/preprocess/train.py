@@ -1,596 +1,408 @@
 import re
 import torch
+from torch import nn
 import numpy as np
 import os
 import pathlib
-from transformers import PreTrainedModel
 from torch.utils.data import DataLoader
 import json
-from typing import Literal
+from typing import Literal, Callable
 import importlib
 import datasets
+import inspect
 import jsonargparse
-from .generator import MyGenerator
-from .dataset import MyDataset
-from .initializer import MyInitializer
-from .optimizer import MyOptimizer
-from .lr_scheduler import MyLRScheduler
-from .utils import MyLogger
-from .io import target_to_epoch, load_checkpoint, load_my_dataset
+from transformers.trainer_pt_utils import get_parameter_names
+from tqdm import tqdm
+from .model import get_model
+from .dataset import get_dataset
+from .utils import get_logger, MyGenerator, target_to_epoch
 
 
 class MyTrain:
     def __init__(
         self,
-        preprocess: str,
-        model_type: str,
         output_dir: os.PathLike,
         trial_name: str,
         batch_size: int,
         num_epochs: int,
+        clip_value: float,
+        accumulate_steps: int,
         device: Literal["cpu", "cuda"],
         resume_from_checkpoint: bool,
     ):
         """Train arguments.
 
         Args:
-            preprocess: The preprocess.
-            model_type: The model type.
             output_dir: Output directory.
             trial_name: name of the training trial
             batch_size: Batch size.
             num_epochs: Total number of training epochs to perform.
+            clip_value: clip the norm of gradients.
+            accumulate_steps: Accumulate gradients for these steps before update parameters.
             device: Device.
             resume_from_checkpoint: Resume from checkpoint.
         """
-        self.preprocess = preprocess
-        self.model_type = model_type
         self.output_dir = pathlib.Path(os.fspath(output_dir))
         self.trial_name = trial_name
         self.batch_size = batch_size
         self.num_epochs = num_epochs
+        self.clip_value = clip_value
+        self.accumulate_steps = accumulate_steps
         self.device = device
         self.resume_from_checkpoint = resume_from_checkpoint
 
+    def get_initializer(
+        self,
+        name=Literal[
+            "uniform_",
+            "normal_",
+            "xavier_uniform_",
+            "xavier_normal_",
+            "kaiming_uniform_",
+            "kaiming_normal_",
+            "trunc_normal_",
+        ],
+    ) -> Callable:
+        """Initializer arguments.
+
+        Args:
+            name: Name of the intialization method for model weights.
+        """
+        generator = self.my_generator.get_torch_generator_by_device(self.device)
+        if name == "uniform_":
+            return lambda tensor, generator=generator: nn.init.uniform_(
+                tensor=tensor, a=-1.0, b=1.0, generator=generator
+            )
+        return lambda tensor, generator=generator: getattr(nn.init, "name")(
+            tensor=tensor, generator=generator
+        )
+
+    def get_optimizer(
+        self,
+        name: Literal[
+            "Adadelta",
+            "Adafactor",
+            "Adagrad",
+            "Adam",
+            "AdamW",
+            "SparseAdam",
+            "Adamax",
+            "ASGD",
+            "LBFGS",
+            "NAdam",
+            "RAdam",
+            "RMSprop",
+            "Rprop",
+            "SGD",
+        ],
+        learning_rate: float,
+        weight_decay: float,
+    ) -> torch.optim.Optimizer:
+        """Parameters of optimizer.
+
+        Args:
+            name: Name of optimizer.
+            learning_rate: Learn rate of the optimizer.
+            weight_decay: The l2 regularization coefficient.
+        """
+        decay_parameters = get_parameter_names(
+            self.model,
+            forbidden_layer_types=[nn.LayerNorm],
+            forbidden_name_patterns=[
+                r"bias",
+                r"layernorm",
+                r"rmsnorm",
+                r"(?:^|\.)norm(?:$|\.)",
+                r"_norm(?:$|\.)",
+            ],
+        )
+        params = [
+            {
+                "params": [
+                    p
+                    for n, p in self.model.named_parameters()
+                    if (n in decay_parameters and p.requires_grad)
+                ],
+            },
+            {
+                "params": [
+                    p
+                    for n, p in self.model.named_parameters()
+                    if (n not in decay_parameters and p.requires_grad)
+                ],
+                "weight_decay": 0.0,
+            },
+        ]
+        return getattr(torch.optim, name)(
+            params=params,
+            lr=learning_rate,
+            weight_decay=weight_decay,
+        )
+
+    def get_lr_scheduler(
+        self,
+        name: Literal[
+            "ConstantLR",
+            "CosineAnnealingWarmRestarts",
+            "ReduceLROnPlateau",
+            "LRScheduler",
+        ],
+        warmup_epochs: int,
+        period_epochs: int,
+    ) -> torch.optim.lr_scheduler.SequentialLR:
+        """Parameters for learning rate scheduler.
+
+        Args:
+            name: The scheduler type to use.
+            warmup_epochs: Epochs used for a linear warmup from 0.1 to 1.0 factor of initial learning rate.
+            period_epochs: The period to reset the learning rate for period scheduler.
+        """
+        warm_up_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer=self.optimizer,
+            start_factor=0.1,
+            end_factor=1.0,
+            total_iters=warmup_epochs,
+        )
+        if name == "ConstantLR":
+            return torch.optim.lr_scheduler.SequentialLR(
+                optimizer=self.optimizer,
+                schedulers=[
+                    warm_up_scheduler,
+                    torch.optim.lr_scheduler.ConstantLR(
+                        optimizer=self.optimizer,
+                        factor=1,
+                        total_iters=0,
+                    ),
+                ],
+                milestones=[warmup_epochs],
+            )
+        if name == "CosineAnnealingWarmRestarts":
+            return torch.optim.lr_scheduler.SequentialLR(
+                optimizer=self.optimizer,
+                schedulers=[
+                    warm_up_scheduler,
+                    torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                        optimizer=self.optimizer,
+                        T_0=period_epochs,
+                        eta_min=self.optimizer.state_dict()["initial_lr"] * 0.1,
+                    ),
+                ],
+                milestones=[warmup_epochs],
+            )
+
+        return torch.optim.lr_scheduler.SequentialLR(
+            optimizer=self.optimizer,
+            schedulers=[
+                warm_up_scheduler,
+                getattr(torch.optim.lr_scheduler, name)(optimizer=self.optimizer),
+            ],
+            milestones=[warmup_epochs],
+        )
+
     def __call__(
         self,
-        cfg: jsonargparse.Namespace,
+        meta_data: dict,
     ) -> None:
+        logger = get_logger(**meta_data["logger"])
+
+        logger.info("initialize components")
         model_path = (
             self.output_dir
-            / self.preprocess
-            / self.model_type
-            / cfg.dataset.name
+            / meta_data["train"]["model"]["preprocess"]
+            / meta_data["train"]["model"]["model_type"]
+            / meta_data["train"]["dataset"]["name"]
             / self.trial_name
         )
-        # initialize components
+        last_epoch = -1
         if self.resume_from_checkpoint:
-            epoch = target_to_epoch(
+            last_epoch = target_to_epoch(
                 checkpoints_path=model_path / "checkpoints", target="resume"
             )
-            last_epoch = epoch
-            (
-                my_generator,
-                metrics,
-                model,
-                my_initializer,
-                my_optimizer,
-                my_lr_scheduler,
-                my_logger,
-            ) = load_checkpoint(model_path / "checkpoints" / f"checkpoint-{epoch}")
-            my_dataset = load_my_dataset(model_path)
+            if last_epoch >= 0:
+                with open(
+                    model_path
+                    / "checkpoints"
+                    / f"checkpoint-{last_epoch}"
+                    / "meta_data.json",
+                    "r",
+                ) as fd:
+                    self.meta_data = json.load(fd)
 
+        self.my_generator = MyGenerator(**meta_data["generator"])
+        metric_module = importlib.import_module(f"preprocess.metric")
+        self.metrics = {
+            metric_name: getattr(metric_module, metric_name)(**metric_params)
+            for metric_name, metric_params in meta_data["metric"]
+        }
+        self.model = get_model(**meta_data["model"], meta_data=meta_data)
+        self.initializer = self.get_initializer(**meta_data["train"]["initializer"])
+        self.optimizer = self.get_optimizer(**meta_data["train"]["optimizer"])
+        self.lr_scheduler = self.get_lr_scheduler(**meta_data["train"]["lr_scheduler"])
+
+        if self.resume_from_checkpoint and last_epoch >= 0:
+            checkpoint = torch.load(
+                model_path
+                / "checkpoints"
+                / f"checkpoint-{last_epoch}"
+                / "checkpoint.pt",
+                weights_only=False,
+            )
+            self.my_generator.load_state_dict(checkpoint["generator"])
+            self.model.load_state_dict(checkpoint["model"])
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
+            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+            self.dataset = datasets.load_from_disk(dataset_path=model_path / "datasets")
         else:
-            last_epoch = -1
-            my_generator = MyGenerator(**cfg.generator.as_dict())
-            my_dataset = MyDataset(**cfg.dataset.as_dict(), my_generator=my_generator)
-            metric_module = importlib.import_module(f"preprocess.metric")
-            metrics = {
-                metric_name: getattr(metric_module, metric_name)(**metric_params)
-                for metric_name, metric_params in cfg.metric.as_dict()
-            }
-            model_module = importlib.import_module(
-                f"preprocess.{self.preprocess}.model"
+            self.dataset = get_dataset(
+                **meta_data["dataset"], my_generator=self.my_generator
             )
-            model = getattr(model_module, f"{self.model_type}Model")(
-                getattr(model_module, f"{self.model_type}Config")(
-                    **cfg[self.preprocess][self.model_type].as_dict(),
-                )
-            )
-            my_initializer = MyInitializer(**cfg.initializer.as_dict())
-            my_optimizer = MyOptimizer(**cfg.optimizer.as_dict(), model=model)
-            num_training_steps = (
-                int(np.ceil(len(my_dataset.dataset) / self.batch_size))
-                * self.num_epochs
-            )
-            my_lr_scheduler = MyLRScheduler(
-                **cfg.lr_scheduler.as_dict(),
-                num_training_steps=num_training_steps,
-                my_optimizer=my_optimizer,
-            )
-            my_logger = MyLogger(**cfg.logger.as_dict())
 
         assert (
-            self.preprocess == model.data_collator.preprocess
-            and self.model_type == model.config.model_type
+            meta_data["model"]["preprocess"] == self.model.data_collator.preprocess
+            and meta_data["model"]["model_type"] == self.model.config.model_type
         ), "preprocess or model type is inconsistent"
-        model_path = self.output_dir / preprocess / model_type
-        if self.resume_from_checkpoint:
-            self.load()
-        my_generator = MyGenerator(**my_generator_params)
 
         train_dataloader = DataLoader(
-            dataset=my_dataset.dataset["train"],
+            dataset=self.dataset["train"],
             batch_size=self.batch_size,
             collate_fn=lambda examples: examples,
+            shuffle=True,
+            generator=self.my_generator.torch_c_rng,
         )
         eval_dataloader = DataLoader(
-            dataset=my_dataset.dataset["validation"],
+            dataset=self.dataset["validation"],
             batch_size=self.batch_size,
             collate_fn=lambda examples: examples,
         )
 
-        model_folder = (
-            self.output_dir
-            / data_collator.preprocess
-            / model.config.model_type
-            / my_dataset.name
-            / self.trial_name
-            / "model"
-        )
-        if self.resume_from_checkpoint:
-            checkpoints = [
-                path
-                for path in os.listdir(model_folder)
-                if re.search(r"^checkpoint\-(\d+)$", path) is not None
-                and os.path.isdir(os.path.join(model_folder, path))
-            ]
-            if len(checkpoints) > 0:
-                last_checkpoint = os.path.join(
-                    model_folder,
-                    max(
-                        checkpoints,
-                        key=lambda x: int(
-                            re.search(r"^checkpoint\-(\d+)$", x).groups()[0]
-                        ),
-                    ),
-                )
-                self.load_checkpoint(last_checkpoint, model)
-
-        model.to(self.device)
-
-        # Check if saved optimizer or scheduler states exist
-        self._load_optimizer_and_scheduler(resume_from_checkpoint)
-        self._load_scaler(resume_from_checkpoint)
-
-        # important: at this point:
-        # self.model         is the Transformers Model
-        # self.model_wrapped is DDP(Transformers Model), Deepspeed(Transformers Model),
-        # FSDP(Transformers Model), Dynamo Optimized Module(Transformers Model) etc.
-
-        # Train!
-        logger.info("***** Running training *****")
-        logger.info(f"  Num examples = {num_examples:,}")
-        logger.info(f"  Num Epochs = {num_train_epochs:,}")
-        logger.info(
-            f"  Instantaneous batch size per device = {self.args.per_device_train_batch_size:,}"
-        )
-        if self.args.per_device_train_batch_size != self._train_batch_size:
-            logger.info(
-                f"  Training with DataParallel so batch size has been adjusted to: {self._train_batch_size:,}"
-            )
-        logger.info(
-            f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size:,}"
-        )
-        logger.info(
-            f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}"
-        )
-        logger.info(f"  Total optimization steps = {max_steps:,}")
-        logger.info(
-            f"  Number of trainable parameters = {get_model_param_count(model, trainable_only=True):,}"
-        )
-
-        self.state.epoch = 0
-        start_time = time.time()
-        epochs_trained = 0
-        steps_trained_in_current_epoch = 0
-        steps_trained_progress_bar = None
-
-        # Check if continuing training from a checkpoint
-        if resume_from_checkpoint is not None and os.path.isfile(
-            os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
-        ):
-            self.state = TrainerState.load_from_json(
-                os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
-            )
-            self.compare_trainer_and_checkpoint_args(self.args, self.state)
-            self._load_callback_state()
-            epochs_trained = int(self.state.global_step // num_update_steps_per_epoch)
-            if not args.ignore_data_skip:
-                steps_trained_in_current_epoch = self.state.global_step % (
-                    num_update_steps_per_epoch
-                )
-                steps_trained_in_current_epoch *= args.gradient_accumulation_steps
-            else:
-                steps_trained_in_current_epoch = 0
-
-            logger.info(
-                "  Continuing training from checkpoint, will skip to saved global_step"
-            )
-            logger.info(f"  Continuing training from epoch {epochs_trained}")
-            logger.info(
-                f"  Continuing training from global step {self.state.global_step}"
-            )
-            if not args.ignore_data_skip:
-                logger.info(
-                    f"  Will skip the first {epochs_trained} epochs then the first"
-                    f" {steps_trained_in_current_epoch} batches in the first epoch."
-                )
-
-        # Update the references
-        for attr in ("model", "optimizer", "lr_scheduler"):
-            setattr(self.callback_handler, attr, getattr(self, attr))
-        self.callback_handler.train_dataloader = train_dataloader
-
-        self.state.init_training_references(self, max_steps, num_train_epochs, trial)
-
-        # tr_loss is a tensor to avoid synchronization of TPUs through .item()
-        tr_loss = torch.tensor(0.0, device=args.device)
-        # _total_loss_scalar is updated everytime .item() has to be called on tr_loss and stores the sum of all losses
-        self._total_loss_scalar = 0.0
-        self._globalstep_last_logged = self.state.global_step
-        model.zero_grad()
-        grad_norm: Optional[float] = None
-        learning_rate = None
-        self.control = self.callback_handler.on_train_begin(
-            args, self.state, self.control
-        )
-
-        if args.eval_on_start:
-            self._evaluate(trial, ignore_keys_for_eval, skip_scheduler=True)
-
-        for epoch in range(epochs_trained, num_train_epochs):
-            epoch_dataloader = train_dataloader
-            if hasattr(epoch_dataloader, "set_epoch"):
-                epoch_dataloader.set_epoch(epoch)
-
-            # Reset the past mems state at the beginning of each epoch if necessary.
-            if args.past_index >= 0:
-                self._past = None
-
-            steps_in_epoch = (
-                len(epoch_dataloader)
-                if len_dataloader is not None
-                else args.max_steps * args.gradient_accumulation_steps
-            )
-            self.control = self.callback_handler.on_epoch_begin(
-                args, self.state, self.control
-            )
-
+        logger.info("initialize model weights")
+        self.model = self.model.to(self.device)
+        for m in self.model.modules():
+            # linear layers
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Bilinear):
+                self.initializer(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            # (transposed) convolution layers
             if (
-                epoch == epochs_trained
-                and resume_from_checkpoint is not None
-                and steps_trained_in_current_epoch == 0
+                isinstance(m, nn.Conv1d)
+                or isinstance(m, nn.Conv2d)
+                or isinstance(m, nn.Conv3d)
+                or isinstance(m, nn.ConvTranspose1d)
+                or isinstance(m, nn.ConvTranspose2d)
+                or isinstance(m, nn.ConvTranspose3d)
             ):
-                self._load_rng_state(resume_from_checkpoint)
+                self.initializer(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
-            rng_to_sync = False
-            steps_skipped = 0
-            if steps_trained_in_current_epoch > 0:
-                epoch_dataloader = skip_first_batches(
-                    epoch_dataloader, steps_trained_in_current_epoch
-                )
-                steps_skipped = steps_trained_in_current_epoch
-                steps_trained_in_current_epoch = 0
-                rng_to_sync = True
-
-            step = -1
-            epoch_iterator = iter(epoch_dataloader)
-            # We chunkify the epoch iterator into gradient accumulation steps `n` batches
-            remainder = steps_in_epoch % args.gradient_accumulation_steps
-            if remainder == 0:
-                remainder = args.gradient_accumulation_steps
-            update_step = -1
-            total_updates = steps_in_epoch // args.gradient_accumulation_steps + int(
-                remainder < args.gradient_accumulation_steps
-            )
-            for _ in range(total_updates):
-                update_step += 1
-                num_batches = (
-                    args.gradient_accumulation_steps
-                    if update_step != (total_updates - 1)
-                    else remainder
-                )
-                batch_samples, num_items_in_batch = self.get_batch_samples(
-                    epoch_iterator, num_batches, args.device
-                )
-                for i, inputs in enumerate(batch_samples):
-                    step += 1
-                    do_sync_step = (
-                        step + 1
-                    ) % args.gradient_accumulation_steps == 0 or (
-                        step + 1
-                    ) == steps_in_epoch
-                    # Since we perform prefetching, we need to manually set sync_gradients
-                    self.accelerator.gradient_state._set_sync_gradients(do_sync_step)
-
-                    if self.args.include_num_input_tokens_seen:
-                        main_input_name = getattr(
-                            self.model, "main_input_name", "input_ids"
-                        )
-                        if main_input_name not in inputs:
-                            logger.warning(
-                                "Tried to track the number of tokens seen, however the current model is "
-                                "not configured properly to know what item is the input. To fix this, add "
-                                "a `main_input_name` attribute to the model class you are using."
-                            )
-                        else:
-                            input_tokens = inputs[main_input_name].numel()
-                            input_tokens = torch.tensor(
-                                input_tokens, device=self.args.device, dtype=torch.int64
-                            )
-                            self.state.num_input_tokens_seen += (
-                                self.accelerator.gather(input_tokens).sum().item()
-                            )
-                    if rng_to_sync:
-                        self._load_rng_state(resume_from_checkpoint)
-                        rng_to_sync = False
-
-                    # Skip past any already trained steps if resuming training
-                    if steps_trained_in_current_epoch > 0:
-                        steps_trained_in_current_epoch -= 1
-                        if steps_trained_progress_bar is not None:
-                            steps_trained_progress_bar.update(1)
-                        if steps_trained_in_current_epoch == 0:
-                            self._load_rng_state(resume_from_checkpoint)
-                        continue
-                    elif steps_trained_progress_bar is not None:
-                        steps_trained_progress_bar.close()
-                        steps_trained_progress_bar = None
-
-                    if step % args.gradient_accumulation_steps == 0:
-                        self.control = self.callback_handler.on_step_begin(
-                            args, self.state, self.control
-                        )
-
-                    # We explicitly want to avoid relying on `accelerator.accumulate` for generation training
-                    context = (
-                        functools.partial(self.accelerator.no_sync, model=model)
-                        if i != len(batch_samples) - 1
-                        and self.accelerator.distributed_type
-                        != DistributedType.DEEPSPEED
-                        else contextlib.nullcontext
+        logger.info("enter train loop")
+        for epoch in tqdm(range(last_epoch + 1, self.num_epochs)):
+            logger.info("train model")
+            self.model.train()
+            self.model.zero_grad()  # optimizer.zero_grad() is different when multiple models share a common optimizer
+            train_loss, train_loss_num, grad_norm = 0.0, 0.0, 0.0
+            for step, examples in tqdm(enumerate(train_dataloader)):
+                batch = self.model.data_collator(examples, output_label=True)
+                if "my_generator" in inspect.signature(self.model.forward).parameters:
+                    result = self.model(
+                        input=batch["input"],
+                        label=batch["label"],
+                        my_generator=self.my_generator,
                     )
-                    with context():
-                        tr_loss_step = self.training_step(
-                            model, inputs, num_items_in_batch
-                        )
-
-                    if (
-                        args.logging_nan_inf_filter
-                        and not is_torch_xla_available()
-                        and (torch.isnan(tr_loss_step) or torch.isinf(tr_loss_step))
-                    ):
-                        # if loss is nan or inf simply add the average of previous logged losses
-                        tr_loss = tr_loss + tr_loss / (
-                            1 + self.state.global_step - self._globalstep_last_logged
-                        )
-                    else:
-                        if tr_loss.device != tr_loss_step.device:
-                            raise ValueError(
-                                f"Calculated loss must be on the original device: {tr_loss.device} but device in use is {tr_loss_step.device}"
-                            )
-                        tr_loss = tr_loss + tr_loss_step
-
-                    self.current_flos += float(self.floating_point_ops(inputs))
-
-                    if do_sync_step:
-                        # Since we perform prefetching, we need to manually set sync_gradients to True
-                        self.accelerator.gradient_state._set_sync_gradients(True)
-
-                        # Gradient clipping
-                        if args.max_grad_norm is not None and args.max_grad_norm > 0:
-                            if is_sagemaker_mp_enabled() and args.fp16:
-                                _grad_norm = self.optimizer.clip_master_grads(
-                                    args.max_grad_norm
-                                )
-                            elif self.use_apex:
-                                from apex import amp
-
-                                # Revert to normal clipping otherwise, handling Apex or full precision
-                                _grad_norm = nn.utils.clip_grad_norm_(
-                                    amp.master_params(self.optimizer),
-                                    args.max_grad_norm,
-                                )
-                            else:
-                                grad_norm_context = contextlib.nullcontext
-                                if self.is_tp_enabled:
-                                    from torch.distributed._tensor.experimental import (
-                                        implicit_replication,
-                                    )
-
-                                    grad_norm_context = implicit_replication
-                                with grad_norm_context():
-                                    _grad_norm = self.accelerator.clip_grad_norm_(
-                                        model.parameters(),
-                                        args.max_grad_norm,
-                                    )
-
-                            if (
-                                is_accelerate_available()
-                                and self.accelerator.distributed_type
-                                == DistributedType.DEEPSPEED
-                            ):
-                                grad_norm = model.get_global_grad_norm()
-                                # In some cases the grad norm may not return a float
-                                if hasattr(grad_norm, "item"):
-                                    grad_norm = grad_norm.item()
-                            else:
-                                grad_norm = _grad_norm
-
-                        self.control = self.callback_handler.on_pre_optimizer_step(
-                            args, self.state, self.control
-                        )
-
-                        self.optimizer.step()
-
-                        self.control = self.callback_handler.on_optimizer_step(
-                            args, self.state, self.control
-                        )
-
-                        # get leaning rate before update
-                        learning_rate = self._get_learning_rate()
-
-                        if not self.accelerator.optimizer_step_was_skipped:
-                            # Delay optimizer scheduling until metrics are generated
-                            if not isinstance(
-                                self.lr_scheduler,
-                                torch.optim.lr_scheduler.ReduceLROnPlateau,
-                            ):
-                                self.lr_scheduler.step()
-
-                        model.zero_grad()
-                        self.state.global_step += 1
-                        self.state.epoch = (
-                            epoch + (step + 1 + steps_skipped) / steps_in_epoch
-                        )
-                        self.control = self.callback_handler.on_step_end(
-                            args, self.state, self.control
-                        )
-                        self._maybe_log_save_evaluate(
-                            tr_loss,
-                            grad_norm,
-                            model,
-                            trial,
-                            epoch,
-                            ignore_keys_for_eval,
-                            start_time,
-                            learning_rate=learning_rate,
-                        )
-                    else:
-                        self.control = self.callback_handler.on_substep_end(
-                            args, self.state, self.control
-                        )
-
-                    # PyTorch/XLA relies on the data loader to insert the mark_step for
-                    # each step. Since we are breaking the loop early, we need to manually
-                    # insert the mark_step here.
-                    if (
-                        self.control.should_epoch_stop
-                        or self.control.should_training_stop
-                    ):
-                        if is_torch_xla_available():
-                            xm.mark_step()
-                        break
-                # We also need to break out of the nested loop
-                if self.control.should_epoch_stop or self.control.should_training_stop:
-                    if is_torch_xla_available():
-                        xm.mark_step()
-                    break
-            if step < 0:
-                logger.warning(
-                    "There seems not to be a single sample in your epoch_iterator, stopping training at step"
-                    f" {self.state.global_step}! This is expected if you're using an IterableDataset and set"
-                    f" num_steps ({max_steps}) higher than the number of available samples."
-                )
-                self.control.should_training_stop = True
-
-            self.control = self.callback_handler.on_epoch_end(
-                args, self.state, self.control
-            )
-            self._maybe_log_save_evaluate(
-                tr_loss,
-                grad_norm,
-                model,
-                trial,
-                epoch,
-                ignore_keys_for_eval,
-                start_time,
-                learning_rate=learning_rate,
-            )
-
-            if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
-                if is_torch_xla_available():
-                    # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
-                    xm.master_print(met.metrics_report())
                 else:
-                    logger.warning(
-                        "You enabled PyTorch/XLA debug metrics but you don't have a TPU "
-                        "configured. Check your training configuration if this is unexpected."
+                    result = self.model(
+                        input=batch["input"],
+                        label=batch["label"],
                     )
-            if self.control.should_training_stop:
-                break
 
-        if args.past_index and hasattr(self, "_past"):
-            # Clean the state at the end of training
-            delattr(self, "_past")
-
-        logger.info(
-            "\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n"
-        )
-        if args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
-            # Wait for everyone to get here so we are sure the model has been saved by process 0.
-            if is_torch_xla_available():
-                xm.rendezvous("load_best_model_at_end")
-            elif args.parallel_mode == ParallelMode.DISTRIBUTED:
-                dist.barrier()
-            elif is_sagemaker_mp_enabled():
-                smp.barrier()
-
-            self._load_best_model()
-
-        # add remaining tr_loss
-        self._total_loss_scalar += tr_loss.item()
-        effective_global_step = max(
-            self.state.global_step, 0.001
-        )  # Avoid ZeroDivisionError
-        train_loss = self._total_loss_scalar / effective_global_step
-
-        metrics = speed_metrics(
-            "train",
-            start_time,
-            num_samples=num_train_samples,
-            num_steps=self.state.max_steps,
-            num_tokens=num_train_tokens,
-        )
-        self.store_flos()
-        metrics["total_flos"] = self.state.total_flos
-        metrics["train_loss"] = train_loss
-
-        self.is_in_train = False
-
-        self._memory_tracker.stop_and_update_metrics(metrics)
-
-        self.log(metrics)
-
-        run_dir = self._get_output_dir(trial)
-        checkpoints_sorted = self._sorted_checkpoints(
-            use_mtime=False, output_dir=run_dir
-        )
-
-        # Delete the last checkpoint when save_total_limit=1 if it's different from the best checkpoint and process allowed to save.
-        if (
-            self.args.should_save
-            and self.state.best_model_checkpoint is not None
-            and self.args.save_total_limit == 1
-        ):
-            for checkpoint in checkpoints_sorted:
-                if not os.path.samefile(checkpoint, self.state.best_model_checkpoint):
-                    logger.info(
-                        f"Deleting older checkpoint [{checkpoint}] due to args.save_total_limit"
+                result["loss"].backward()
+                if (step + 1) % self.accumulate_steps == 0 or step == len(
+                    train_dataloader
+                ):
+                    grad_norm += nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.clip_value
                     )
-                    shutil.rmtree(checkpoint, ignore_errors=True)
+                    self.optimizer.step()
+                    self.model.zero_grad()
+                train_loss += result["loss"]
+                train_loss_num += result["loss_num"]
 
-        self.control = self.callback_handler.on_train_end(
-            args, self.state, self.control
-        )
+            self.lr_scheduler.step()
 
-        # Wait for the checkpoint to be uploaded.
-        self._finish_current_push()
+            if hasattr(self.model, "train_scikit_learn"):
+                logger.info("train scikit_learn")
+                self.model.train_scikit_learn(train_dataloader)
 
-        # After training we make sure to retrieve back the original forward pass method
-        # for the embedding layer by removing the forward post hook.
-        if self.neftune_noise_alpha is not None:
-            self._deactivate_neftune(self.model)
+            logger.info("eval model")
+            with torch.no_grad():
+                self.model.eval()
+                eval_loss, eval_loss_num = 0.0, 0.0
+                metric_loss_dict = {
+                    metric_name: {"loss": 0.0, "loss_num": 0.0}
+                    for metric_name in self.metrics.keys()
+                }
+                for examples in tqdm(eval_dataloader):
+                    batch = self.model.data_collator(examples, output_label=True)
+                    if (
+                        "my_generator"
+                        in inspect.signature(self.model.forward).parameters
+                    ):
+                        result = self.model(
+                            input=batch["input"],
+                            label=batch["label"],
+                            my_generator=self.my_generator,
+                        )
+                    else:
+                        result = self.model(
+                            input=batch["input"],
+                            label=batch["label"],
+                        )
+                    eval_loss += result["loss"]
+                    eval_loss_num += result["loss_num"]
+                    df = self.model.eval_output(examples, batch)
+                    observations = batch["label"]["observation"].cpu().numpy()
+                    cut1s = np.array([example["cut1"] for example in examples])
+                    cut2s = np.array([example["cut2"] for example in examples])
+                    for metric_name, metric_fun in self.metrics.items():
+                        metric_loss, metric_loss_num = metric_fun(
+                            df=df,
+                            observation=observations,
+                            cut1=cut1s,
+                            cut2=cut2s,
+                        )
+                        metric_loss_dict[metric_name]["loss"] += metric_loss
+                        metric_loss_dict[metric_name]["loss_num"] += metric_loss_num
 
-        return TrainOutput(self.state.global_step, train_loss, metrics)
+            logger.info("save model")
+            meta_data["performance"] = {
+                "train": {
+                    "loss": train_loss,
+                    "loss_num": train_loss_num,
+                    "grad_num": grad_norm,
+                },
+                "eval": {
+                    "loss": eval_loss,
+                    "loss_num": eval_loss_num,
+                    **metric_loss_dict,
+                },
+            }
+            os.makedirs(
+                model_path / "checkpoints" / f"checkpoint-{epoch}", exist_ok=True
+            )
+            with open(
+                model_path / "checkpoints" / f"checkpoint-{epoch}" / "meta_data.json",
+                "w",
+            ) as fd:
+                json.dump(meta_data, fd)
+
+            torch.save(
+                obj={
+                    "generator": self.my_generator.state_dict(),
+                    "model": self.model.state_dict(),
+                    "optimizer": self.optimizer.state_dict(),
+                    "scheduler": self.lr_scheduler.state_dict(),
+                },
+                f=model_path / "checkpoints" / f"checkpoint-{epoch}" / "checkpoint.pt",
+            )
+            self.dataset.save_to_disk(dataset_dict_path=model_path / "datasets")
