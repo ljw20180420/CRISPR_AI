@@ -34,7 +34,8 @@ class NonWildTypeCrossEntropy:
         cut1: np.ndarray,
         cut2: np.ndarray,
     ) -> tuple:
-        observation[:, cut2, cut1] = 0
+        batch_size = observation.shape[0]
+        observation[np.arange(batch_size), cut2, cut1] = 0
         observation = np.stack(
             [
                 ob[
@@ -62,7 +63,7 @@ class NonWildTypeCrossEntropy:
             "b -> b 1 1",
         )
         loss = -einsum(
-            np.log(probas).clip(-1000, 0), observation, "b r2 r1, b r2 r1 -> b"
+            np.ma.log(probas).filled(-1000), observation, "b r2 r1, b r2 r1 -> b"
         )
         loss_num = einsum(observation, "b r2 r1 -> b")
 

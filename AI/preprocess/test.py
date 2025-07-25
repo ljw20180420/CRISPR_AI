@@ -70,7 +70,7 @@ class MyTest:
         )
 
         logger.info("test model")
-        dfs, accum_sample_idx = [], 0
+        metric_dfs, accum_sample_idx = [], 0
         for examples in tqdm(dl):
             current_batch_size = len(examples)
             batch = model.data_collator(examples, output_label=True)
@@ -78,6 +78,7 @@ class MyTest:
             observations = batch["label"]["observation"].cpu().numpy()
             cut1s = np.array([example["cut1"] for example in examples])
             cut2s = np.array([example["cut2"] for example in examples])
+            metric_df = pd.DataFrame({"sample_idx": np.arange(current_batch_size)})
             for metric_name, metric_fun in metrics.items():
                 metric_loss, metric_loss_num = metric_fun(
                     df=df,
@@ -85,14 +86,14 @@ class MyTest:
                     cut1=cut1s,
                     cut2=cut2s,
                 )
-                df[f"{metric_name}_loss"] = metric_loss
-                df[f"{metric_name}_loss_num"] = metric_loss_num
-            df["sample_idx"] = df["sample_idx"] + accum_sample_idx
+                metric_df[f"{metric_name}_loss"] = metric_loss
+                metric_df[f"{metric_name}_loss_num"] = metric_loss_num
+            metric_df["sample_idx"] = metric_df["sample_idx"] + accum_sample_idx
             accum_sample_idx += current_batch_size
-            dfs.append(df)
+            metric_dfs.append(metric_df)
 
         logger.info("output results")
-        pd.concat(dfs).to_csv(
+        pd.concat(metric_dfs).to_csv(
             self.model_path / "test_result.csv",
             index=False,
         )

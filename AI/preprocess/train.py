@@ -224,7 +224,7 @@ class MyTrain:
                     / "meta_data.json",
                     "r",
                 ) as fd:
-                    self.meta_data = json.load(fd)
+                    meta_data = json.load(fd)
 
         self.my_generator = MyGenerator(**meta_data["generator"])
         self.metrics = get_metrics(**meta_data["metric"], meta_data=meta_data)
@@ -315,12 +315,12 @@ class MyTrain:
                     train_dataloader
                 ):
                     grad_norm += nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.clip_value
-                    )
+                        parameters=self.model.parameters(), max_norm=self.clip_value
+                    ).item()
                     self.optimizer.step()
                     self.model.zero_grad()
-                train_loss += result["loss"]
-                train_loss_num += result["loss_num"]
+                train_loss += result["loss"].item()
+                train_loss_num += result["loss_num"].item()
 
             self.lr_scheduler.step()
 
@@ -352,8 +352,8 @@ class MyTrain:
                             input=batch["input"],
                             label=batch["label"],
                         )
-                    eval_loss += result["loss"]
-                    eval_loss_num += result["loss_num"]
+                    eval_loss += result["loss"].item()
+                    eval_loss_num += result["loss_num"].item()
                     df = self.model.eval_output(examples, batch)
                     observations = batch["label"]["observation"].cpu().numpy()
                     cut1s = np.array([example["cut1"] for example in examples])
@@ -365,8 +365,12 @@ class MyTrain:
                             cut1=cut1s,
                             cut2=cut2s,
                         )
-                        metric_loss_dict[metric_name]["loss"] += metric_loss
-                        metric_loss_dict[metric_name]["loss_num"] += metric_loss_num
+                        metric_loss_dict[metric_name][
+                            "loss"
+                        ] += metric_loss.sum().item()
+                        metric_loss_dict[metric_name][
+                            "loss_num"
+                        ] += metric_loss_num.sum().item()
 
             logger.info("save model")
             meta_data["performance"] = {
@@ -381,6 +385,15 @@ class MyTrain:
                     **metric_loss_dict,
                 },
             }
+            print(
+                {
+                    "train_loss": train_loss / train_loss_num,
+                    "eval_loss": eval_loss / eval_loss_num,
+                }
+            )
+            # __default_config__ has value type Path, which is not JSON serializable.
+            if "__default_config__" in meta_data:
+                meta_data.pop("__default_config__")
             os.makedirs(
                 model_path / "checkpoints" / f"checkpoint-{epoch}", exist_ok=True
             )
@@ -388,14 +401,14 @@ class MyTrain:
                 model_path / "checkpoints" / f"checkpoint-{epoch}" / "meta_data.json",
                 "w",
             ) as fd:
-                json.dump(meta_data, fd)
+                json.dump(meta_data, fd, indent=4)
 
             torch.save(
                 obj={
                     "generator": self.my_generator.state_dict(),
                     "model": self.model.state_dict(),
                     "optimizer": self.optimizer.state_dict(),
-                    "scheduler": self.lr_scheduler.state_dict(),
+                    "lr_scheduler": self.lr_scheduler.state_dict(),
                 },
                 f=model_path / "checkpoints" / f"checkpoint-{epoch}" / "checkpoint.pt",
             )

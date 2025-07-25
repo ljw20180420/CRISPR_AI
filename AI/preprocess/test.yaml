@@ -1,0 +1,4 @@
+test:
+  # model_path:
+  batch_size: 100
+  device: cuda # cuda, cpu
