@@ -1,5 +1,4 @@
 import numpy as np
-import logging
 import os
 import pathlib
 from tqdm import tqdm
@@ -7,7 +6,11 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from typing import Literal
-from .io import target_to_epoch, load_checkpoint, load_my_dataset
+import json
+import datasets
+from .metric import get_metrics
+from .model import get_model
+from .utils import get_logger, target_to_epoch
 
 
 class MyTest:
@@ -30,28 +33,49 @@ class MyTest:
 
     @torch.no_grad()
     def __call__(self) -> None:
-        epoch = target_to_epoch(
+        best_epoch = target_to_epoch(
             self.model_path / "checkpoints", target="NonWildTypeCrossEntropy"
         )
-        (
-            _,
-            metrics,
-            model,
-            _,
-            _,
-            _,
-            my_logger,
-        ) = load_checkpoint(self.model_path / "checkpoints" / f"checkpoint-{epoch}")
-        my_dataset = load_my_dataset(self.model_path)
+        with open(
+            self.model_path
+            / "checkpoints"
+            / f"checkpoint-{best_epoch}"
+            / "meta_data.json",
+            "r",
+        ) as fd:
+            meta_data = json.load(fd)
+        logger = get_logger(**meta_data["logger"])
 
-        my_logger.info("load test data")
+        logger.info("load metric")
+        metrics = get_metrics(
+            metric_names=meta_data["metric"]["metric_names"], meta_data=meta_data
+        )
+
+        logger.info("load model")
+        model = get_model(
+            preprocess=meta_data["model"]["preprocess"],
+            model_type=meta_data["model"]["model_type"],
+            meta_data=meta_data,
+        )
+        checkpoint = torch.load(
+            self.model_path
+            / "checkpoints"
+            / f"checkpoint-{best_epoch}"
+            / "checkpoint.pt",
+            weights_only=False,
+        )
+        model.load_state_dict(checkpoint["model"])
+        model.eval()
+
+        logger.info("load test data")
+        dataset = datasets.load_from_disk(self.model_path / "datasets")
         dl = DataLoader(
-            dataset=my_dataset.dataset["test"],
+            dataset=dataset["test"],
             batch_size=self.batch_size,
             collate_fn=lambda examples: examples,
         )
 
-        my_logger.info("test model")
+        logger.info("test model")
         dfs, accum_sample_idx = [], 0
         for examples in tqdm(dl):
             current_batch_size = len(examples)
@@ -61,19 +85,19 @@ class MyTest:
             cut1s = np.array([example["cut1"] for example in examples])
             cut2s = np.array([example["cut2"] for example in examples])
             for metric_name, metric_fun in metrics.items():
-                loss, loss_num = metric_fun(
+                metric_loss, metric_loss_num = metric_fun(
                     df=df,
                     observation=observations,
                     cut1=cut1s,
                     cut2=cut2s,
                 )
-                df[f"{metric_name}_loss"] = loss
-                df[f"{metric_name}_loss_num"] = loss_num
+                df[f"{metric_name}_loss"] = metric_loss
+                df[f"{metric_name}_loss_num"] = metric_loss_num
             df["sample_idx"] = df["sample_idx"] + accum_sample_idx
             accum_sample_idx += current_batch_size
             dfs.append(df)
 
-        my_logger.info("output results")
+        logger.info("output results")
         pd.concat(dfs).to_csv(
             self.model_path / "test_result.csv",
             index=False,

@@ -3,6 +3,7 @@ import importlib
 from typing import Literal
 from .train import MyTrain
 from .test import MyTest
+from .metric import get_metrics
 from .model import get_model
 from .dataset import get_dataset
 from .utils import MyGenerator, get_logger
@@ -69,6 +70,11 @@ def get_config() -> jsonargparse.ArgumentParser:
         function=get_dataset,
         nested_key="dataset",
         skip=["my_generator"],
+    )
+    parser.add_function_arguments(
+        function=get_metrics,
+        nested_key="metric",
+        skip=["meta_data"],
     )
     parser.add_function_arguments(
         function=get_model,

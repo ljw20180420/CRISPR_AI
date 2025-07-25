@@ -30,6 +30,9 @@ generator:
   seed: 63036
 
 metric:
+  metric_names:
+    - NonWildTypeCrossEntropy
+
   NonWildTypeCrossEntropy:
     ext1_up: 25
     ext1_down: 6
@@ -54,10 +57,10 @@ model:
 
   CRIformer:
     CRIformer:
-      ext1_up: 50
-      ext1_down: 13
-      ext2_up: 13
-      ext2_down: 50
+      ext1_up: 25
+      ext1_down: 6
+      ext2_up: 6
+      ext2_down: 25
       hidden_size: 256
       num_hidden_layers: 3
       num_attention_heads: 4
@@ -90,10 +93,10 @@ model:
 
   DeepHF:
     DeepHF:
-      ext1_up: 50
-      ext1_down: 13
-      ext2_up: 13
-      ext2_down: 50
+      ext1_up: 25
+      ext1_down: 6
+      ext2_up: 5
+      ext2_down: 25
       seq_length: 22
       em_drop: 0.2
       fc_drop: 0.4

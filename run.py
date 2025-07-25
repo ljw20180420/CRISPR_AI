@@ -11,6 +11,7 @@ os.chdir(pathlib.Path(__file__).parent)
 
 # parse arguments
 meta_data = get_config()
+breakpoint()
 
 if meta_data["command"] == "train":
     my_train = MyTrain(**meta_data["train"])

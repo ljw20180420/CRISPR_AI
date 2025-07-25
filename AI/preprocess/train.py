@@ -15,6 +15,7 @@ from transformers.trainer_pt_utils import get_parameter_names
 from tqdm import tqdm
 from .model import get_model
 from .dataset import get_dataset
+from .metric import get_metrics
 from .utils import get_logger, MyGenerator, target_to_epoch
 
 
@@ -229,12 +230,14 @@ class MyTrain:
                     self.meta_data = json.load(fd)
 
         self.my_generator = MyGenerator(**meta_data["generator"])
-        metric_module = importlib.import_module(f"preprocess.metric")
-        self.metrics = {
-            metric_name: getattr(metric_module, metric_name)(**metric_params)
-            for metric_name, metric_params in meta_data["metric"]
-        }
-        self.model = get_model(**meta_data["model"], meta_data=meta_data)
+        self.metrics = get_metrics(
+            metric_names=meta_data["metric"]["metric_names"], meta_data=meta_data
+        )
+        self.model = get_model(
+            preprocess=meta_data["model"]["preprocess"],
+            model_type=meta_data["model"]["model_type"],
+            meta_data=meta_data,
+        )
         self.initializer = self.get_initializer(**meta_data["train"]["initializer"])
         self.optimizer = self.get_optimizer(**meta_data["train"]["optimizer"])
         self.lr_scheduler = self.get_lr_scheduler(**meta_data["train"]["lr_scheduler"])
