@@ -53,7 +53,7 @@ class DataCollator:
 
         Xs, biological_inputs = [], []
         if output_label:
-            observation_list = []
+            cut1s, cut2s, observation_list = [], [], []
 
         for example in examples:
             ref = (
@@ -62,6 +62,8 @@ class DataCollator:
             cut = example["cut1"]
             self._assert_reference_length_and_cut(ref, cut)
             if output_label:
+                cut1s.append(example["cut1"])
+                cut2s.append(example["cut2"])
                 mh_matrix, _, _, mh_rep_num = self.micro_homology_tool.get_mh(
                     example["ref1"],
                     example["ref2"],
@@ -71,7 +73,7 @@ class DataCollator:
                     ext2=0,
                 )
                 observation = self.micro_homology_tool.get_observation(
-                    example, mh_matrix, mh_rep_num
+                    example, mh_matrix, mh_rep_num, lefts=None, rights=None
                 )
                 observation_list.append(observation)
 
@@ -109,6 +111,8 @@ class DataCollator:
                     ),
                 },
                 "label": {
+                    "cut1": np.array(cut1s),
+                    "cut2": np.array(cut2s),
                     "observation": torch.from_numpy(np.stack(observation_list)),
                 },
             }

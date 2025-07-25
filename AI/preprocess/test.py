@@ -47,16 +47,10 @@ class MyTest:
         logger = get_logger(**meta_data["logger"])
 
         logger.info("load metric")
-        metrics = get_metrics(
-            metric_names=meta_data["metric"]["metric_names"], meta_data=meta_data
-        )
+        metrics = get_metrics(**meta_data["metric"], meta_data=meta_data)
 
         logger.info("load model")
-        model = get_model(
-            preprocess=meta_data["model"]["preprocess"],
-            model_type=meta_data["model"]["model_type"],
-            meta_data=meta_data,
-        )
+        model = get_model(**meta_data["model"], meta_data=meta_data)
         checkpoint = torch.load(
             self.model_path
             / "checkpoints"

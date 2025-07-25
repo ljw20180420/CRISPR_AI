@@ -182,7 +182,7 @@ class DataCollator:
                     ext2=0,
                 )
                 observation = self.micro_homology_tool.get_observation(
-                    example, mh_matrix, mh_rep_num
+                    example, mh_matrix, mh_rep_num, lefts=None, rights=None
                 )
                 observation_list.append(observation)
                 # the last 20 elements of lefts and rights correspond to insert_count

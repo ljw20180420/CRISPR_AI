@@ -23,86 +23,84 @@ metrics = ["NonWildTypeCrossEntropy"]
 def get_config() -> jsonargparse.ArgumentParser:
     parser = jsonargparse.ArgumentParser(
         description="Arguments of AI models.",
-        default_config_files=["AI/preprocess/config.yaml"],
-        env_prefix="CRISPR_AI",
-        # default_env=True,
     )
+    subcommands = parser.add_subcommands(required=True, dest="subcommand")
 
-    parser.add_argument("--config", action="config")
-
-    parser.add_argument(
-        "command",
-        required=True,
-        type=Literal["train", "test", "upload", "inference", "app", "space"],
-        help="The command to run. The order is: train -> test -> upload -> inference -> app -> space.",
+    test_parser = jsonargparse.ArgumentParser(
+        description="Test AI models.",
+        default_config_files=["AI/preprocess/test.yaml"],
     )
+    test_parser.add_class_arguments(theclass=MyTest, nested_key="test")
+    test_parser.add_argument("--config", action="config")
+    subcommands.add_subcommand(name="test", parser=test_parser)
 
-    parser.add_class_arguments(
-        theclass=MyTrain,
-        nested_key="train",
+    train_parser = jsonargparse.ArgumentParser(
+        description="Train AI models.",
+        default_config_files=["AI/preprocess/train.yaml"],
     )
-    parser.add_method_arguments(
+    train_parser.add_argument("--config", action="config")
+    train_parser.add_class_arguments(theclass=MyTrain, nested_key="train")
+    train_parser.add_method_arguments(
         theclass=MyTrain,
         themethod="get_initializer",
-        nested_key="train.initializer",
+        nested_key="initializer",
     )
-    parser.add_method_arguments(
+    train_parser.add_method_arguments(
         theclass=MyTrain,
         themethod="get_optimizer",
-        nested_key="train.optimizer",
+        nested_key="optimizer",
     )
-    parser.add_method_arguments(
+    train_parser.add_method_arguments(
         theclass=MyTrain,
-        themethod="get_scheduler",
-        nested_key="train.scheduler",
+        themethod="get_lr_scheduler",
+        nested_key="lr_scheduler",
     )
 
-    parser.add_class_arguments(
-        theclass=MyTest,
-        nested_key="test",
-    )
-
-    parser.add_class_arguments(
+    train_parser.add_class_arguments(
         theclass=MyGenerator,
         nested_key="generator",
     )
-    parser.add_function_arguments(
+    train_parser.add_function_arguments(
+        function=get_logger,
+        nested_key="logger",
+    )
+
+    train_parser.add_function_arguments(
         function=get_dataset,
         nested_key="dataset",
         skip=["my_generator"],
     )
-    parser.add_function_arguments(
+
+    train_parser.add_function_arguments(
         function=get_metrics,
         nested_key="metric",
         skip=["meta_data"],
     )
-    parser.add_function_arguments(
-        function=get_model,
-        nested_key="model",
-        skip=["meta_data"],
-    )
-    parser.add_function_arguments(
-        function=get_logger,
-        nested_key="logger",
-    )
     for metric in metrics:
-        parser.add_class_arguments(
+        train_parser.add_class_arguments(
             theclass=getattr(
                 importlib.import_module(f"AI.preprocess.metric"),
                 metric,
             ),
-            nested_key=f"metric.{metric}",
+            nested_key=metric,
         )
 
+    train_parser.add_function_arguments(
+        function=get_model,
+        nested_key="model",
+        skip=["meta_data"],
+    )
     for preprocess, model_types in preprocess_to_model.items():
         for model_type in model_types:
-            parser.add_class_arguments(
+            train_parser.add_class_arguments(
                 theclass=getattr(
                     importlib.import_module(f"AI.preprocess.{preprocess}.model"),
                     f"{model_type}Config",
                 ),
-                nested_key=f"model.{preprocess}.{model_type}",
+                nested_key=f"{preprocess}.{model_type}",
                 skip=["**kwargs"],
             )
+
+    subcommands.add_subcommand(name="train", parser=train_parser)
 
     return parser.parse_args().as_dict()

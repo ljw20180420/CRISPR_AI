@@ -6,18 +6,6 @@ from torch.backends import opt_einsum
 from einops import einsum, rearrange
 
 
-def get_metrics(metric_names: list[str], meta_data: dict) -> dict:
-    """Metric arguments.
-
-    Args:
-        metric_names: Name list of applied metrics.
-    """
-    return {
-        metric_name: eval(metric_name)(**meta_data["metric"][metric_name])
-        for metric_name in metric_names
-    }
-
-
 class NonWildTypeCrossEntropy:
     def __init__(
         self,
@@ -79,3 +67,15 @@ class NonWildTypeCrossEntropy:
         loss_num = einsum(observation, "b r2 r1 -> b")
 
         return loss, loss_num
+
+
+def get_metrics(metric_names: list[str], meta_data: dict) -> dict:
+    """Metric arguments.
+
+    Args:
+        metric_names: Name list of applied metrics.
+    """
+    return {
+        metric_name: eval(metric_name)(**meta_data[metric_name])
+        for metric_name in metric_names
+    }

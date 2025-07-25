@@ -112,43 +112,14 @@ class DataCollator:
                 )
             )
             if output_label:
-                mh_idx = mh_matrix.nonzero()
-                mh_val = mh_matrix[mh_idx]
-                # construct observations
-                observations = np.zeros(
-                    (example["random_insert_uplimit"] + 2)
-                    * (len(example["ref2"]) + 1)
-                    * (len(example["ref1"]) + 1),
-                    dtype=np.float32,
-                )
-                observations[example["ob_idx"]] = np.array(
-                    example["ob_val"], dtype=np.float32
-                )
-                observations = observations.reshape(
-                    example["random_insert_uplimit"] + 2,
-                    len(example["ref2"]) + 1,
-                    len(example["ref1"]) + 1,
-                )
-                # correct observations
-                observations = self.micro_homology_tool.correct_observation(
-                    observations, mh_matrix, mh_rep_num
-                )
-                # cumulate observations for all random insertion size
-                observation = observations.sum(axis=0)
-                # mh_counts
-                all_counts = observation[
-                    self.rights + example["cut2"],
-                    self.lefts + example["cut1"],
-                ]
-                mh_counts = all_counts[del_end_mask]
-                # distribute count to all positions in single micro-homology diagonal
-                observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
-                observation = observation.reshape(
-                    len(example["ref2"]) + 1, len(example["ref1"]) + 1
+                observation, all_counts = self.micro_homology_tool.get_observation(
+                    example, mh_matrix, mh_rep_num, lefts=self.lefts, rights=self.rights
                 )
                 observation_list.append(observation)
+                # mh_counts
+                mh_counts = all_counts[del_end_mask]
                 # del_count
-                del_count = observations[
+                del_count = observation[
                     self.rights + example["cut2"],
                     self.lefts + example["cut1"],
                 ].sum()

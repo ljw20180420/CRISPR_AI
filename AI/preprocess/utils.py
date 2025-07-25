@@ -1,10 +1,11 @@
+import re
 import os
 import pathlib
 import torch
 import numpy as np
 import logging
 import sys
-from typing import Literal
+from typing import Literal, Optional
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -16,6 +17,8 @@ def target_to_epoch(checkpoints_path: os.PathLike, target: str) -> int:
     Infer the epoch from either the last checkpoint or the loweset metric (including loss).
     """
     checkpoints_path = pathlib.Path(os.fspath(checkpoints_path))
+    if not os.path.exists(checkpoints_path):
+        return -1
     check_epochs = [
         check_epoch
         for check_epoch in os.listdir(checkpoints_path)
@@ -210,8 +213,13 @@ class MicroHomologyTool:
         return observations
 
     def get_observation(
-        self, example: dict, mh_matrix: np.ndarray, mh_rep_num: np.ndarray
-    ) -> np.ndarray:
+        self,
+        example: dict,
+        mh_matrix: np.ndarray,
+        mh_rep_num: np.ndarray,
+        lefts: Optional[np.ndarray],
+        rights: Optional[np.ndarray],
+    ) -> tuple[np.ndarray]:
         mh_idx = mh_matrix.nonzero()
         mh_val = mh_matrix[mh_idx]
         # construct observations
@@ -230,10 +238,19 @@ class MicroHomologyTool:
         # correct observations
         observations = self.correct_observation(observations, mh_matrix, mh_rep_num)
         # cumulate observations for all random insertion size
-        observation = observations.sum(axis=0).flatten()
+        observation = observations.sum(axis=0)
+        # output triangle
+        if lefts is not None and rights is not None:
+            all_counts = observation[
+                rights + example["cut2"],
+                lefts + example["cut1"],
+            ]
         # distribute count to all positions in single micro-homology diagonal
+        observation = observation.flatten()
         observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
         observation = observation.reshape(
             len(example["ref2"]) + 1, len(example["ref1"]) + 1
         )
+        if lefts is not None and rights is not None:
+            return observation, all_counts
         return observation

@@ -31,7 +31,7 @@ class DataCollator:
     def __call__(self, examples: list[dict], output_label: bool) -> dict:
         conditions = []
         if output_label:
-            observation_list = []
+            cut1s, cut2s, observation_list = [], [], []
         for example in examples:
             ref = (
                 example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
@@ -47,8 +47,10 @@ class DataCollator:
                 ext2=0,
             )
             if output_label:
+                cut1s.append(example["cut1"])
+                cut2s.append(example["cut2"])
                 observation = self.micro_homology_tool.get_observation(
-                    example, mh_matrix, mh_rep_num
+                    example, mh_matrix, mh_rep_num, lefts=None, rights=None
                 )
                 observation_list.append(observation)
 
@@ -117,6 +119,8 @@ class DataCollator:
                     "condition": torch.from_numpy(np.stack(conditions)),
                 },
                 "label": {
+                    "cut1": np.array(cut1s),
+                    "cut2": np.array(cut2s),
                     "observation": torch.from_numpy(np.stack(observation_list)),
                 },
             }

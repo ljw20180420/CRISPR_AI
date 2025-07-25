@@ -13,9 +13,9 @@ def get_model(
         preprocess: The preprocess.
         model_type: The model type.
     """
-    model_module = importlib.import_module(f"preprocess.{preprocess}.model")
+    model_module = importlib.import_module(f"AI.preprocess.{preprocess}.model")
     return getattr(model_module, f"{model_type}Model")(
         getattr(model_module, f"{model_type}Config")(
-            **meta_data["model"][preprocess][model_type],
+            **meta_data[preprocess][model_type],
         )
     )

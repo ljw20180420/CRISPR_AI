@@ -1,4 +1,3 @@
-import re
 import torch
 from torch import nn
 import numpy as np
@@ -7,10 +6,8 @@ import pathlib
 from torch.utils.data import DataLoader
 import json
 from typing import Literal, Callable
-import importlib
 import datasets
 import inspect
-import jsonargparse
 from transformers.trainer_pt_utils import get_parameter_names
 from tqdm import tqdm
 from .model import get_model
@@ -54,7 +51,7 @@ class MyTrain:
 
     def get_initializer(
         self,
-        name=Literal[
+        name: Literal[
             "uniform_",
             "normal_",
             "xavier_uniform_",
@@ -74,7 +71,7 @@ class MyTrain:
             return lambda tensor, generator=generator: nn.init.uniform_(
                 tensor=tensor, a=-1.0, b=1.0, generator=generator
             )
-        return lambda tensor, generator=generator: getattr(nn.init, "name")(
+        return lambda tensor, generator=generator: getattr(nn.init, name)(
             tensor=tensor, generator=generator
         )
 
@@ -107,9 +104,9 @@ class MyTrain:
             weight_decay: The l2 regularization coefficient.
         """
         decay_parameters = get_parameter_names(
-            self.model,
+            model=self.model,
             forbidden_layer_types=[nn.LayerNorm],
-            forbidden_name_patterns=[
+            forbidden_layer_names=[
                 r"bias",
                 r"layernorm",
                 r"rmsnorm",
@@ -185,7 +182,7 @@ class MyTrain:
                     torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
                         optimizer=self.optimizer,
                         T_0=period_epochs,
-                        eta_min=self.optimizer.state_dict()["initial_lr"] * 0.1,
+                        eta_min=self.optimizer.param_groups[0]["initial_lr"] * 0.1,
                     ),
                 ],
                 milestones=[warmup_epochs],
@@ -209,9 +206,9 @@ class MyTrain:
         logger.info("initialize components")
         model_path = (
             self.output_dir
-            / meta_data["train"]["model"]["preprocess"]
-            / meta_data["train"]["model"]["model_type"]
-            / meta_data["train"]["dataset"]["name"]
+            / meta_data["model"]["preprocess"]
+            / meta_data["model"]["model_type"]
+            / meta_data["dataset"]["name"]
             / self.trial_name
         )
         last_epoch = -1
@@ -230,17 +227,11 @@ class MyTrain:
                     self.meta_data = json.load(fd)
 
         self.my_generator = MyGenerator(**meta_data["generator"])
-        self.metrics = get_metrics(
-            metric_names=meta_data["metric"]["metric_names"], meta_data=meta_data
-        )
-        self.model = get_model(
-            preprocess=meta_data["model"]["preprocess"],
-            model_type=meta_data["model"]["model_type"],
-            meta_data=meta_data,
-        )
-        self.initializer = self.get_initializer(**meta_data["train"]["initializer"])
-        self.optimizer = self.get_optimizer(**meta_data["train"]["optimizer"])
-        self.lr_scheduler = self.get_lr_scheduler(**meta_data["train"]["lr_scheduler"])
+        self.metrics = get_metrics(**meta_data["metric"], meta_data=meta_data)
+        self.model = get_model(**meta_data["model"], meta_data=meta_data)
+        self.initializer = self.get_initializer(**meta_data["initializer"])
+        self.optimizer = self.get_optimizer(**meta_data["optimizer"])
+        self.lr_scheduler = self.get_lr_scheduler(**meta_data["lr_scheduler"])
 
         if self.resume_from_checkpoint and last_epoch >= 0:
             checkpoint = torch.load(

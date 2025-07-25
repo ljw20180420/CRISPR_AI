@@ -14,7 +14,7 @@ import matplotlib.animation as animation
 from torch.backends import opt_einsum
 from einops import einsum, rearrange, repeat
 from .data_collator import DataCollator
-from ..generator import MyGenerator
+from ..utils import MyGenerator
 
 
 class CRIfuserConfig(PretrainedConfig):

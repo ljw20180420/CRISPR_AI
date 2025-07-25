@@ -105,42 +105,14 @@ class DataCollator:
                 )
             )
             if output_label:
-                mh_idx = mh_matrix.nonzero()
-                mh_val = mh_matrix[mh_idx]
-                # construct observations
-                observations = np.zeros(
-                    (example["random_insert_uplimit"] + 2)
-                    * (len(example["ref2"]) + 1)
-                    * (len(example["ref1"]) + 1),
-                    dtype=np.float32,
-                )
-                observations[example["ob_idx"]] = np.array(
-                    example["ob_val"], dtype=np.float32
-                )
-                observations = observations.reshape(
-                    example["random_insert_uplimit"] + 2,
-                    len(example["ref2"]) + 1,
-                    len(example["ref1"]) + 1,
-                )
-                # correct observations
-                observations = self.micro_homology_tool.correct_observation(
-                    observations, mh_matrix, mh_rep_num
-                )
-                # cumulate observations for all random insertion size
-                observation = observations.sum(axis=0)
-                # count_dels
-                count_del = observation[
-                    self.rights + example["cut2"],
-                    self.lefts + example["cut1"],
-                ]
-                count_del[~del_end_mask & all_mh_lens > 0] = 0
-                count_dels.append(count_del)
-                # distribute count to all positions in single micro-homology diagonal
-                observation[mh_idx] = observation[mh_idx] / (mh_val + 1)
-                observation = observation.reshape(
-                    len(example["ref2"]) + 1, len(example["ref1"]) + 1
+                observation, all_counts = self.micro_homology_tool.get_observation(
+                    example, mh_matrix, mh_rep_num, lefts=self.lefts, rights=self.rights
                 )
                 observation_list.append(observation)
+                # count_dels
+                count_del = all_counts
+                count_del[~del_end_mask & all_mh_lens > 0] = 0
+                count_dels.append(count_del)
                 # count_inss
                 count_ins = np.append(
                     np.array(example["insert_count"], dtype=np.float32),
