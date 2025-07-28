@@ -27,16 +27,9 @@ def target_to_epoch(checkpoints_path: os.PathLike, target: str) -> int:
     ]
     if len(check_epochs) == 0:
         return -1
-    if target == "resume":
-        return max(
-            [
-                int(re.search(r"^checkpoint-(\d+)$", check_epoch).group(1))
-                for check_epoch in check_epochs
-            ]
-        )
 
     metric_value_min = np.inf
-    for check_epoch in os.listdir(checkpoints_path):
+    for check_epoch in check_epochs:
         with open(checkpoints_path / check_epoch / "meta_data.json", "r") as fd:
             meta_data = json.load(fd)
         if target == "loss":

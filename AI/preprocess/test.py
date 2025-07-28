@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import os
 import pathlib
@@ -6,10 +7,9 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from typing import Literal
-import json
 import datasets
-from .metric import get_metrics
-from .model import get_model
+import importlib
+from .config import get_config
 from .utils import get_logger, target_to_epoch
 
 
@@ -36,21 +36,32 @@ class MyTest:
         best_epoch = target_to_epoch(
             self.model_path / "checkpoints", target="NonWildTypeCrossEntropy"
         )
-        with open(
-            self.model_path
-            / "checkpoints"
-            / f"checkpoint-{best_epoch}"
-            / "meta_data.json",
-            "r",
-        ) as fd:
-            meta_data = json.load(fd)
-        logger = get_logger(**meta_data["logger"])
+        parser = get_config()
+        cfg = parser.parse_path(
+            self.model_path / "checkpoints" / f"checkpoint-{best_epoch}" / "train.yaml"
+        )
+        logger = get_logger(**cfg.logger.as_dict())
 
         logger.info("load metric")
-        metrics = get_metrics(**meta_data["metric"], meta_data=meta_data)
+        metrics = {}
+        for metric in cfg.metric:
+            metric_module, metric_cls = metric.class_path.rsplit(".", 1)
+            metrics[metric_cls] = getattr(
+                importlib.import_module(metric_module), metric_cls
+            )(**metric.init_args.as_dict())
 
         logger.info("load model")
-        model = get_model(**meta_data["model"], meta_data=meta_data)
+        reg_obj = re.search(
+            r"^AI\.preprocess\.(.+)\.model\.(.+)Config$", cfg.model.class_path
+        )
+        preprocess = reg_obj.group(1)
+        model_type = reg_obj.group(2)
+        model_module = importlib.import_module(f"AI.preprocess.{preprocess}.model")
+        model = getattr(model_module, f"{model_type}Model")(
+            getattr(model_module, f"{model_type}Config")(
+                **cfg.model.init_args.as_dict(),
+            )
+        )
         checkpoint = torch.load(
             self.model_path
             / "checkpoints"

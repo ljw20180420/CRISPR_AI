@@ -10,13 +10,13 @@ from AI.preprocess.test import MyTest
 os.chdir(pathlib.Path(__file__).parent)
 
 # parse arguments
-meta_data = get_config()
+cfg = get_config().parse_args()
 
-if meta_data["subcommand"] == "train":
-    MyTrain(**meta_data["train"]["train"])(meta_data["train"])
+if cfg.subcommand == "train":
+    MyTrain(**cfg.train.train.as_dict())(cfg.train)
 
-elif meta_data["subcommand"] == "test":
-    MyTest(**meta_data["test"]["test"])()
+elif cfg.subcommand == "test":
+    MyTest(**cfg.test.test.as_dict())()
 
 elif meta_data["subcommand"] == "upload":
     from AI.preprocess.upload import upload

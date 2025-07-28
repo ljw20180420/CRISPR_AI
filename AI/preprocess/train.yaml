@@ -6,10 +6,10 @@ train:
   # trial_name:
   batch_size: 100
   num_epochs: 33
+  last_epoch: -1
   clip_value: 1.0
   accumulate_steps: 1
   device: cuda # cuda, cpu
-  resume_from_checkpoint: True
 
 # train components
 initializer:
@@ -24,17 +24,6 @@ lr_scheduler:
   name: CosineAnnealingWarmRestarts # CosineAnnealingWarmRestarts, ConstantLR, ReduceLROnPlateau, LRScheduler,
   warmup_epochs: 3
   period_epochs: 30
-
-# common components
-metric:
-  metric_names:
-    - NonWildTypeCrossEntropy
-
-NonWildTypeCrossEntropy:
-  ext1_up: 25
-  ext1_down: 6
-  ext2_up: 6
-  ext2_down: 25
 
 dataset:
   user: ljw20180420
@@ -52,77 +41,10 @@ generator:
 logger:
   log_level: WARNING # CRITICAL, FATAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 
-
-# model
-model:
-  # preprocess:
-  # model_type:
-
-CRIformer:
-  CRIformer:
-    ext1_up: 25
-    ext1_down: 6
-    ext2_up: 6
-    ext2_down: 25
-    hidden_size: 256
-    num_hidden_layers: 3
-    num_attention_heads: 4
-    intermediate_size: 1024
-    hidden_dropout_prob: 0.1
-    attention_probs_dropout_prob: 0.1
-
-CRIfuser:
-  CRIfuser:
-    ext1_up: 25
-    ext1_down: 6
-    ext2_up: 6
-    ext2_down: 25
-    max_micro_homology: 7
-    loss_weights: # double_sample_negative_ELBO, importance_sample_negative_ELBO, forward_negative_ELBO, reverse_negative_ELBO, sample_CE, non_sample_CE
-      reverse_negative_ELBO: 0.0001
-      non_sample_CE: 0.0001
-    unet_channels:
-      - 32
-      - 64
-      - 96
-      - 64
-      - 32
-    noise_scheduler: linear # linear, cosine, exp, uniform
-    noise_timesteps: 20
-    cosine_factor: 0.008
-    exp_scale: 5.0
-    exp_base: 5.0
-    uniform_scale: 1.0
-
-DeepHF:
-  DeepHF:
-    ext1_up: 25
-    ext1_down: 6
-    ext2_up: 5
-    ext2_down: 25
-    seq_length: 22
-    em_drop: 0.2
-    fc_drop: 0.4
-    em_dim: 44
-    rnn_units: 60
-    fc_num_hidden_layers: 3
-    fc_num_units: 320
-    fc_activation: elu # elu, relu, tanh, sigmoid, hard_sigmoid
-
-FOREcasT:
-  FOREcasT:
-    max_del_size: 30
-    reg_const: 0.01
-    i1_reg_const: 0.01
-
-inDelphi:
-  inDelphi:
-    DELLEN_LIMIT: 60
-    mid_dim: 16
-
-Lindel:
-  Lindel:
-    dlen: 30
-    mh_len: 4
-    reg_mode: l2 # l2, l1
-    reg_const: 0.01
+metric:
+  - class_path: AI.preprocess.metric.NonWildTypeCrossEntropy
+    init_args:
+      ext1_up: 25
+      ext1_down: 6
+      ext2_up: 6
+      ext2_down: 25

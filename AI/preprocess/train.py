@@ -1,3 +1,4 @@
+import re
 import torch
 from torch import nn
 import numpy as np
@@ -8,12 +9,12 @@ import json
 from typing import Literal, Callable
 import datasets
 import inspect
+import importlib
 from transformers.trainer_pt_utils import get_parameter_names
 from tqdm import tqdm
-from .model import get_model
+from jsonargparse import Namespace, ArgumentParser
 from .dataset import get_dataset
-from .metric import get_metrics
-from .utils import get_logger, MyGenerator, target_to_epoch
+from .utils import get_logger, MyGenerator
 
 
 class MyTrain:
@@ -23,10 +24,10 @@ class MyTrain:
         trial_name: str,
         batch_size: int,
         num_epochs: int,
+        last_epoch: int,
         clip_value: float,
         accumulate_steps: int,
         device: Literal["cpu", "cuda"],
-        resume_from_checkpoint: bool,
     ):
         """Train arguments.
 
@@ -35,19 +36,19 @@ class MyTrain:
             trial_name: name of the training trial
             batch_size: Batch size.
             num_epochs: Total number of training epochs to perform.
+            last_epoch: The last trained epochs.
             clip_value: clip the norm of gradients.
             accumulate_steps: Accumulate gradients for these steps before update parameters.
             device: Device.
-            resume_from_checkpoint: Resume from checkpoint.
         """
         self.output_dir = pathlib.Path(os.fspath(output_dir))
         self.trial_name = trial_name
         self.batch_size = batch_size
         self.num_epochs = num_epochs
+        self.last_epoch = last_epoch
         self.clip_value = clip_value
         self.accumulate_steps = accumulate_steps
         self.device = device
-        self.resume_from_checkpoint = resume_from_checkpoint
 
     def get_initializer(
         self,
@@ -199,45 +200,50 @@ class MyTrain:
 
     def __call__(
         self,
-        meta_data: dict,
+        cfg: Namespace,
     ) -> None:
-        logger = get_logger(**meta_data["logger"])
+        breakpoint()
+        logger = get_logger(**cfg.logger.as_dict())
 
         logger.info("initialize components")
+
+        reg_obj = re.search(
+            r"^AI\.preprocess\.(.+)\.model\.(.+)Config$", cfg.model.class_path
+        )
+        preprocess = reg_obj.group(1)
+        model_type = reg_obj.group(2)
         model_path = (
             self.output_dir
-            / meta_data["model"]["preprocess"]
-            / meta_data["model"]["model_type"]
-            / meta_data["dataset"]["name"]
+            / preprocess
+            / model_type
+            / cfg.dataset.name
             / self.trial_name
         )
-        last_epoch = -1
-        if self.resume_from_checkpoint:
-            last_epoch = target_to_epoch(
-                checkpoints_path=model_path / "checkpoints", target="resume"
+
+        self.my_generator = MyGenerator(**cfg.generator.as_dict())
+
+        self.metrics = {}
+        for metric in cfg.metric:
+            metric_module, metric_cls = metric.class_path.rsplit(".", 1)
+            self.metrics[metric_cls] = getattr(
+                importlib.import_module(metric_module), metric_cls
+            )(**metric.init_args.as_dict())
+
+        model_module = importlib.import_module(f"AI.preprocess.{preprocess}.model")
+        self.model = getattr(model_module, f"{model_type}Model")(
+            getattr(model_module, f"{model_type}Config")(
+                **cfg.model.init_args.as_dict(),
             )
-            if last_epoch >= 0:
-                with open(
-                    model_path
-                    / "checkpoints"
-                    / f"checkpoint-{last_epoch}"
-                    / "meta_data.json",
-                    "r",
-                ) as fd:
-                    meta_data = json.load(fd)
+        )
+        self.initializer = self.get_initializer(**cfg.initializer.as_dict())
+        self.optimizer = self.get_optimizer(**cfg.optimizer.as_dict())
+        self.lr_scheduler = self.get_lr_scheduler(**cfg.lr_scheduler.as_dict())
 
-        self.my_generator = MyGenerator(**meta_data["generator"])
-        self.metrics = get_metrics(**meta_data["metric"], meta_data=meta_data)
-        self.model = get_model(**meta_data["model"], meta_data=meta_data)
-        self.initializer = self.get_initializer(**meta_data["initializer"])
-        self.optimizer = self.get_optimizer(**meta_data["optimizer"])
-        self.lr_scheduler = self.get_lr_scheduler(**meta_data["lr_scheduler"])
-
-        if self.resume_from_checkpoint and last_epoch >= 0:
+        if self.last_epoch >= 0:
             checkpoint = torch.load(
                 model_path
                 / "checkpoints"
-                / f"checkpoint-{last_epoch}"
+                / f"checkpoint-{self.last_epoch}"
                 / "checkpoint.pt",
                 weights_only=False,
             )
@@ -248,12 +254,12 @@ class MyTrain:
             self.dataset = datasets.load_from_disk(dataset_path=model_path / "datasets")
         else:
             self.dataset = get_dataset(
-                **meta_data["dataset"], my_generator=self.my_generator
+                **cfg.dataset.as_dict(), my_generator=self.my_generator
             )
 
         assert (
-            meta_data["model"]["preprocess"] == self.model.data_collator.preprocess
-            and meta_data["model"]["model_type"] == self.model.config.model_type
+            preprocess == self.model.data_collator.preprocess
+            and model_type == self.model.config.model_type
         ), "preprocess or model type is inconsistent"
 
         train_dataloader = DataLoader(
@@ -291,7 +297,7 @@ class MyTrain:
                     nn.init.constant_(m.bias, 0)
 
         logger.info("enter train loop")
-        for epoch in tqdm(range(last_epoch + 1, self.num_epochs)):
+        for epoch in tqdm(range(self.last_epoch + 1, self.num_epochs)):
             logger.info("train model")
             self.model.train()
             self.model.zero_grad()  # optimizer.zero_grad() is different when multiple models share a common optimizer
@@ -373,7 +379,7 @@ class MyTrain:
                         ] += metric_loss_num.sum().item()
 
             logger.info("save model")
-            meta_data["performance"] = {
+            performance = {
                 "train": {
                     "loss": train_loss,
                     "loss_num": train_loss_num,
@@ -391,17 +397,18 @@ class MyTrain:
                     "eval_loss": eval_loss / eval_loss_num,
                 }
             )
-            # __default_config__ has value type Path, which is not JSON serializable.
-            if "__default_config__" in meta_data:
-                meta_data.pop("__default_config__")
             os.makedirs(
                 model_path / "checkpoints" / f"checkpoint-{epoch}", exist_ok=True
             )
+            cfg.train.last_epoch = epoch
+            ArgumentParser.save(
+                cfg, model_path / "checkpoints" / f"checkpoint-{epoch}" / "train.yaml"
+            )
             with open(
-                model_path / "checkpoints" / f"checkpoint-{epoch}" / "meta_data.json",
+                model_path / "checkpoints" / f"checkpoint-{epoch}" / "performance.json",
                 "w",
             ) as fd:
-                json.dump(meta_data, fd, indent=4)
+                json.dump(performance, fd, indent=4)
 
             torch.save(
                 obj={

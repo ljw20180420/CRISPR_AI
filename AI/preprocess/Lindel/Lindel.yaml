@@ -1,0 +1,6 @@
+Lindel: AI.preprocess.Lindel.model.LindelConfig
+init_args:
+  dlen: 30
+  mh_len: 4
+  reg_mode: l2 # l2, l1
+  reg_const: 0.01
