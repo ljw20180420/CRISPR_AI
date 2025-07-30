@@ -1,0 +1,44 @@
+class_path: AI.preprocess.DeepHF.model.CNNConfig
+init_args:
+  ext1_up: 25
+  ext1_down: 6
+  ext2_up: 6
+  ext2_down: 25
+  em_drop: 0.2
+  fc_drop: 0.2
+  em_dim: 36
+  fc_num_hidden_layers: 3
+  fc_num_units: 400
+  fc_activation: relu # elu, relu, tanh, sigmoid, hard_sigmoid
+  kernel_sizes:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+  feature_maps:
+    - 20
+    - 20
+    - 20
+    - 20
+    - 40
+    - 40
+    - 40
+    - 40
+    - 80
+    - 80
+    - 80
+    - 80
+    - 80
+    - 80
+                
