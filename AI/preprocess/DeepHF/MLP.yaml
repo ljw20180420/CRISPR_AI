@@ -1,0 +1,10 @@
+class_path: AI.preprocess.DeepHF.model.MLPConfig
+init_args:
+  ext1_up: 25
+  ext1_down: 6
+  ext2_up: 6
+  ext2_down: 25
+  fc_drop: 0.2
+  fc_num_hidden_layers: 4
+  fc_num_units: 400
+  fc_activation: sigmoid # elu, relu, tanh, sigmoid, hard_sigmoid

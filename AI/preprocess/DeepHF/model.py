@@ -224,6 +224,179 @@ class DeepHFModel(PreTrainedModel):
         return df
 
 
+class MLPConfig(PretrainedConfig):
+    model_type = "MLP"
+
+    def __init__(
+        self,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        fc_drop: float,
+        fc_num_hidden_layers: int,
+        fc_num_units: int,
+        fc_activation: Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+        **kwargs,
+    ) -> None:
+        """DeepHF arguments.
+
+        Args:
+            ext1_up: upstream limit of the resection of the upstream end.
+            ext1_down: downstream limit of the templated insertion of the upstream end.
+            ext2_up: upstream limit of the templated insertion of the downstream end.
+            ext2_down: downstream limit of the resection of the downstream end.
+            fc_drop: dropout probability of fully connected layer.
+            fc_num_hidden_layers: number of output fully connected layers.
+            fc_num_units: hidden dimension of output fully connected layers.
+            fc_activation: activation function of output fully connected layers.
+        """
+        self.ext1_up = ext1_up
+        self.ext1_down = ext1_down
+        self.ext2_up = ext2_up
+        self.ext2_down = ext2_down
+        self.fc_drop = fc_drop
+        self.fc_num_hidden_layers = fc_num_hidden_layers
+        self.fc_num_units = fc_num_units
+        self.fc_activation = fc_activation
+        super().__init__(**kwargs)
+
+
+class MLPModel(PreTrainedModel):
+    config_class = MLPConfig
+
+    def __init__(self, config: MLPConfig) -> None:
+        super().__init__(config)
+        self.data_collator = DataCollator(
+            ext1_up=config.ext1_up,
+            ext1_down=config.ext1_down,
+            ext2_up=config.ext2_up,
+            ext2_down=config.ext2_down,
+        )
+
+        if config.fc_activation == "elu":
+            self.fc_activation = nn.ELU()
+        elif config.fc_activation == "relu":
+            self.fc_activation = nn.ReLU()
+        elif config.fc_activation == "tanh":
+            self.fc_activation = nn.Tanh()
+        elif config.fc_activation == "sigmoid":
+            self.fc_activation = nn.Sigmoid()
+        else:
+            assert (
+                config.fc_activation == "hard_sigmoid"
+            ), f"unknown fc_activation {config.fc_activation}"
+            self.fc_activation = nn.Hardsigmoid()
+
+        # 22 is "S" + sgRNA21mer, 6 is PSACGT
+        self.fc1 = nn.Sequential(
+            nn.Linear(
+                22 * 6 + 11,
+                config.fc_num_units,
+            ),
+            self.fc_activation,
+            nn.Dropout(config.fc_drop),
+        )
+        self.fcs = nn.Sequential(
+            *sum(
+                [
+                    [
+                        nn.Linear(config.fc_num_units, config.fc_num_units),
+                        self.fc_activation,
+                        nn.Dropout(config.fc_drop),
+                    ]
+                    for _ in range(1, config.fc_num_hidden_layers)
+                ],
+                [],
+            )
+        )
+
+        out_dim = (config.ext1_up + config.ext1_down + 1) * (
+            config.ext2_up + config.ext2_down + 1
+        )
+        self.mix_output = nn.Linear(config.fc_num_units, out_dim)
+
+    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+        X = self.fc1(
+            torch.cat(
+                [
+                    rearrange(
+                        F.one_hot(input["X"].to(self.device), num_classes=6),
+                        "b s h -> b (s h)",
+                    ),
+                    input["biological_input"].to(self.device),
+                ],
+                dim=1,
+            )
+        )
+        X = self.fcs(X)
+        logit = self.mix_output(X)
+        if label is not None:
+            observation = torch.stack(
+                [
+                    ob[
+                        c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
+                        c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                    ]
+                    for ob, c1, c2 in zip(
+                        label["observation"], label["cut1"], label["cut2"]
+                    )
+                ]
+            ).to(self.device)
+            # negative log likelihood
+            loss, loss_num = self.loss_fun(
+                logit,
+                observation,
+            )
+            return {
+                "logit": logit,
+                "loss": loss,
+                "loss_num": loss_num,
+            }
+        return {"logit": logit}
+
+    def loss_fun(self, logit: torch.Tensor, observation: torch.Tensor) -> float:
+        loss = -einsum(
+            F.log_softmax(logit, dim=1),
+            rearrange(observation, "b r2 r1 -> b (r2 r1)"),
+            "b f, b f ->",
+        )
+        loss_num = einsum(observation, "b r2 r1 ->")
+        return loss, loss_num
+
+    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+        result = self(input=batch["input"])
+
+        probas = F.softmax(result["logit"], dim=1).cpu().numpy()
+        batch_size = probas.shape[0]
+        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
+        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size),
+                    "b -> (b r2 r1)",
+                    r1=ref1_dim,
+                    r2=ref2_dim,
+                ),
+                "proba": probas.flatten(),
+                "rpos1": repeat(
+                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    "r1 -> (b r2 r1)",
+                    b=batch_size,
+                    r2=ref2_dim,
+                ),
+                "rpos2": repeat(
+                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    "r2 -> (b r2 r1)",
+                    b=batch_size,
+                    r1=ref1_dim,
+                ),
+            }
+        )
+        return df
+
+
 class XGBoostConfig(PretrainedConfig):
     model_type = "XGBoost"
 
