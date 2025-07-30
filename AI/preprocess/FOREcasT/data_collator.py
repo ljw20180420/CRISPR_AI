@@ -165,7 +165,7 @@ class DataCollator:
     def __call__(self, examples: list[dict], output_label: bool) -> dict:
         features = []
         if output_label:
-            counts, observation_list = []
+            counts, observation_list = [], []
         for example in examples:
             cut = example["cut1"]
             ref = (
@@ -279,7 +279,7 @@ class DataCollator:
                 ],
                 dim=-1,
             ).to(torch.float32)
-            feature = torch.cat([self.feature_fix, feature_var], dim=-1)
+            feature = torch.cat([self.feature_fix, feature_var], dim=1)
             features.append(feature)
 
         if output_label:

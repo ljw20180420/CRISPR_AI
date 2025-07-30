@@ -2,9 +2,8 @@ class_path: AI.preprocess.DeepHF.model.DeepHFConfig
 init_args:
   ext1_up: 25
   ext1_down: 6
-  ext2_up: 5
+  ext2_up: 6
   ext2_down: 25
-  seq_length: 22
   em_drop: 0.2
   fc_drop: 0.4
   em_dim: 44

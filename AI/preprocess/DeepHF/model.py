@@ -4,12 +4,19 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Literal, Optional
+import os
+import pathlib
+from scipy.special import softmax
+import pickle
+import itertools
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops.layers.torch import Rearrange
 from einops import rearrange, einsum, repeat
 from transformers import PreTrainedModel, PretrainedConfig
+import xgboost as xgb
+from sklearn import linear_model
 from .data_collator import DataCollator
 
 
@@ -22,7 +29,6 @@ class DeepHFConfig(PretrainedConfig):
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
-        seq_length: int,
         em_drop: float,
         fc_drop: float,
         em_dim: int,
@@ -39,7 +45,6 @@ class DeepHFConfig(PretrainedConfig):
             ext1_down: downstream limit of the templated insertion of the upstream end.
             ext2_up: upstream limit of the templated insertion of the downstream end.
             ext2_down: downstream limit of the resection of the downstream end.
-            seq_length: input sequence length.
             em_drop: dropout probability of embedding.
             fc_drop: dropout probability of fully connected layer.
             em_dim: embedding dimension.
@@ -52,7 +57,6 @@ class DeepHFConfig(PretrainedConfig):
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.seq_length = seq_length
         self.em_drop = em_drop
         self.fc_drop = fc_drop
         self.em_dim = em_dim
@@ -84,8 +88,8 @@ class DeepHFModel(PreTrainedModel):
 
         # According to https://stackoverflow.com/questions/56915567/keras-vs-pytorch-lstm-different-results, the output of pytorch lstm need activation to resemble the lstm of keras. The default activation is tanh.
         self.lstm = nn.LSTM(
-            input_size=self.config.em_dim,
-            hidden_size=self.config.rnn_units,
+            input_size=config.em_dim,
+            hidden_size=config.rnn_units,
             num_layers=1,
             bias=True,
             batch_first=True,
@@ -96,49 +100,50 @@ class DeepHFModel(PreTrainedModel):
             Rearrange("b l e -> b (l e)"),
         )
 
-        if self.config.fc_activation == "elu":
+        if config.fc_activation == "elu":
             self.fc_activation = nn.ELU()
-        elif self.config.fc_activation == "relu":
+        elif config.fc_activation == "relu":
             self.fc_activation = nn.ReLU()
-        elif self.config.fc_activation == "tanh":
+        elif config.fc_activation == "tanh":
             self.fc_activation = nn.Tanh()
-        elif self.config.fc_activation == "sigmoid":
+        elif config.fc_activation == "sigmoid":
             self.fc_activation = nn.Sigmoid()
         else:
             assert (
-                self.config.fc_activation == "hard_sigmoid"
-            ), f"unknown fc_activation {self.config.fc_activation}"
+                config.fc_activation == "hard_sigmoid"
+            ), f"unknown fc_activation {config.fc_activation}"
             self.fc_activation = nn.Hardsigmoid()
 
+        # 22 is "S" + sgRNA21mer
         self.fc1 = nn.Sequential(
             nn.Linear(
-                self.config.seq_length * self.config.rnn_units * 2 + 11,
-                self.config.fc_num_units,
+                22 * config.rnn_units * 2 + 11,
+                config.fc_num_units,
             ),
             self.fc_activation,
-            nn.Dropout(self.config.fc_drop),
+            nn.Dropout(config.fc_drop),
         )
         self.fcs = nn.Sequential(
             *sum(
                 [
                     [
-                        nn.Linear(self.config.fc_num_units, self.config.fc_num_units),
+                        nn.Linear(config.fc_num_units, config.fc_num_units),
                         self.fc_activation,
-                        nn.Dropout(self.config.fc_drop),
+                        nn.Dropout(config.fc_drop),
                     ]
-                    for _ in range(1, self.config.fc_num_hidden_layers)
+                    for _ in range(1, config.fc_num_hidden_layers)
                 ],
                 [],
             )
         )
 
-        out_dim = (self.config.ext1_up + self.config.ext1_down + 1) * (
-            self.config.ext2_up + self.config.ext2_down + 1
+        out_dim = (config.ext1_up + config.ext1_down + 1) * (
+            config.ext2_up + config.ext2_down + 1
         )
-        self.mix_output = nn.Linear(self.config.fc_num_units, out_dim)
+        self.mix_output = nn.Linear(config.fc_num_units, out_dim)
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
-        X = self.embedding(input["X"])
+        X = self.embedding(input["X"].to(self.device))
         X = self.dropout1d(X)
         X, _ = self.lstm(X)
         X = self.lstm_ac(X)
@@ -146,7 +151,7 @@ class DeepHFModel(PreTrainedModel):
             torch.cat(
                 [
                     X,
-                    input["biological_input"],
+                    input["biological_input"].to(self.device),
                 ],
                 dim=1,
             )
@@ -164,7 +169,7 @@ class DeepHFModel(PreTrainedModel):
                         label["observation"], label["cut1"], label["cut2"]
                     )
                 ]
-            )
+            ).to(self.device)
             # negative log likelihood
             loss, loss_num = self.loss_fun(
                 logit,
@@ -217,3 +222,396 @@ class DeepHFModel(PreTrainedModel):
             }
         )
         return df
+
+
+class XGBoostConfig(PretrainedConfig):
+    model_type = "XGBoost"
+
+    def __init__(
+        self,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        learning_rate: float,
+        subsample: float,
+        colsample_bytree: float,
+        max_depth: int,
+        reg_lambda: float,
+        nthread: int,
+        booster: Literal["gbtree", "gblinear", "dart"],
+        num_boost_round: int,
+        multi_strategy: Literal["one_output_per_tree", "multi_output_tree"],
+        early_stopping_rounds: int,
+        **kwargs,
+    ) -> None:
+        """DeepHF arguments.
+
+        Args:
+            ext1_up: upstream limit of the resection of the upstream end.
+            ext1_down: downstream limit of the templated insertion of the upstream end.
+            ext2_up: upstream limit of the templated insertion of the downstream end.
+            ext2_down: downstream limit of the resection of the downstream end.
+            learning_rate: learning rate.
+            subsample: subsample ratio of the training instances.
+            colsample_bytree: subsample ratio of columns when constructing each tree.
+            max_depth: maximum depth of a tree.
+            reg_lambda: L2 regularization term on weights.
+            nthread: number of threads.
+            booster: booster to use. gbtree and dart use tree based models while gblinear uses linear functions.
+            num_boost_round: XGBoost iteration numbers.
+            multi_strategy: XGBoost strategy for multiple outputs.
+            early_stopping_rounds: Early stopping rounds of XGBoost.
+        """
+        self.ext1_up = ext1_up
+        self.ext1_down = ext1_down
+        self.ext2_up = ext2_up
+        self.ext2_down = ext2_down
+        self.learning_rate = learning_rate
+        self.subsample = subsample
+        self.colsample_bytree = colsample_bytree
+        self.max_depth = max_depth
+        self.reg_lambda = reg_lambda
+        self.nthread = nthread
+        self.booster = booster
+        self.num_boost_round = num_boost_round
+        self.multi_strategy = multi_strategy
+        self.early_stopping_rounds = early_stopping_rounds
+        super().__init__(**kwargs)
+
+
+class XGBoostModel(PreTrainedModel):
+    config_class = XGBoostConfig
+
+    def __init__(self, config: XGBoostConfig) -> None:
+        super().__init__(config)
+        self.data_collator = DataCollator(
+            ext1_up=config.ext1_up,
+            ext1_down=config.ext1_down,
+            ext2_up=config.ext2_up,
+            ext2_down=config.ext2_down,
+        )
+
+    def eval_output(
+        self,
+        examples: list[dict],
+        batch: dict,
+    ) -> pd.DataFrame:
+        X_value = self._get_feature(
+            input=batch["input"],
+            label=None,
+        )
+        probas = self.booster.predict(X_value)
+        batch_size = probas.shape[0]
+        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
+        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size),
+                    "b -> (b r2 r1)",
+                    r1=ref1_dim,
+                    r2=ref2_dim,
+                ),
+                "proba": probas.flatten(),
+                "rpos1": repeat(
+                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    "r1 -> (b r2 r1)",
+                    b=batch_size,
+                    r2=ref2_dim,
+                ),
+                "rpos2": repeat(
+                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    "r2 -> (b r2 r1)",
+                    b=batch_size,
+                    r1=ref1_dim,
+                ),
+            }
+        )
+        return df
+
+    def save_scikit_learn(self, model_path: os.PathLike) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        self.booster.save_model(fname=model_path / "XGBoost.json")
+
+    def load_scikit_learnt(self, model_path: os.PathLike) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        self.booster = xgb.Booster(model_file=model_path / "XGBoost.json")
+
+    def train_scikit_learn(
+        self,
+        train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
+    ) -> None:
+        X_train, y_train = [], []
+        for examples in train_dataloader:
+            batch = self.data_collator(examples, output_label=True)
+            X_value, y_value = self._get_feature(
+                input=batch["input"], label=batch["label"]
+            )
+            X_train.append(X_value)
+            y_train.append(y_value)
+        X_train = np.concatenate(X_train)
+        y_train = np.concatenate(y_train)
+        X_eval, y_eval = [], []
+        for examples in eval_dataloader:
+            batch = self.data_collator(examples, output_label=True)
+            X_value, y_value = self._get_feature(
+                input=batch["input"], label=batch["label"]
+            )
+            X_eval.append(X_value)
+            y_eval.append(y_value)
+        X_eval = np.concatenate(X_eval)
+        y_eval = np.concatenate(y_eval)
+
+        Xy_train = xgb.DMatrix(
+            data=X_train,
+            label=y_train,
+            feature_types=["c"] * 22 + ["q"] * 11,
+            enable_categorical=True,
+        )
+        Xy_eval = xgb.DMatrix(
+            data=X_eval,
+            label=y_eval,
+            feature_types=["c"] * 22 + ["q"] * 11,
+            enable_categorical=True,
+        )
+
+        self.booster = xgb.train(
+            params={
+                "learning_rate": self.config.learning_rate,
+                "subsample": self.config.subsample,
+                "colsample_bytree": self.config.colsample_bytree,
+                "max_depth": self.config.max_depth,
+                "reg_lambda": self.config.reg_lambda,
+                "objective": "reg:logistic",
+                "nthread": self.config.nthread,
+                "booster": self.config.booster,
+                "num_target": y_train.shape[1],
+                "multi_strategy": self.config.multi_strategy,
+                "seed": 63036,
+            },
+            dtrain=Xy_train,
+            num_boost_round=self.config.num_boost_round,
+            evals=[
+                (Xy_train, "train"),
+                (Xy_eval, "eval"),
+            ],
+            early_stopping_rounds=self.config.early_stopping_rounds,
+        )
+
+    def _get_feature(
+        self,
+        input: dict,
+        label: Optional[dict],
+    ) -> tuple[np.ndarray]:
+        X_value = np.concatenate(
+            (
+                input["X"].cpu().numpy(),
+                input["biological_input"].cpu().numpy(),
+            ),
+            axis=1,
+        )
+
+        if label is not None:
+            y_value = (
+                F.normalize(
+                    rearrange(
+                        torch.stack(
+                            [
+                                ob[
+                                    c2
+                                    - self.config.ext2_up : c2
+                                    + self.config.ext2_down
+                                    + 1,
+                                    c1
+                                    - self.config.ext1_up : c1
+                                    + self.config.ext1_down
+                                    + 1,
+                                ]
+                                for ob, c1, c2 in zip(
+                                    label["observation"], label["cut1"], label["cut2"]
+                                )
+                            ]
+                        ),
+                        "b r2 r1 -> b (r2 r1)",
+                    ),
+                    p=1.0,
+                    dim=1,
+                )
+                .cpu()
+                .numpy()
+            )
+
+            return X_value, y_value
+
+        return X_value
+
+
+class RidgeConfig(PretrainedConfig):
+    model_type = "Ridge"
+
+    def __init__(
+        self,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        alpha: float,
+        **kwargs,
+    ) -> None:
+        """DeepHF arguments.
+
+        Args:
+            ext1_up: upstream limit of the resection of the upstream end.
+            ext1_down: downstream limit of the templated insertion of the upstream end.
+            ext2_up: upstream limit of the templated insertion of the downstream end.
+            ext2_down: downstream limit of the resection of the downstream end.
+            alpha: constant that multiplies the L2 term, controlling regularization strength.
+        """
+        self.ext1_up = ext1_up
+        self.ext1_down = ext1_down
+        self.ext2_up = ext2_up
+        self.ext2_down = ext2_down
+        self.alpha = alpha
+        super().__init__(**kwargs)
+
+
+class RidgeModel(PreTrainedModel):
+    config_class = RidgeConfig
+
+    def __init__(self, config: RidgeConfig) -> None:
+        super().__init__(config)
+        self.data_collator = DataCollator(
+            ext1_up=config.ext1_up,
+            ext1_down=config.ext1_down,
+            ext2_up=config.ext2_up,
+            ext2_down=config.ext2_down,
+        )
+
+    def eval_output(
+        self,
+        examples: list[dict],
+        batch: dict,
+    ) -> pd.DataFrame:
+        X_value = self._get_feature(
+            input=batch["input"],
+            label=None,
+        )
+        logits = self.ridge.predict(X_value)
+        probas = softmax(logits, axis=1)
+        batch_size = probas.shape[0]
+        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
+        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        df = pd.DataFrame(
+            {
+                "sample_idx": repeat(
+                    np.arange(batch_size),
+                    "b -> (b r2 r1)",
+                    r1=ref1_dim,
+                    r2=ref2_dim,
+                ),
+                "proba": probas.flatten(),
+                "rpos1": repeat(
+                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    "r1 -> (b r2 r1)",
+                    b=batch_size,
+                    r2=ref2_dim,
+                ),
+                "rpos2": repeat(
+                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    "r2 -> (b r2 r1)",
+                    b=batch_size,
+                    r1=ref1_dim,
+                ),
+            }
+        )
+        return df
+
+    def save_scikit_learn(self, model_path: os.PathLike) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        with open(model_path / "ridge.pkl", "wb") as fd:
+            pickle.dump(self.ridge, fd)
+
+    def load_scikit_learnt(self, model_path: os.PathLike) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        with open(model_path / "ridge.pkl", "rb") as fd:
+            self.ridge = pickle.load(fd)
+
+    def train_scikit_learn(
+        self,
+        train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
+    ) -> None:
+        X_train, y_train = [], []
+        for examples in itertools.chain(train_dataloader, eval_dataloader):
+            batch = self.data_collator(examples, output_label=True)
+            X_value, y_value = self._get_feature(
+                input=batch["input"], label=batch["label"]
+            )
+            X_train.append(X_value)
+            y_train.append(y_value)
+        X_train = np.concatenate(X_train)
+        y_train = np.concatenate(y_train)
+
+        self.ridge = linear_model.Ridge(
+            alpha=self.config.alpha,
+            fit_intercept=True,
+            normalize=False,
+            copy_X=True,
+            max_iter=None,
+            solver="auto",
+        )
+        self.ridge.fit(X_train, y_train)
+
+    def _get_feature(
+        self,
+        input: dict,
+        label: Optional[dict],
+    ) -> tuple[np.ndarray]:
+        X_value = np.concatenate(
+            (
+                rearrange(
+                    F.one_hot(input["X"], num_classes=6),
+                    "b s h -> b (s h)",
+                )
+                .cpu()
+                .numpy(),
+                input["biological_input"].cpu().numpy(),
+            ),
+            axis=1,
+        )
+
+        if label is not None:
+            y_value = np.ma.log(
+                F.normalize(
+                    rearrange(
+                        torch.stack(
+                            [
+                                ob[
+                                    c2
+                                    - self.config.ext2_up : c2
+                                    + self.config.ext2_down
+                                    + 1,
+                                    c1
+                                    - self.config.ext1_up : c1
+                                    + self.config.ext1_down
+                                    + 1,
+                                ]
+                                for ob, c1, c2 in zip(
+                                    label["observation"], label["cut1"], label["cut2"]
+                                )
+                            ]
+                        ),
+                        "b r2 r1 -> b (r2 r1)",
+                    ),
+                    p=1.0,
+                    dim=1,
+                )
+                .cpu()
+                .numpy()
+            ).filled(-1000)
+
+            return X_value, y_value
+
+        return X_value

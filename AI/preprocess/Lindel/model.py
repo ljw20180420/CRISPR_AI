@@ -58,19 +58,19 @@ class LindelModel(PreTrainedModel):
         )
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
-        logit_indel = self.model_indel(input["input_indel"])
-        logit_ins = self.model_ins(input["input_ins"])
-        logit_del = self.model_del(input["input_del"])
+        logit_indel = self.model_indel(input["input_indel"].to(self.device))
+        logit_ins = self.model_ins(input["input_ins"].to(self.device))
+        logit_del = self.model_del(input["input_del"].to(self.device))
         if label is not None:
             loss, loss_num = self.loss_fun(
                 logit_indel=logit_indel,
-                count_indel=label["count_indel"],
+                count_indel=label["count_indel"].to(self.device),
                 model_indel=self.model_indel,
                 logit_ins=logit_ins,
-                count_ins=label["count_ins"],
+                count_ins=label["count_ins"].to(self.device),
                 model_ins=self.model_ins,
                 logit_del=logit_del,
-                count_del=label["count_del"],
+                count_del=label["count_del"].to(self.device),
                 model_del=self.model_del,
             )
             return {
@@ -131,12 +131,34 @@ class LindelModel(PreTrainedModel):
         left_shift = np.zeros((batch_size, 20), dtype=int)
         right_shift = np.zeros((batch_size, 20), dtype=int)
         ins_shift = np.full((batch_size, 20), "", dtype="U2")
+        ins1_2bp = [
+            "A",
+            "C",
+            "G",
+            "T",
+            "AA",
+            "AC",
+            "AG",
+            "AT",
+            "CA",
+            "CC",
+            "CG",
+            "CT",
+            "GA",
+            "GC",
+            "GG",
+            "GT",
+            "TA",
+            "TC",
+            "TG",
+            "TT",
+        ]
         for i, example in enumerate(examples):
             ref = (
                 example["ref1"][: example["cut1"]] + example["ref2"][example["cut2"] :]
             )
             cut = example["cut1"]
-            for j, ins in enumerate(self.inss):
+            for j, ins in enumerate(ins1_2bp):
                 if ref[cut] == ins[0]:
                     if len(ins) == 2 and ref[cut + 1] == ins[1]:
                         left_shift[i, j] = 2
@@ -149,7 +171,7 @@ class LindelModel(PreTrainedModel):
                         right_shift[i, j] = 1
                 ins_shift[i, j] = ins[left_shift[i, j] : (len(ins) - right_shift[i, j])]
 
-        ins_lens = np.array([len(ins) for ins in self.inss])
+        ins_lens = np.array([len(ins) for ins in ins1_2bp])
         left_shift = np.minimum(ins_lens - right_shift, left_shift)
 
         indel_probas = F.softmax(result["logit_indel"], dim=1).cpu().numpy()
@@ -157,9 +179,9 @@ class LindelModel(PreTrainedModel):
         del_probas = F.softmax(result["logit_del"], dim=1).cpu().numpy()
         long_ins_proba = ins_probas[:, -1] * indel_probas[:, 1]
         indel_probas[:, 1] = indel_probas[:, 1] - long_ins_proba
-        indel_probas[:, 0] = indel_probas[:, 0] / (1 - long_ins_proba)
-        indel_probas[:, 1] = indel_probas[:, 1] / (1 - long_ins_proba)
+        indel_probas = indel_probas / (1 - long_ins_proba)[:, None]
         ins_probas = ins_probas[:, :-1]
+        ins_probas = ins_probas / ins_probas.sum(axis=1, keepdims=True)
 
         probas = np.concatenate(
             [
@@ -172,9 +194,7 @@ class LindelModel(PreTrainedModel):
         rpos1s = np.concatenate(
             [
                 repeat(
-                    np.concatenate(
-                        [np.arange(-dl - 2, 3) for dl in range(1, self.dlen)]
-                    ),
+                    self.data_collator.lefts,
                     "f -> b f",
                     b=batch_size,
                 ),
@@ -185,9 +205,7 @@ class LindelModel(PreTrainedModel):
         rpos2s = np.concatenate(
             [
                 repeat(
-                    np.concatenate(
-                        [np.arange(-2, dl + 3) for dl in range(1, self.dlen)]
-                    ),
+                    self.data_collator.rights,
                     "f -> b f",
                     b=batch_size,
                 ),

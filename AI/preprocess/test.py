@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 from typing import Literal
 import datasets
 import importlib
-from .config import get_config
+from jsonargparse import ArgumentParser
+from .dataset import get_dataset
 from .utils import get_logger, target_to_epoch
 
 
@@ -32,15 +33,29 @@ class MyTest:
         self.device = device
 
     @torch.no_grad()
-    def __call__(self) -> None:
-        best_epoch = target_to_epoch(
-            self.model_path / "checkpoints", target="NonWildTypeCrossEntropy"
-        )
-        parser = get_config()
-        cfg = parser.parse_path(
-            self.model_path / "checkpoints" / f"checkpoint-{best_epoch}" / "train.yaml"
-        )
+    def __call__(self, train_parser: ArgumentParser) -> None:
+        if os.path.exists(self.model_path / "train.yaml"):
+            cfg = train_parser.parse_path(self.model_path / "train.yaml")
+        else:
+            best_epoch = target_to_epoch(
+                self.model_path / "checkpoints", target="NonWildTypeCrossEntropy"
+            )
+            cfg = train_parser.parse_path(
+                self.model_path
+                / "checkpoints"
+                / f"checkpoint-{best_epoch}"
+                / "train.yaml"
+            )
+
         logger = get_logger(**cfg.logger.as_dict())
+
+        logger.info("load dataset")
+        dataset = get_dataset(**cfg.dataset.as_dict())
+        dl = DataLoader(
+            dataset=dataset["test"],
+            batch_size=self.batch_size,
+            collate_fn=lambda examples: examples,
+        )
 
         logger.info("load metric")
         metrics = {}
@@ -62,23 +77,18 @@ class MyTest:
                 **cfg.model.init_args.as_dict(),
             )
         )
-        checkpoint = torch.load(
-            self.model_path
-            / "checkpoints"
-            / f"checkpoint-{best_epoch}"
-            / "checkpoint.pt",
-            weights_only=False,
-        )
-        model.load_state_dict(checkpoint["model"])
-        model.eval()
-
-        logger.info("load test data")
-        dataset = datasets.load_from_disk(self.model_path / "datasets")
-        dl = DataLoader(
-            dataset=dataset["test"],
-            batch_size=self.batch_size,
-            collate_fn=lambda examples: examples,
-        )
+        if hasattr(model, "forward"):
+            checkpoint = torch.load(
+                self.model_path
+                / "checkpoints"
+                / f"checkpoint-{best_epoch}"
+                / "checkpoint.pt",
+                weights_only=False,
+            )
+            model.load_state_dict(checkpoint["model"])
+            model.eval()
+        else:
+            model.load_scikit_learn(self.model_path)
 
         logger.info("test model")
         metric_dfs, accum_sample_idx = [], 0

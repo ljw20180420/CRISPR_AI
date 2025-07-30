@@ -110,7 +110,7 @@ class DataCollator:
                 )
                 observation_list.append(observation)
                 # count_dels
-                count_del = all_counts
+                count_del = all_counts.copy()
                 count_del[~del_end_mask & all_mh_lens > 0] = 0
                 count_dels.append(count_del)
                 # count_inss

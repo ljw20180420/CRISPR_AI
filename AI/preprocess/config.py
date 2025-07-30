@@ -12,7 +12,7 @@ from .dataset import get_dataset
 from .utils import MyGenerator, get_logger
 
 
-def get_config() -> jsonargparse.ArgumentParser:
+def get_config() -> tuple[jsonargparse.ArgumentParser]:
     parser = jsonargparse.ArgumentParser(
         description="Arguments of AI models.",
     )
@@ -54,7 +54,6 @@ def get_config() -> jsonargparse.ArgumentParser:
     train_parser.add_function_arguments(
         function=get_dataset,
         nested_key="dataset",
-        skip=["my_generator"],
     )
 
     train_parser.add_argument(
@@ -79,4 +78,4 @@ def get_config() -> jsonargparse.ArgumentParser:
 
     subcommands.add_subcommand(name="train", parser=train_parser)
 
-    return parser
+    return parser, train_parser

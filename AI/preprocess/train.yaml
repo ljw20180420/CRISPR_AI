@@ -33,6 +33,7 @@ dataset:
   validation_ratio: 0.05
   random_insert_uplimit: 0
   insert_uplimit: 2
+  seed: 63036
 
 # utils
 generator:

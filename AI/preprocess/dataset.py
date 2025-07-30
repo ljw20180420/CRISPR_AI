@@ -1,5 +1,6 @@
 import datasets
 from typing import Literal
+import numpy as np
 from .utils import MyGenerator
 
 
@@ -11,7 +12,7 @@ def get_dataset(
     validation_ratio: float,
     random_insert_uplimit: int,
     insert_uplimit: int,
-    my_generator: MyGenerator,
+    seed: int,
 ) -> datasets.Dataset:
     """Parameters of dataset.
 
@@ -23,6 +24,7 @@ def get_dataset(
         validation_ratio: Proportion for validation samples.
         random_insert_uplimit: The maximal discriminated length of random insertion.
         insert_uplimit: The maximal insertion length to count.
+        seed: random seed.
     """
     return datasets.load_dataset(
         path=f"{user}/{repo}",
@@ -32,5 +34,5 @@ def get_dataset(
         validation_ratio=validation_ratio,
         random_insert_uplimit=random_insert_uplimit,
         insert_uplimit=insert_uplimit,
-        generator=my_generator.np_rng,
+        generator=np.random.default_rng(seed=seed),
     )

@@ -12,6 +12,7 @@ import inspect
 import importlib
 from transformers.trainer_pt_utils import get_parameter_names
 from tqdm import tqdm
+import logging
 from jsonargparse import Namespace, ArgumentParser
 from .dataset import get_dataset
 from .utils import get_logger, MyGenerator
@@ -198,15 +199,28 @@ class MyTrain:
             milestones=[warmup_epochs],
         )
 
-    def __call__(
+    def train_scikit_learn(
         self,
         cfg: Namespace,
     ) -> None:
-        breakpoint()
+        model_module = importlib.import_module(f"AI.preprocess.{preprocess}.model")
+        self.model = getattr(model_module, f"{model_type}Model")(
+            getattr(model_module, f"{model_type}Config")(
+                **cfg.model.init_args.as_dict(),
+            )
+        )
+
+    def __call__(
+        self,
+        train_parser: ArgumentParser,
+        cfg: Namespace,
+    ) -> None:
         logger = get_logger(**cfg.logger.as_dict())
 
-        logger.info("initialize components")
+        logger.info("load dataset")
+        self.dataset = get_dataset(**cfg.dataset.as_dict())
 
+        logger.info("load model")
         reg_obj = re.search(
             r"^AI\.preprocess\.(.+)\.model\.(.+)Config$", cfg.model.class_path
         )
@@ -219,7 +233,40 @@ class MyTrain:
             / cfg.dataset.name
             / self.trial_name
         )
+        model_module = importlib.import_module(f"AI.preprocess.{preprocess}.model")
+        self.model = getattr(model_module, f"{model_type}Model")(
+            getattr(model_module, f"{model_type}Config")(
+                **cfg.model.init_args.as_dict(),
+            )
+        )
+        assert (
+            preprocess == self.model.data_collator.preprocess
+            and model_type == self.model.config.model_type
+        ), "preprocess or model type is inconsistent"
 
+        logger.info("check whether the model is an deep learning model")
+        if not hasattr(self.model, "forward"):
+            self.model.train_scikit_learn(
+                train_dataloader=DataLoader(
+                    dataset=self.dataset["train"],
+                    batch_size=self.batch_size,
+                    collate_fn=lambda examples: examples,
+                ),
+                eval_dataloader=DataLoader(
+                    dataset=self.dataset["validation"],
+                    batch_size=self.batch_size,
+                    collate_fn=lambda examples: examples,
+                ),
+            )
+            self.model.save_scikit_learn(model_path)
+            train_parser.save(
+                cfg=cfg,
+                path=model_path / "train.yaml",
+                overwrite=True,
+            )
+            return
+
+        logger.info("initialize components")
         self.my_generator = MyGenerator(**cfg.generator.as_dict())
 
         self.metrics = {}
@@ -229,17 +276,12 @@ class MyTrain:
                 importlib.import_module(metric_module), metric_cls
             )(**metric.init_args.as_dict())
 
-        model_module = importlib.import_module(f"AI.preprocess.{preprocess}.model")
-        self.model = getattr(model_module, f"{model_type}Model")(
-            getattr(model_module, f"{model_type}Config")(
-                **cfg.model.init_args.as_dict(),
-            )
-        )
         self.initializer = self.get_initializer(**cfg.initializer.as_dict())
         self.optimizer = self.get_optimizer(**cfg.optimizer.as_dict())
         self.lr_scheduler = self.get_lr_scheduler(**cfg.lr_scheduler.as_dict())
 
         if self.last_epoch >= 0:
+            logger.info("load checkpoint")
             checkpoint = torch.load(
                 model_path
                 / "checkpoints"
@@ -251,16 +293,6 @@ class MyTrain:
             self.model.load_state_dict(checkpoint["model"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-            self.dataset = datasets.load_from_disk(dataset_path=model_path / "datasets")
-        else:
-            self.dataset = get_dataset(
-                **cfg.dataset.as_dict(), my_generator=self.my_generator
-            )
-
-        assert (
-            preprocess == self.model.data_collator.preprocess
-            and model_type == self.model.config.model_type
-        ), "preprocess or model type is inconsistent"
 
         train_dataloader = DataLoader(
             dataset=self.dataset["train"],
@@ -326,13 +358,20 @@ class MyTrain:
                     self.optimizer.step()
                     self.model.zero_grad()
                 train_loss += result["loss"].item()
-                train_loss_num += result["loss_num"].item()
+                train_loss_num += (
+                    result["loss_num"].item()
+                    if torch.is_tensor(result["loss_num"])
+                    else result["loss_num"]
+                )
 
             self.lr_scheduler.step()
 
             if hasattr(self.model, "train_scikit_learn"):
                 logger.info("train scikit_learn")
-                self.model.train_scikit_learn(train_dataloader)
+                self.model.train_scikit_learn(
+                    train_dataloader=train_dataloader,
+                    eval_dataloader=eval_dataloader,
+                )
 
             logger.info("eval model")
             with torch.no_grad():
@@ -359,7 +398,11 @@ class MyTrain:
                             label=batch["label"],
                         )
                     eval_loss += result["loss"].item()
-                    eval_loss_num += result["loss_num"].item()
+                    eval_loss_num += (
+                        result["loss_num"].item()
+                        if torch.is_tensor(result["loss_num"])
+                        else result["loss_num"]
+                    )
                     df = self.model.eval_output(examples, batch)
                     observations = batch["label"]["observation"].cpu().numpy()
                     cut1s = np.array([example["cut1"] for example in examples])
@@ -401,8 +444,10 @@ class MyTrain:
                 model_path / "checkpoints" / f"checkpoint-{epoch}", exist_ok=True
             )
             cfg.train.last_epoch = epoch
-            ArgumentParser.save(
-                cfg, model_path / "checkpoints" / f"checkpoint-{epoch}" / "train.yaml"
+            train_parser.save(
+                cfg=cfg,
+                path=model_path / "checkpoints" / f"checkpoint-{epoch}" / "train.yaml",
+                overwrite=True,
             )
             with open(
                 model_path / "checkpoints" / f"checkpoint-{epoch}" / "performance.json",
@@ -419,4 +464,3 @@ class MyTrain:
                 },
                 f=model_path / "checkpoints" / f"checkpoint-{epoch}" / "checkpoint.pt",
             )
-            self.dataset.save_to_disk(dataset_dict_path=model_path / "datasets")

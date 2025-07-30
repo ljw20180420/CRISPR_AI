@@ -188,11 +188,11 @@ class FOREcasTModel(PreTrainedModel):
         return features_label
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
-        logit = rearrange(self.linear(input["feature"]), "b m 1 -> b m")
+        logit = rearrange(self.linear(input["feature"].to(self.device)), "b m 1 -> b m")
         if label is not None:
             loss, loss_num = self.loss_fun(
                 logit,
-                label["count"],
+                label["count"].to(self.device),
             )
             return {
                 "logit": logit,
@@ -210,7 +210,7 @@ class FOREcasTModel(PreTrainedModel):
                 count + 0.5, p=1.0, dim=1
             ),  # add 0.5 to prevent log(0), see loadOligoFeaturesAndReadCounts
             reduction="sum",
-        ) + batch_size * einsum(self.reg_coff, self.linear.weight**2, "f, 1 f ->")
+        ) + batch_size * einsum(self.reg_coff, self.linear.weight**2, "f, o f ->")
         loss_num = batch_size
         return loss, loss_num
 
@@ -268,12 +268,7 @@ class FOREcasTModel(PreTrainedModel):
         rpos1s = np.concatenate(
             [
                 repeat(
-                    np.concatenate(
-                        [
-                            np.arange(-DEL_SIZE, 1)
-                            for DEL_SIZE in range(self.max_del_size, -1, -1)
-                        ]
-                    ),
+                    self.data_collator.lefts[:-20],
                     "f -> b f",
                     b=batch_size,
                 ),
@@ -284,12 +279,7 @@ class FOREcasTModel(PreTrainedModel):
         rpos2s = np.concatenate(
             [
                 repeat(
-                    np.concatenate(
-                        [
-                            np.arange(0, DEL_SIZE + 1)
-                            for DEL_SIZE in range(self.max_del_size, -1, -1)
-                        ]
-                    ),
+                    self.data_collator.rights[:-20],
                     "f -> b f",
                     b=batch_size,
                 ),

@@ -30,17 +30,14 @@ def target_to_epoch(checkpoints_path: os.PathLike, target: str) -> int:
 
     metric_value_min = np.inf
     for check_epoch in check_epochs:
-        with open(checkpoints_path / check_epoch / "meta_data.json", "r") as fd:
-            meta_data = json.load(fd)
+        with open(checkpoints_path / check_epoch / "performance.json", "r") as fd:
+            performance = json.load(fd)
         if target == "loss":
-            metric_value = (
-                meta_data["performance"]["eval"]["loss"]
-                / meta_data["performance"]["eval"]["loss_num"]
-            )
+            metric_value = performance["eval"]["loss"] / performance["eval"]["loss_num"]
         else:
             metric_value = (
-                meta_data["performance"]["eval"][target]["loss"]
-                / meta_data["performance"]["eval"][target]["loss_num"]
+                performance["eval"][target]["loss"]
+                / performance["eval"][target]["loss_num"]
             )
         if metric_value < metric_value_min:
             metric_value_min = metric_value

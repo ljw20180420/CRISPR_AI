@@ -2,15 +2,12 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from typing import Optional
-import pickle
 from sklearn.neighbors import KNeighborsRegressor
-import os
-import datasets
-from torch.utils.data import DataLoader
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from transformers import PreTrainedModel, PretrainedConfig
+import itertools
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -73,12 +70,12 @@ class inDelphiModel(PreTrainedModel):
 
     def forward(self, input: dict, label: Optional[dict] = None) -> dict:
         batch_size = input["mh_input"].shape[0]
-        mh_weight = self.mh_in_layer(input["mh_input"])
+        mh_weight = self.mh_in_layer(input["mh_input"].to(self.device))
         mh_weight = self.mid_active(mh_weight)
         mh_weight = self.mh_mid_layer(mh_weight)
         mh_weight = self.mid_active(mh_weight)
         mh_weight = self.mh_out_layer(mh_weight)
-        mh_weight = self.out_active(mh_weight, input["mh_del_len"])
+        mh_weight = self.out_active(mh_weight, input["mh_del_len"].to(self.device))
 
         mhless_weight = self.mhless_in_layer(self.del_lens[:, None])
         mhless_weight = self.mid_active(mhless_weight)
@@ -92,17 +89,22 @@ class inDelphiModel(PreTrainedModel):
                 batch_size,
                 mhless_weight.shape[0] + 1,
                 dtype=mh_weight.dtype,
-                device=mh_weight.device,
-            ).scatter_add(dim=1, index=input["mh_del_len"] - 1, src=mh_weight)[:, :-1]
+                device=self.device,
+            ).scatter_add(
+                dim=1, index=input["mh_del_len"].to(self.device) - 1, src=mh_weight
+            )[
+                :, :-1
+            ]
             + mhless_weight
         )
+
         if label is not None:
             loss, loss_num = self.loss_fun(
                 mh_weight,
                 mhless_weight,
                 total_del_len_weight,
-                label["genotype_count"],
-                label["total_del_len_count"],
+                label["genotype_count"].to(self.device),
+                label["total_del_len_count"].to(self.device),
             )
             return {
                 "mh_weight": mh_weight,
@@ -160,12 +162,12 @@ class inDelphiModel(PreTrainedModel):
     ) -> pd.DataFrame:
         result = self(batch["input"])
         knn_feature = self._get_knn_feature(
-            result["total_del_len_weight"], batch["input"]["onebp_features"]
+            result["total_del_len_weight"], batch["input"]["onebp_feature"]
         )
         insert_probabilities = self.knn.predict(
             (knn_feature - self.knn_feature_mean) / self.knn_feature_std
         )
-        insert_1bps = self.m4s[
+        insert_1bps_distri = self.m4s[
             batch["input"]["m654"] % 4
         ]  # insert_1bps = self.m654s[batch["input"]["m654"]]
 
@@ -192,7 +194,7 @@ class inDelphiModel(PreTrainedModel):
         for sample_idx, (
             delete_probability,
             insert_probability,
-            insert_1bp,
+            insert_1bp_distri,
             rightest,
             mh_mh_len,
             mh_del_len,
@@ -201,14 +203,14 @@ class inDelphiModel(PreTrainedModel):
             zip(
                 delete_probabilities,
                 insert_probabilities,
-                insert_1bps,
-                batch["rightest"],
-                batch["mh_input"][:, :, 0].cpu().numpy(),
-                batch["mh_del_len"].cpu().numpy(),
+                insert_1bps_distri,
+                batch["input"]["rightest"],
+                batch["input"]["mh_input"][:, :, 0].cpu().numpy(),
+                batch["input"]["mh_del_len"].cpu().numpy(),
                 examples,
             )
         ):
-            mh_mh_len = mh_mh_len[mh_mh_len > 0]
+            mh_mh_len = mh_mh_len[mh_mh_len > 0].astype(int)
             mh_del_len = mh_del_len[mh_del_len < self.config.DELLEN_LIMIT]
             probas.append(
                 (delete_probability[: len(mh_mh_len)] / (mh_mh_len + 1)).repeat(
@@ -240,7 +242,7 @@ class inDelphiModel(PreTrainedModel):
             random_inss.append(
                 np.array([""] * (len(probas[-1]) + len(probas[-2])), dtype="1U")
             )
-            probas.append(insert_1bp / insert_1bp.sum() * insert_probability)
+            probas.append(insert_1bp_distri * insert_probability)
             tr2 = example["ref2"][example["cut2"] - 1]
             rpos2_ins = np.array(
                 [-1 if base == tr2 else 0 for base in ["A", "C", "G", "T"]]
@@ -312,12 +314,13 @@ class inDelphiModel(PreTrainedModel):
     def train_scikit_learn(
         self,
         train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
     ) -> None:
         self.eval()
         knn_features = []
         insert_probabilities = []
         m654s = np.zeros((4**3, 4), dtype=int)
-        for examples in tqdm(train_dataloader):
+        for examples in tqdm(itertools.chain(train_dataloader, eval_dataloader)):
             batch = self.data_collator(examples, output_label=True)
             result = self(batch["input"])
             knn_features.append(
@@ -355,9 +358,11 @@ class inDelphiModel(PreTrainedModel):
         self, total_del_len_weights: torch.Tensor, onebp_features: np.ndarray
     ) -> np.ndarray:
         log_total_weights = total_del_len_weights.sum(dim=1, keepdim=True).log()
-        precisions = 1 - torch.distributions.Categorical(
-            total_del_len_weights[:, :28]
-        ).entropy() / torch.log(torch.tensor(28))
+        precisions = (
+            1
+            - torch.distributions.Categorical(total_del_len_weights[:, :28]).entropy()
+            / torch.tensor(28).log()
+        )
 
         return np.concatenate(
             [

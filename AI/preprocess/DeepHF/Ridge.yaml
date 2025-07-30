@@ -1,0 +1,7 @@
+class_path: AI.preprocess.DeepHF.model.RidgeConfig
+init_args:
+  ext1_up: 25
+  ext1_down: 6
+  ext2_up: 6
+  ext2_down: 25
+  alpha: 104.32718311764306

@@ -1,0 +1,16 @@
+class_path: AI.preprocess,DeepHF.model.XGBoostConfig
+init_args:
+  ext1_up: 25
+  ext1_down: 6
+  ext2_up: 6
+  ext2_down: 25
+  learning_rate: 0.12
+  subsample: 0.7222222222222222
+  colsample_bytree: 0.6666666666666666
+  max_depth: 5
+  reg_lambda: 700
+  nthread: 18
+  booster: gbtree # gbtree, gblinear, dart
+  num_boost_round: 700
+  multi_strategy: one_output_per_tree # one_output_per_tree, multi_output_tree
+  early_stopping_rounds: 3

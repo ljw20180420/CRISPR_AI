@@ -186,6 +186,7 @@ class DataCollator:
                                 mhless_counts,
                             ],
                             axis=0,
+                            dtype=np.float32,
                         )
                     )
                     for mh_counts, mhless_counts in genotype_counts
@@ -193,7 +194,7 @@ class DataCollator:
             )
             total_del_len_counts = torch.stack(
                 [
-                    torch.from_numpy(total_del_len_count)
+                    torch.from_numpy(total_del_len_count.astype(np.float32))
                     for total_del_len_count in total_del_len_counts
                 ]
             )

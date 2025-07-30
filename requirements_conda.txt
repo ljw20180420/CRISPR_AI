@@ -12,3 +12,4 @@ conda-forge::lightgbm
 bioconda::viennarna
 conda-forge::scikit-learn
 conda-forge::matplotlib
+conda-forge::xgboost
