@@ -74,8 +74,8 @@ class DataCollator:
                 )
                 / self.max_micro_homology
             )
-            one_hot_cut = torch.zeros(
-                self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
+            one_hot_cut = np.zeros(
+                (self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1)
             )
             one_hot_cut[self.ext2_up, self.ext1_up] = 1
             one_hot_ref1 = repeat(

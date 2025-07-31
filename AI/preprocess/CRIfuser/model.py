@@ -305,7 +305,7 @@ class CRIfuserModel(PreTrainedModel):
                     label["observation"], label["cut1"], label["cut2"]
                 )
             ]
-        )
+        ).to(self.device)
         t = torch.randint(
             1,
             self.config.noise_timesteps,
@@ -314,15 +314,19 @@ class CRIfuserModel(PreTrainedModel):
             device=self.device,
         )
         # handle zero observation case
-        x_cross0 = Categorical(
-            probs=rearrange(
-                observation + rearrange(observation.sum(dim=[1, 2]) == 0, "b -> b 1 1"),
-                "b r2 r1 -> b (r2 r1)",
+        x_cross0 = (
+            Categorical(
+                probs=rearrange(
+                    observation + (observation.sum(dim=[1, 2], keepdim=True) == 0),
+                    "b r2 r1 -> b (r2 r1)",
+                )
             )
-        ).sample()
+            .sample()
+            .to(self.device)
+        )
         x20 = x_cross0 // ref1_dim
         x10 = x_cross0 % ref1_dim
-        x1t, x2t = self._add_noise(x10, x20, t)
+        x1t, x2t = self._add_noise(x10, x20, t, my_generator)
 
         p_theta_0_on_t_logit = self.single_pass(input["condition"], x1t, x2t, t)
         loss, loss_num = self.loss_fun(
@@ -876,7 +880,7 @@ class CRIfuserModel(PreTrainedModel):
         mask = yt < ref1_dim
         y1t = mask * yt + ~mask * x1t
         y2t = ~mask * (yt - ref1_dim) + mask * x2t
-        p_theta_0_on_t_logit = self.single_pass(condition, x1t, x2t, t)
+        p_theta_0_on_t_logit = self.single_pass(condition, y1t, y2t, t)
         common_negative_ELBO, g_theta_1_t, g_theta_2_t = self._common_negative_ELBO(
             y1t, y2t, t, p_theta_0_on_t_logit
         )

@@ -199,17 +199,6 @@ class MyTrain:
             milestones=[warmup_epochs],
         )
 
-    def train_scikit_learn(
-        self,
-        cfg: Namespace,
-    ) -> None:
-        model_module = importlib.import_module(f"AI.preprocess.{preprocess}.model")
-        self.model = getattr(model_module, f"{model_type}Model")(
-            getattr(model_module, f"{model_type}Config")(
-                **cfg.model.init_args.as_dict(),
-            )
-        )
-
     def __call__(
         self,
         train_parser: ArgumentParser,
@@ -244,27 +233,53 @@ class MyTrain:
             and model_type == self.model.config.model_type
         ), "preprocess or model type is inconsistent"
 
-        logger.info("check whether the model is an deep learning model")
         if not hasattr(self.model, "forward"):
-            self.model.train_scikit_learn(
-                train_dataloader=DataLoader(
-                    dataset=self.dataset["train"],
-                    batch_size=self.batch_size,
-                    collate_fn=lambda examples: examples,
-                ),
-                eval_dataloader=DataLoader(
-                    dataset=self.dataset["validation"],
-                    batch_size=self.batch_size,
-                    collate_fn=lambda examples: examples,
-                ),
-            )
-            self.model.save_scikit_learn(model_path)
-            train_parser.save(
-                cfg=cfg,
-                path=model_path / "train.yaml",
-                overwrite=True,
+            self.train_scikit_learn(
+                train_parser=train_parser, cfg=cfg, model_path=model_path, logger=logger
             )
             return
+
+        self.train_deep_learning_model(
+            train_parser=train_parser, cfg=cfg, model_path=model_path, logger=logger
+        )
+
+    def train_scikit_learn(
+        self,
+        train_parser: ArgumentParser,
+        cfg: Namespace,
+        model_path: os.PathLike,
+        logger: logging.Logger,
+    ) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        logger.info("train scikit learn model")
+        self.model.train_scikit_learn(
+            train_dataloader=DataLoader(
+                dataset=self.dataset["train"],
+                batch_size=self.batch_size,
+                collate_fn=lambda examples: examples,
+            ),
+            eval_dataloader=DataLoader(
+                dataset=self.dataset["validation"],
+                batch_size=self.batch_size,
+                collate_fn=lambda examples: examples,
+            ),
+        )
+        logger.info("save scikit learn model model")
+        self.model.save_scikit_learn(model_path)
+        train_parser.save(
+            cfg=cfg,
+            path=model_path / "train.yaml",
+            overwrite=True,
+        )
+
+    def train_deep_learning_model(
+        self,
+        train_parser: ArgumentParser,
+        cfg: Namespace,
+        model_path: os.PathLike,
+        logger: logging.Logger,
+    ) -> None:
+        logger.info("train deep learning model")
 
         logger.info("initialize components")
         self.my_generator = MyGenerator(**cfg.generator.as_dict())
@@ -280,6 +295,8 @@ class MyTrain:
         self.optimizer = self.get_optimizer(**cfg.optimizer.as_dict())
         self.lr_scheduler = self.get_lr_scheduler(**cfg.lr_scheduler.as_dict())
 
+        # move model to the device so that initializer can work correctly
+        self.model = self.model.to(self.device)
         if self.last_epoch >= 0:
             logger.info("load checkpoint")
             checkpoint = torch.load(
@@ -290,9 +307,29 @@ class MyTrain:
                 weights_only=False,
             )
             self.my_generator.load_state_dict(checkpoint["generator"])
-            self.model.load_state_dict(checkpoint["model"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+            self.model.load_state_dict(checkpoint["model"])
+        else:
+            logger.info("initialize model weights")
+            for m in self.model.modules():
+                # linear layers
+                if isinstance(m, nn.Linear) or isinstance(m, nn.Bilinear):
+                    self.initializer(m.weight)
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+                # (transposed) convolution layers
+                if (
+                    isinstance(m, nn.Conv1d)
+                    or isinstance(m, nn.Conv2d)
+                    or isinstance(m, nn.Conv3d)
+                    or isinstance(m, nn.ConvTranspose1d)
+                    or isinstance(m, nn.ConvTranspose2d)
+                    or isinstance(m, nn.ConvTranspose3d)
+                ):
+                    self.initializer(m.weight)
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
 
         train_dataloader = DataLoader(
             dataset=self.dataset["train"],
@@ -306,27 +343,6 @@ class MyTrain:
             batch_size=self.batch_size,
             collate_fn=lambda examples: examples,
         )
-
-        logger.info("initialize model weights")
-        self.model = self.model.to(self.device)
-        for m in self.model.modules():
-            # linear layers
-            if isinstance(m, nn.Linear) or isinstance(m, nn.Bilinear):
-                self.initializer(m.weight)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            # (transposed) convolution layers
-            if (
-                isinstance(m, nn.Conv1d)
-                or isinstance(m, nn.Conv2d)
-                or isinstance(m, nn.Conv3d)
-                or isinstance(m, nn.ConvTranspose1d)
-                or isinstance(m, nn.ConvTranspose2d)
-                or isinstance(m, nn.ConvTranspose3d)
-            ):
-                self.initializer(m.weight)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
 
         logger.info("enter train loop")
         for epoch in tqdm(range(self.last_epoch + 1, self.num_epochs)):
