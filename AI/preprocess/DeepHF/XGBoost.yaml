@@ -1,4 +1,4 @@
-class_path: AI.preprocess,DeepHF.model.XGBoostConfig
+class_path: AI.preprocess.DeepHF.model.XGBoostConfig
 init_args:
   ext1_up: 25
   ext1_down: 6
@@ -12,5 +12,4 @@ init_args:
   nthread: 18
   booster: gbtree # gbtree, gblinear, dart
   num_boost_round: 700
-  multi_strategy: one_output_per_tree # one_output_per_tree, multi_output_tree
   early_stopping_rounds: 3

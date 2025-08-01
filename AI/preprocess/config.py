@@ -1,10 +1,10 @@
 import jsonargparse
-from .CRIformer.model import CRIformerConfig
-from .CRIfuser.model import CRIfuserConfig
-from .DeepHF.model import DeepHFConfig
-from .FOREcasT.model import FOREcasTConfig
-from .inDelphi.model import inDelphiConfig
-from .Lindel.model import LindelConfig
+from .CRIformer import model as CRIformer_M
+from .CRIfuser import model as CRIfuser_M
+from .DeepHF import model as DeepHF_M
+from .FOREcasT import model as FOREcasT_M
+from .inDelphi import model as inDelphi_M
+from .Lindel import model as Lindel_M
 from .train import MyTrain
 from .test import MyTest
 from .metric import NonWildTypeCrossEntropy
@@ -66,12 +66,16 @@ def get_config() -> tuple[jsonargparse.ArgumentParser]:
 
     train_parser.add_subclass_arguments(
         baseclass=(
-            CRIformerConfig,
-            CRIfuserConfig,
-            DeepHFConfig,
-            FOREcasTConfig,
-            inDelphiConfig,
-            LindelConfig,
+            CRIformer_M.CRIformerConfig,
+            CRIfuser_M.CRIfuserConfig,
+            DeepHF_M.DeepHFConfig,
+            DeepHF_M.MLPConfig,
+            DeepHF_M.CNNConfig,
+            DeepHF_M.XGBoostConfig,
+            DeepHF_M.RidgeConfig,
+            FOREcasT_M.FOREcasTConfig,
+            inDelphi_M.inDelphiConfig,
+            Lindel_M.LindelConfig,
         ),
         nested_key="model",
     )

@@ -233,7 +233,11 @@ class MyTrain:
             and model_type == self.model.config.model_type
         ), "preprocess or model type is inconsistent"
 
-        if not hasattr(self.model, "forward"):
+        if (
+            hasattr(self.model, "train_scikit_learn")
+            and hasattr(self.model, "save_scikit_learn")
+            and hasattr(self.model, "load_scikit_learn")
+        ):
             self.train_scikit_learn(
                 train_parser=train_parser, cfg=cfg, model_path=model_path, logger=logger
             )

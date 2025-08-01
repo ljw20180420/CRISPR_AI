@@ -9,6 +9,7 @@ import pathlib
 from scipy.special import softmax
 import pickle
 import itertools
+from tqdm import tqdm
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -240,7 +241,7 @@ class MLPConfig(PretrainedConfig):
         fc_activation: Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
         **kwargs,
     ) -> None:
-        """DeepHF arguments.
+        """MLP arguments.
 
         Args:
             ext1_up: upstream limit of the resection of the upstream end.
@@ -417,7 +418,7 @@ class CNNConfig(PretrainedConfig):
         feature_maps: list[int],
         **kwargs,
     ) -> None:
-        """DeepHF arguments.
+        """CNN arguments.
 
         Args:
             ext1_up: upstream limit of the resection of the upstream end.
@@ -484,19 +485,17 @@ class CNNModel(PreTrainedModel):
         self.cnns = nn.ModuleList(
             [
                 nn.Sequential(
-                    [
-                        Rearrange("b l c -> b c l"),
-                        nn.Conv1d(
-                            in_channels=config.em_dim,
-                            out_channels=feature_map,
-                            kernel_size=kernel_size,
-                            stride=1,
-                            padding="same",
-                        ),
-                        self.fc_activation,
-                        nn.MaxPool1d(kernel_size=22),
-                        Rearrange("b c 1 -> b c"),
-                    ]
+                    Rearrange("b l c -> b c l"),
+                    nn.Conv1d(
+                        in_channels=config.em_dim,
+                        out_channels=feature_map,
+                        kernel_size=kernel_size,
+                        stride=1,
+                        padding="same",
+                    ),
+                    self.fc_activation,
+                    nn.MaxPool1d(kernel_size=22),
+                    Rearrange("b c 1 -> b c"),
                 )
                 for kernel_size, feature_map in zip(
                     config.kernel_sizes, config.feature_maps
@@ -632,11 +631,10 @@ class XGBoostConfig(PretrainedConfig):
         nthread: int,
         booster: Literal["gbtree", "gblinear", "dart"],
         num_boost_round: int,
-        multi_strategy: Literal["one_output_per_tree", "multi_output_tree"],
         early_stopping_rounds: int,
         **kwargs,
     ) -> None:
-        """DeepHF arguments.
+        """XGBoost arguments.
 
         Args:
             ext1_up: upstream limit of the resection of the upstream end.
@@ -651,7 +649,6 @@ class XGBoostConfig(PretrainedConfig):
             nthread: number of threads.
             booster: booster to use. gbtree and dart use tree based models while gblinear uses linear functions.
             num_boost_round: XGBoost iteration numbers.
-            multi_strategy: XGBoost strategy for multiple outputs.
             early_stopping_rounds: Early stopping rounds of XGBoost.
         """
         self.ext1_up = ext1_up
@@ -666,7 +663,6 @@ class XGBoostConfig(PretrainedConfig):
         self.nthread = nthread
         self.booster = booster
         self.num_boost_round = num_boost_round
-        self.multi_strategy = multi_strategy
         self.early_stopping_rounds = early_stopping_rounds
         super().__init__(**kwargs)
 
@@ -692,7 +688,13 @@ class XGBoostModel(PreTrainedModel):
             input=batch["input"],
             label=None,
         )
-        probas = self.booster.predict(X_value)
+        probas = self.booster.predict(
+            xgb.DMatrix(
+                data=X_value,
+                feature_types=["c"] * 22 + ["q"] * 11,
+                enable_categorical=True,
+            )
+        )
         batch_size = probas.shape[0]
         ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
         ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
@@ -723,9 +725,10 @@ class XGBoostModel(PreTrainedModel):
 
     def save_scikit_learn(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
+        os.makedirs(model_path, exist_ok=True)
         self.booster.save_model(fname=model_path / "XGBoost.json")
 
-    def load_scikit_learnt(self, model_path: os.PathLike) -> None:
+    def load_scikit_learn(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         self.booster = xgb.Booster(model_file=model_path / "XGBoost.json")
 
@@ -734,40 +737,50 @@ class XGBoostModel(PreTrainedModel):
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
     ) -> None:
-        X_train, y_train = [], []
-        for examples in train_dataloader:
+        X_train, y_train, w_train = [], [], []
+        for examples in tqdm(train_dataloader):
             batch = self.data_collator(examples, output_label=True)
-            X_value, y_value = self._get_feature(
+            X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
             X_train.append(X_value)
             y_train.append(y_value)
+            w_train.append(w_value)
         X_train = np.concatenate(X_train)
         y_train = np.concatenate(y_train)
-        X_eval, y_eval = [], []
-        for examples in eval_dataloader:
+        w_train = np.concatenate(w_train)
+
+        X_eval, y_eval, w_eval = [], [], []
+        for examples in tqdm(eval_dataloader):
             batch = self.data_collator(examples, output_label=True)
-            X_value, y_value = self._get_feature(
+            X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
             X_eval.append(X_value)
             y_eval.append(y_value)
+            w_eval.append(w_value)
         X_eval = np.concatenate(X_eval)
         y_eval = np.concatenate(y_eval)
+        w_eval = np.concatenate(w_eval)
 
         Xy_train = xgb.DMatrix(
             data=X_train,
             label=y_train,
+            weight=w_train,
             feature_types=["c"] * 22 + ["q"] * 11,
             enable_categorical=True,
         )
         Xy_eval = xgb.DMatrix(
             data=X_eval,
             label=y_eval,
+            weight=w_eval,
             feature_types=["c"] * 22 + ["q"] * 11,
             enable_categorical=True,
         )
 
+        num_class = (self.config.ext1_up + self.config.ext1_down + 1) * (
+            self.config.ext2_up + self.config.ext2_down + 1
+        )
         self.booster = xgb.train(
             params={
                 "learning_rate": self.config.learning_rate,
@@ -775,11 +788,10 @@ class XGBoostModel(PreTrainedModel):
                 "colsample_bytree": self.config.colsample_bytree,
                 "max_depth": self.config.max_depth,
                 "reg_lambda": self.config.reg_lambda,
-                "objective": "reg:logistic",
+                "objective": "multi:softprob",
+                "num_class": num_class,
                 "nthread": self.config.nthread,
                 "booster": self.config.booster,
-                "num_target": y_train.shape[1],
-                "multi_strategy": self.config.multi_strategy,
                 "seed": 63036,
             },
             dtrain=Xy_train,
@@ -805,36 +817,34 @@ class XGBoostModel(PreTrainedModel):
         )
 
         if label is not None:
-            y_value = (
-                F.normalize(
-                    rearrange(
-                        torch.stack(
-                            [
-                                ob[
-                                    c2
-                                    - self.config.ext2_up : c2
-                                    + self.config.ext2_down
-                                    + 1,
-                                    c1
-                                    - self.config.ext1_up : c1
-                                    + self.config.ext1_down
-                                    + 1,
-                                ]
-                                for ob, c1, c2 in zip(
-                                    label["observation"], label["cut1"], label["cut2"]
-                                )
+            observation = (
+                rearrange(
+                    torch.stack(
+                        [
+                            ob[
+                                c2
+                                - self.config.ext2_up : c2
+                                + self.config.ext2_down
+                                + 1,
+                                c1
+                                - self.config.ext1_up : c1
+                                + self.config.ext1_down
+                                + 1,
                             ]
-                        ),
-                        "b r2 r1 -> b (r2 r1)",
+                            for ob, c1, c2 in zip(
+                                label["observation"], label["cut1"], label["cut2"]
+                            )
+                        ]
                     ),
-                    p=1.0,
-                    dim=1,
+                    "b r2 r1 -> b (r2 r1)",
                 )
                 .cpu()
                 .numpy()
             )
-
-            return X_value, y_value
+            sample_indices, y_value = observation.nonzero()
+            w_value = observation[sample_indices, y_value]
+            X_value = X_value[sample_indices]
+            return X_value, y_value, w_value
 
         return X_value
 
@@ -851,7 +861,7 @@ class RidgeConfig(PretrainedConfig):
         alpha: float,
         **kwargs,
     ) -> None:
-        """DeepHF arguments.
+        """Ridge arguments.
 
         Args:
             ext1_up: upstream limit of the resection of the upstream end.
@@ -889,7 +899,7 @@ class RidgeModel(PreTrainedModel):
             input=batch["input"],
             label=None,
         )
-        logits = self.ridge.predict(X_value)
+        logits = self.ridge.decision_function(X_value)
         probas = softmax(logits, axis=1)
         batch_size = probas.shape[0]
         ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
@@ -921,10 +931,11 @@ class RidgeModel(PreTrainedModel):
 
     def save_scikit_learn(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
+        os.makedirs(model_path, exist_ok=True)
         with open(model_path / "ridge.pkl", "wb") as fd:
             pickle.dump(self.ridge, fd)
 
-    def load_scikit_learnt(self, model_path: os.PathLike) -> None:
+    def load_scikit_learn(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         with open(model_path / "ridge.pkl", "rb") as fd:
             self.ridge = pickle.load(fd)
@@ -934,26 +945,27 @@ class RidgeModel(PreTrainedModel):
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
     ) -> None:
-        X_train, y_train = [], []
-        for examples in itertools.chain(train_dataloader, eval_dataloader):
+        X_train, y_train, w_train = [], [], []
+        for examples in tqdm(itertools.chain(train_dataloader, eval_dataloader)):
             batch = self.data_collator(examples, output_label=True)
-            X_value, y_value = self._get_feature(
+            X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
             X_train.append(X_value)
             y_train.append(y_value)
+            w_train.append(w_value)
         X_train = np.concatenate(X_train)
         y_train = np.concatenate(y_train)
+        w_train = np.concatenate(w_train)
 
-        self.ridge = linear_model.Ridge(
+        self.ridge = linear_model.RidgeClassifier(
             alpha=self.config.alpha,
             fit_intercept=True,
-            normalize=False,
             copy_X=True,
             max_iter=None,
             solver="auto",
         )
-        self.ridge.fit(X_train, y_train)
+        self.ridge.fit(X=X_train, y=y_train, sample_weight=w_train)
 
     def _get_feature(
         self,
@@ -974,35 +986,33 @@ class RidgeModel(PreTrainedModel):
         )
 
         if label is not None:
-            y_value = np.ma.log(
-                F.normalize(
-                    rearrange(
-                        torch.stack(
-                            [
-                                ob[
-                                    c2
-                                    - self.config.ext2_up : c2
-                                    + self.config.ext2_down
-                                    + 1,
-                                    c1
-                                    - self.config.ext1_up : c1
-                                    + self.config.ext1_down
-                                    + 1,
-                                ]
-                                for ob, c1, c2 in zip(
-                                    label["observation"], label["cut1"], label["cut2"]
-                                )
+            observation = (
+                rearrange(
+                    torch.stack(
+                        [
+                            ob[
+                                c2
+                                - self.config.ext2_up : c2
+                                + self.config.ext2_down
+                                + 1,
+                                c1
+                                - self.config.ext1_up : c1
+                                + self.config.ext1_down
+                                + 1,
                             ]
-                        ),
-                        "b r2 r1 -> b (r2 r1)",
+                            for ob, c1, c2 in zip(
+                                label["observation"], label["cut1"], label["cut2"]
+                            )
+                        ]
                     ),
-                    p=1.0,
-                    dim=1,
+                    "b r2 r1 -> b (r2 r1)",
                 )
                 .cpu()
                 .numpy()
-            ).filled(-1000)
-
-            return X_value, y_value
+            )
+            sample_indices, y_value = observation.nonzero()
+            w_value = observation[sample_indices, y_value]
+            X_value = X_value[sample_indices]
+            return X_value, y_value, w_value
 
         return X_value

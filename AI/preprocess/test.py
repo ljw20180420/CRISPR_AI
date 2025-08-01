@@ -77,7 +77,13 @@ class MyTest:
                 **cfg.model.init_args.as_dict(),
             )
         )
-        if hasattr(model, "forward"):
+        if (
+            hasattr(model, "train_scikit_learn")
+            and hasattr(model, "save_scikit_learn")
+            and hasattr(model, "load_scikit_learn")
+        ):
+            model.load_scikit_learn(self.model_path)
+        else:
             checkpoint = torch.load(
                 self.model_path
                 / "checkpoints"
@@ -87,8 +93,6 @@ class MyTest:
             )
             model.load_state_dict(checkpoint["model"])
             model.eval()
-        else:
-            model.load_scikit_learn(self.model_path)
 
         logger.info("test model")
         metric_dfs, accum_sample_idx = [], 0
