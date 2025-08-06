@@ -237,6 +237,13 @@ virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/sp
 
 TODO
 ```list
+pandas
+bioframe
+matplotlib
+optuna dashboard
+tensorboard
+early stopping
+model interpretable
 Use model.eval() in test and inference
 Use os.PathLike
 do pre-computation when initialize data collator and model so that subsequent computations are faster
@@ -246,8 +253,6 @@ train use float32
 add type hint
 
 parallel data_collator, especially for FOREcasT
-early stopping
-model interpretable
 
 noise2noise explanation of prediction results
 put more weights on small steps of diffusion
