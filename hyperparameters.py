@@ -94,7 +94,6 @@ class Objective:
                 if trial.should_prune():
                     break
 
-        breakpoint()
         # test
         test_cfg = test_parser.parse_path(model_path / "test.yaml")
         MyTest(**test_cfg.test.as_dict())(train_parser=train_parser)

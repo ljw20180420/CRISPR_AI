@@ -1,48 +1,51 @@
 #!/usr/bin/env python
 
+import os
 import pandas as pd
-import seaborn as sns
-from plotnine import (
-    ggplot,
-    aes,
-    geom_col,
-    theme,
-    element_text,
-    geom_boxplot,
-    scale_y_log10,
-    coord_trans,
+import pathlib
+
+output_dir = pathlib.Path("/home/ljw/sdc1/CRISPR_results")
+preprocess_model_type_pairs = [
+    ("CRIformer", "CRIformer"),
+    ("CRIfuser", "CRIfuser"),
+    ("DeepHF", "DeepHF"),
+    ("DeepHF", "MLP"),
+    ("DeepHF", "CNN"),
+    ("DeepHF", "XGBoost"),
+    # ("DeepHF", "Ridge"),
+    ("FOREcasT", "FOREcasT"),
+    ("inDelphi", "inDelphi"),
+    ("Lindel", "Lindel"),
+]
+preprocesses, model_types, data_names, metrics = [], [], [], []
+for preprocess, model_type in preprocess_model_type_pairs:
+    for data_name in ["SX_spcas9"]:
+        model_path = output_dir / preprocess / model_type / data_name / "default"
+        df = pd.read_csv(model_path / "test_result.csv")
+        metrics.append(
+            df["NonWildTypeCrossEntropy_loss"].sum()
+            / df["NonWildTypeCrossEntropy_loss_num"].sum()
+        )
+
+        preprocesses.append(preprocess)
+        model_types.append(model_type)
+        data_names.append(data_name)
+
+df = pd.DataFrame(
+    {
+        "preprocess": preprocesses,
+        "model_type": model_types,
+        "data_name": data_names,
+        "metric": metrics,
+    }
 )
-from AI_models.benchmark.bench_lib import all_benchmark
 
-black_list = [[27], [100]]
-for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
-    all_benchmark(data_name, black_list)
-
-    sns.pairplot(
-        pd.read_csv(f"AI_models/benchmark/results/{data_name}_accum.csv")
-    ).savefig(f"AI_models/benchmark/results/{data_name}_pair_correlation.png")
-
-    benchmark_df = pd.read_csv(f"AI_models/benchmark/results/{data_name}_benchmark.csv")
-
-    (
-        ggplot(
-            benchmark_df.query(
-                'pearson_type == "mhless_acc" or pearson_type == "total_acc"'
-            ),
-            aes("pearson_type", "value", fill="model"),
-        )
-        + geom_col(position="dodge")
-        + theme(axis_text_x=element_text(angle=45))
-    ).save(f"AI_models/benchmark/results/{data_name}_accum_correlation.png")
-
-    (
-        ggplot(
-            benchmark_df.query('stat == "likelihood"')[["value", "model"]]
-            .groupby(["model"])
-            .sum()
-            .reset_index(),
-            aes("model", "value", fill="model"),
-        )
-        + geom_col()
-        + theme(axis_text_x=element_text(angle=45))
-    ).save(f"AI_models/benchmark/results/{data_name}_likelihood.png")
+# save
+os.makedirs("benchmark", exist_ok=True)
+df.to_csv("benchmark/default.csv", index=False)
+ax = df.set_index(keys=["preprocess", "model_type", "data_name"]).plot.bar(
+    figsize=(20, 10)
+)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=10, ha="right")
+fig = ax.get_figure()
+fig.savefig("benchmark/default.pdf")
