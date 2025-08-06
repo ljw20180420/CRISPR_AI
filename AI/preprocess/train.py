@@ -7,7 +7,6 @@ import pathlib
 from torch.utils.data import DataLoader
 import json
 from typing import Literal, Callable, Generator
-import datasets
 import inspect
 import importlib
 from transformers.trainer_pt_utils import get_parameter_names
@@ -85,7 +84,7 @@ class MyTrain:
             "Adagrad",
             "Adam",
             "AdamW",
-            "SparseAdam",
+            # "SparseAdam", # SparseAdam does not support weight_decay
             "Adamax",
             "ASGD",
             "LBFGS",
@@ -145,7 +144,6 @@ class MyTrain:
             "ConstantLR",
             "CosineAnnealingWarmRestarts",
             "ReduceLROnPlateau",
-            "LRScheduler",
         ],
         warmup_epochs: int,
         period_epochs: int,
@@ -157,6 +155,9 @@ class MyTrain:
             warmup_epochs: Epochs used for a linear warmup from 0.1 to 1.0 factor of initial learning rate.
             period_epochs: The period to reset the learning rate for period scheduler.
         """
+        # SequentialLR does not support ReduceLROnPlateau
+        if name == "ReduceLROnPlateau":
+            return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer)
         warm_up_scheduler = torch.optim.lr_scheduler.LinearLR(
             optimizer=self.optimizer,
             start_factor=0.1,
@@ -189,7 +190,6 @@ class MyTrain:
                 ],
                 milestones=[warmup_epochs],
             )
-
         return torch.optim.lr_scheduler.SequentialLR(
             optimizer=self.optimizer,
             schedulers=[

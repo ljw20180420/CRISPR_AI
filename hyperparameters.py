@@ -1,8 +1,11 @@
+#!/usr/bin/env python
+
 import os
 import pathlib
 import sys
 import logging
 import optuna
+from typing import Literal
 from optuna.samplers import (
     GridSampler,
     RandomSampler,
@@ -27,7 +30,6 @@ import jsonargparse
 import numpy as np
 import pandas as pd
 import yaml
-import subprocess
 from AI.preprocess.config import get_config
 from AI.preprocess.train import MyTrain
 from AI.preprocess.test import MyTest
@@ -51,7 +53,7 @@ class Objective:
         self.preprocess = preprocess
         self.model_type = model_type
         self.data_name = data_name
-        self.batch_size = (batch_size,)
+        self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.study_name = study_name
         self.scikit_learn = model_type in ["XGBoost", "Ridge"]
@@ -65,15 +67,17 @@ class Objective:
             / self.study_name
             / f"trial-{trial._trial_id}"
         )
+        os.makedirs(model_path, exist_ok=True)
         with open(model_path / "train.yaml", "w") as fd:
-            yaml.dump(self.config_train(trial), fd)
+            yaml.dump(self.config_train(trial).as_dict(), fd)
         with open(model_path / f"{self.model_type}.yaml", "w") as fd:
-            yaml.dump(self.config_model(trial), fd)
+            yaml.dump(self.config_model(trial).as_dict(), fd)
         with open(model_path / "test.yaml", "w") as fd:
-            yaml.dump(self.config_test(trial), fd)
+            yaml.dump(self.config_test(trial).as_dict(), fd)
 
-        # parse arguments
-        parser, train_parser, test_parser = get_config()
+        _, train_parser, test_parser = get_config()
+
+        # train
         train_cfg = train_parser.parse_path(model_path / "train.yaml")
         for epoch, performance in enumerate(
             MyTrain(**train_cfg.train.as_dict())(
@@ -87,17 +91,12 @@ class Objective:
                     / performance["eval"]["NonWildTypeCrossEntropy"]["loss_num"],
                     step=epoch,
                 )
-        subprocess.run(
-            f'./run.py train --config {model_path / "train.yaml"} --model {model_path / self.model_type}.yaml',
-            shell=True,
-            executable="/bin/bash",
-        )
+                if trial.should_prune():
+                    break
 
-        subprocess.run(
-            f'./run.py test --config {model_path / "test.yaml"}',
-            shell=True,
-            executable="/bin/bash",
-        )
+        # test
+        test_cfg = test_parser.parse_path(model_path / "test.yaml")
+        MyTest(**test_cfg.test.as_dict())(train_parser=train_parser)
 
         df = pd.read_csv(model_path / "test_result.csv")
         return (
@@ -108,12 +107,14 @@ class Objective:
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
         cfg.test = jsonargparse.Namespace(
-            model_path=self.output_dir
-            / self.preprocess
-            / self.model_type
-            / self.data_name
-            / self.study_name
-            / f"trial-{trial._trial_id}",
+            model_path=(
+                self.output_dir
+                / self.preprocess
+                / self.model_type
+                / self.data_name
+                / self.study_name
+                / f"trial-{trial._trial_id}"
+            ).as_posix(),
             batch_size=100,
             device="cuda",
         )
@@ -122,7 +123,7 @@ class Objective:
     def config_train(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
         cfg.train = jsonargparse.Namespace(
-            output_dir=self.output_dir,
+            output_dir=self.output_dir.as_posix(),
             trial_name=f"{self.study_name}/trial-{trial._trial_id}",
             batch_size=self.batch_size,
             num_epochs=self.num_epochs,
@@ -155,7 +156,6 @@ class Objective:
                         "Adagrad",
                         "Adam",
                         "AdamW",
-                        "SparseAdam",
                         "Adamax",
                         "ASGD",
                         "LBFGS",
@@ -178,7 +178,6 @@ class Objective:
                         "CosineAnnealingWarmRestarts",
                         "ConstantLR",
                         "ReduceLROnPlateau",
-                        "LRScheduler",
                     ],
                 ),
                 warmup_epochs=self.num_epochs // 10,
@@ -226,6 +225,7 @@ class Objective:
                 ),
             )
         ]
+        cfg.model = f"{self.model_type}.yaml"
         return cfg
 
     def config_model(
@@ -251,15 +251,15 @@ class Objective:
                         "CRIformer.CRIformer.num_hidden_layers", 2, 4
                     ),
                     num_attention_heads=trial.suggest_int(
-                        "CRIformer.CRIformer.num_hidden_layers", 3, 5
+                        "CRIformer.CRIformer.num_attention_heads", 3, 5
                     ),
                     intermediate_size=trial.suggest_int(
                         "CRIformer.CRIformer.intermediate_size", 512, 2048, step=512
                     ),
-                    hidden_dropout_prob=trial.suggest_uniform(
+                    hidden_dropout_prob=trial.suggest_float(
                         "CRIformer.CRIformer.hidden_dropout_prob", 0.0, 0.1
                     ),
-                    attention_probs_dropout_prob=trial.suggest_uniform(
+                    attention_probs_dropout_prob=trial.suggest_float(
                         "CRIformer.CRIformer.attention_probs_dropout_prob", 0.0, 0.1
                     ),
                 )
@@ -309,8 +309,8 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    em_drop=trial.suggest_uniform("DeepHF.DeepHF.em_drop", 0.0, 0.2),
-                    fc_drop=trial.suggest_uniform("DeepHF.DeepHF.fc_drop", 0.0, 0.4),
+                    em_drop=trial.suggest_float("DeepHF.DeepHF.em_drop", 0.0, 0.2),
+                    fc_drop=trial.suggest_float("DeepHF.DeepHF.fc_drop", 0.0, 0.4),
                     em_dim=trial.suggest_int("DeepHF.DeepHF.em_dim", 33, 55),
                     rnn_units=trial.suggest_int("DeepHF.DeepHF.rnn_units", 50, 70),
                     fc_num_hidden_layers=trial.suggest_int(
@@ -331,8 +331,8 @@ class Objective:
                         ext1_down=6,
                         ext2_up=6,
                         ext2_down=25,
-                        em_drop=trial.suggest_uniform("CNN.CNN.em_drop", 0.0, 0.2),
-                        fc_drop=trial.suggest_uniform("CNN.CNN.fc_drop", 0.0, 0.2),
+                        em_drop=trial.suggest_float("CNN.CNN.em_drop", 0.0, 0.2),
+                        fc_drop=trial.suggest_float("CNN.CNN.fc_drop", 0.0, 0.2),
                         em_dim=trial.suggest_int("CNN.CNN.em_dim", 26, 46),
                         fc_num_hidden_layers=trial.suggest_int(
                             "CNN.CNN.fc_num_hidden_layers", 2, 4
@@ -422,7 +422,7 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    fc_drop=trial.suggest_uniform("MLP.MLP.fc_drop", 0.0, 0.2),
+                    fc_drop=trial.suggest_float("MLP.MLP.fc_drop", 0.0, 0.2),
                     fc_num_hidden_layers=trial.suggest_int(
                         "MLP.MLP.fc_num_hidden_layers", 3, 5
                     ),
@@ -513,26 +513,26 @@ def main(
     data_name: str,
     batch_size: int,
     num_epochs: int,
-    sampler: (
-        GridSampler
-        | RandomSampler
-        | TPESampler
-        | CmaEsSampler
-        | GPSampler
-        | PartialFixedSampler
-        | NSGAIISampler
-        | QMCSampler
-    ),
-    pruner: (
-        MedianPruner
-        | NopPruner
-        | PatientPruner
-        | PercentilePruner
-        | SuccessiveHalvingPruner
-        | HyperbandPruner
-        | ThresholdPruner
-        | WilcoxonPruner
-    ),
+    sampler: Literal[
+        "GridSampler",
+        "RandomSampler",
+        "TPESampler",
+        "CmaEsSampler",
+        "GPSampler",
+        "PartialFixedSampler",
+        "NSGAIISampler",
+        "QMCSampler",
+    ],
+    pruner: Literal[
+        "MedianPruner",
+        "NopPruner",
+        "PatientPruner",
+        "PercentilePruner",
+        "SuccessiveHalvingPruner",
+        "HyperbandPruner",
+        "ThresholdPruner",
+        "WilcoxonPruner",
+    ],
     study_name: str,
     n_trials: int,
     load_if_exists: bool,
@@ -561,19 +561,16 @@ def main(
         num_epochs=num_epochs,
         study_name=study_name,
     )
+    study_path = output_dir / preprocess / model_type / data_name / study_name
+    os.makedirs(study_path, exist_ok=True)
     study = optuna.create_study(
         storage=optuna.storages.JournalStorage(
             optuna.storages.journal.JournalFileBackend(
-                output_dir
-                / preprocess
-                / model_type
-                / data_name
-                / study_name
-                / "optuna_journal_storage.log"
+                (study_path / "optuna_journal_storage.log").as_posix()
             ),
         ),
-        sampler=sampler,
-        pruner=pruner,
+        sampler=eval(sampler)(),
+        pruner=eval(pruner)(),
         study_name=study_name,
         load_if_exists=load_if_exists,
     )
@@ -581,3 +578,7 @@ def main(
         func=objective,
         n_trials=n_trials,
     )
+
+
+if __name__ == "__main__":
+    jsonargparse.auto_cli(main, as_positional=False)
