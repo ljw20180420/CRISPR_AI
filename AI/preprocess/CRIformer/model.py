@@ -48,6 +48,11 @@ class CRIformerConfig(PretrainedConfig):
             hidden_dropout_prob: the dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
             attention_probs_dropout_prob: the dropout ratio for the attention probabilities.
         """
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                f"The hidden size ({hidden_size}) is not a multiple of the number of attention "
+                f"heads ({num_attention_heads})"
+            )
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up

@@ -158,11 +158,9 @@ class Objective:
                         "AdamW",
                         "Adamax",
                         "ASGD",
-                        "LBFGS",
                         "NAdam",
                         "RAdam",
                         "RMSprop",
-                        "Rprop",
                         "SGD",
                     ],
                 ),
@@ -250,8 +248,9 @@ class Objective:
                     num_hidden_layers=trial.suggest_int(
                         "CRIformer.CRIformer.num_hidden_layers", 2, 4
                     ),
-                    num_attention_heads=trial.suggest_int(
-                        "CRIformer.CRIformer.num_attention_heads", 3, 5
+                    # num_attention_heads must devide hidden_size
+                    num_attention_heads=trial.suggest_categorical(
+                        "CRIformer.CRIformer.num_attention_heads", choices=[2, 4, 8]
                     ),
                     intermediate_size=trial.suggest_int(
                         "CRIformer.CRIformer.intermediate_size", 512, 2048, step=512

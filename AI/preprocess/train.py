@@ -87,11 +87,11 @@ class MyTrain:
             # "SparseAdam", # SparseAdam does not support weight_decay
             "Adamax",
             "ASGD",
-            "LBFGS",
+            # "LBFGS", # LBFGS does not support weight_decay
             "NAdam",
             "RAdam",
             "RMSprop",
-            "Rprop",
+            # "Rprop", # Rprop does not support weight_decay
             "SGD",
         ],
         learning_rate: float,
