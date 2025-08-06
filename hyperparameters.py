@@ -77,22 +77,22 @@ class Objective:
 
         _, train_parser, test_parser = get_config()
 
-        # train
-        train_cfg = train_parser.parse_path(model_path / "train.yaml")
-        for epoch, performance in enumerate(
-            MyTrain(**train_cfg.train.as_dict())(
-                train_parser=train_parser,
-                cfg=train_cfg,
-            )
-        ):
-            if performance is not None:
-                trial.report(
-                    value=performance["eval"]["NonWildTypeCrossEntropy"]["loss"]
-                    / performance["eval"]["NonWildTypeCrossEntropy"]["loss_num"],
-                    step=epoch,
-                )
-                if trial.should_prune():
-                    break
+        # # train
+        # train_cfg = train_parser.parse_path(model_path / "train.yaml")
+        # for epoch, performance in enumerate(
+        #     MyTrain(**train_cfg.train.as_dict())(
+        #         train_parser=train_parser,
+        #         cfg=train_cfg,
+        #     )
+        # ):
+        #     if performance is not None:
+        #         trial.report(
+        #             value=performance["eval"]["NonWildTypeCrossEntropy"]["loss"]
+        #             / performance["eval"]["NonWildTypeCrossEntropy"]["loss_num"],
+        #             step=epoch,
+        #         )
+        #         if trial.should_prune():
+        #             break
 
         # test
         test_cfg = test_parser.parse_path(model_path / "test.yaml")
@@ -100,8 +100,8 @@ class Objective:
 
         df = pd.read_csv(model_path / "test_result.csv")
         return (
-            df["NonWildTypeCrossEntropy_loss"].sum()
-            / df["NonWildTypeCrossEntropy_loss_num"].sum()
+            df["NonWildTypeCrossEntropy_loss"].sum().item()
+            / df["NonWildTypeCrossEntropy_loss_num"].sum().item()
         )
 
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
