@@ -385,8 +385,6 @@ class MyTrain:
                     else result["loss_num"]
                 )
 
-            self.lr_scheduler.step()
-
             if hasattr(self.model, "train_scikit_learn"):
                 logger.info("train scikit_learn")
                 self.model.train_scikit_learn(
@@ -455,6 +453,12 @@ class MyTrain:
                     **metric_loss_dict,
                 },
             }
+            if isinstance(
+                self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+            ):
+                self.lr_scheduler.step(eval_loss / eval_loss_num)
+            else:
+                self.lr_scheduler.step()
             print(
                 {
                     "train_loss": train_loss / train_loss_num,
