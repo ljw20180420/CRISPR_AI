@@ -1,9 +1,5 @@
 # Introduction
-First of all, your should set `output_dir` in `config.ini` to a proper value based on your working environment.
-
-If your want to train, test and upload models by yourself, please set `owner` in `config.ini` to your huggingface username. If you only do inference, left `owner` as "ljw20180420" in `config.ini`.
-
-`data_name` is default to "SX_spcas9". To train and test on other data, either set `data_name` to one of "SX_spcas9", "SX_spymac", "SX_ispymac" in `config.ini`, or specify it by `train(data_name="SX_spcas9")` and `test(data_name="SX_spcas9")`.
+This repository includes several models to predict the CRISPR editing products from the sgRNA sequences. The dataset is held on anthor repository [here](https://github.com/ljw20180420/CRISPRdata).
 
 
 
@@ -19,224 +15,38 @@ If you have problem with gradio, upgrade it.
 pip install --upgrade gradio
 ```
 
-
-
-# Original inDelphi python environment
-```bash
-conda env create --prefix AI_models/inDelphi/reference/.conda --file AI_models/inDelphi/reference/inDelphi.yaml
+# Train and test
+For helps, execute
+```console
+./run.py -h
+./run.py train -h
+./run.py test -h
 ```
+The example training config is `AI/preprocess/train.yaml`. The example testing config is `AI/preprocess/test.yaml`. The example model configs is `AI/preprocess/[preprocess]/[model_type].yaml`. `defaults.sh` containes example runs.
 
-
-
-# Login
-```python
-from huggingface_hub import login
-login(add_to_git_credential=True, new_session=False, write_permission=True)
+# Hyperparameter search
+The hyperparameter-searching is based on [Optuna](https://optuna.readthedocs.io). For helps. execute
+```console
+./hyperparameters.py -h
 ```
-
-# Dataset
-## Test
-```python
-from AI_models.dataset.utils import test
-test()
-```
-
-
-## Upload
-```python
-from AI_models.dataset.utils import upload
-upload(do_test=False)
-upload(do_test=True)
-```
-
-
 
 # Benchmark
+Train and test models with default parameters by
+```
+./defaults.sh
+```
+Compare loss functions for `CRIfuser` by
+```
+./CRIfuser_loss_functions.sh
+```
+Summarize benchmarks results by
 ```bash
 ./benchmark.py
 ```
 
-
-
-# Usage
-## inDelphi
-### Train
-```python
-from AI_models.inDelphi.train import train_deletion, train_insertion
-train_deletion(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-train_insertion(data_name="SX_spcas9")
-```
-### Test and upload to huggingface
-```python
-from AI_models.inDelphi.test import test
-test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Inference
-```python
-from AI_models.inDelphi.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
-    pass
-```
-### App
-```python
-from AI_models.inDelphi.app import app
-app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Space
-```python
-from AI_models.inDelphi.space import space
-space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-
-
-## Lindel
-### Train
-```python
-from AI_models.Lindel.train import train
-train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Test and upload to huggingface
-```python
-from AI_models.Lindel.test import test
-test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Inference
-```python
-from AI_models.Lindel.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
-    pass
-```
-### App
-```python
-from AI_models.Lindel.app import app
-app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Space
-```python
-from AI_models.Lindel.space import space
-space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-
-## FOREcasT
-### Train
-```python
-from AI_models.FOREcasT.train import train
-train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Test and upload to huggingface
-```python
-from AI_models.FOREcasT.test import test
-test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Inference
-```python
-from AI_models.FOREcasT.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
-    pass
-```
-### App
-```python
-from AI_models.FOREcasT.app import app
-app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Space
-```python
-from AI_models.FOREcasT.space import space
-space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-
-
-## CRISPR diffuser
-### Train
-```python
-from AI_models.CRISPR_diffuser.train import train
-train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Test and upload to huggingface
-```python
-from AI_models.CRISPR_diffuser.test import test
-test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Inference
-```python
-from AI_models.CRISPR_diffuser.inference import inference
-for x1ts, x2ts, ts in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
-    pass
-```
-### App
-```python
-from AI_models.CRISPR_diffuser.app import app
-app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Space
-```python
-from AI_models.CRISPR_diffuser.space import space
-space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Dynamics
-```python
-from AI_models.CRISPR_diffuser.dynamics import dynamics, draw
-x1ts, x2ts, x1ts_perfect, x2ts_perfect = dynamics(data_name="SX_spcas9", text_idx=0, batch_size=100, epoch=1)
-draw(x1ts, x2ts, filename="paper/dynamics/SX_spcas9_dynamics")
-draw(x1ts_perfect, x2ts_perfect, filename="paper/dynamics/SX_spcas9_dynamics_perfect")
-```
-
-
-## CRISPR transformer
-### Train
-```python
-from AI_models.CRISPR_transformer.train import train
-train(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Test and upload to huggingface
-```python
-from AI_models.CRISPR_transformer.test import test
-test(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Inference
-```python
-from AI_models.CRISPR_transformer.inference import inference
-for output in inference(data_name="SX_spcas9", data_files="inference.json.gz"): # SX_spymac, SX_ispymac
-    pass
-```
-### App
-```python
-from AI_models.CRISPR_transformer.app import app
-app(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Space
-```python
-from AI_models.CRISPR_transformer.space import space
-space(data_name="SX_spcas9") # SX_spymac, SX_ispymac
-```
-### Draw heatmap
-```python
-from AI_models.benchmark.bench_lib import virsualize_observation_and_prediction
-virsualize_observation_and_prediction("SX_spcas9", "paper/transformer_heatmap/spcas9", test_idx=0)
-```
-
-
-
-# Input
-```json
-{"ref": "AAAAAAAAAAAAAAAAAAAAAAAAGACGGCAGCCTTTTGACCTCCCAACCCCCCTATAGTCAGATAGTCAAGAAGGGCATTATCTGGCTTACCTGAATCGTCCCAAGAATTTTCTTCGGTGAGCATTTGTGGAGACCCTGGGATGTAGGTTGGATTAAACTGTGATGGGTCCATCGGCGTCTTGACACAACACTAGGCTT", "cut": 100}
-{"ref": "AAAAAAAAAAAAAAAAAAAAAAAAGACGGCAGCCTTTTGACCTCCCAACCCCCCTATAGTCAGATAGTCAAGAAGGGCATTATCTGGCTTACCTGAATCGTCCCGGGAATTTTCTTCGGTGAGCATTTGTGGAGACCCTGGGATGTAGGTTGGATTAAACTGTGATGGGTCCATCGGCGTCTTGACACAACACTAGGCTT", "cut": 100}
-{"ref": "AAAAAAAAAAAAAAAAAAAAGACCCTTCAGTGCTAAGGCACCTCTAATGCTCTCTTCATTGACCTTATCCCGTTTAACTCCTCAGATGAACGCCTCACAGCTGAAAAGATGGATGAGCAGAGGCGGCAGAATGTTGCCTATCAGTACCTGTGCCGGCTGGAGGAGGCCAAGCGGTGAGCGGAGTCCAGGAAGATGGACTC", "cut": 100}
-{"ref": "AAAAAAAAAAAAAAAAAAAAGACCCTTCAGTGCTAAGGCACCTCTAATGCTCTCTTCATTGACCTTATCCCGTTTAACTCCTCAGATGAACGCCTCACAGCTGAGGAGATGGATGAGCAGAGGCGGCAGAATGTTGCCTATCAGTACCTGTGCCGGCTGGAGGAGGCCAAGCGGTGAGCGGAGTCCAGGAAGATGGACTC", "cut": 100}
-{"ref": "AAAAAAAAAAAAAAAAGGGACACACAGACTTCAAGTTTCAAAATAAAATGTGAAATTCATTAGCTCTGAAAACAATACTTACAACTGAAATGAACACATTTGTAAAATCTAATAATTCTGTCCATTGAAGAAATCGTCGAATAAAGGACTTAGGAGGGAGAAAAGCAACAGAGAGGTTAATGGCAGCAGAAAAATAAAGA", "cut": 100}
-{"ref": "AAAAAAAAAAAAAAAAGGGACACACAGACTTCAAGTTTCAAAATAAAATGTGAAATTCATTAGCTCTGAAAACAATACTTACAACTGAAATGAACACATTTGTAGGATCTAATAATTCTGTCCATTGAAGAAATCGTCGAATAAAGGACTTAGGAGGGAGAAAAGCAACAGAGAGGTTAATGGCAGCAGAAAAATAAAGA", "cut": 100}
-{"ref": "AAAAAAAAAAAAAAAATGAAAATAAAAATCCTAATATGAAGGAGTGTGGGTGAAGCGTGGATCACTGTTACTGAATCACCCTGCAGATGCTGTCATCCTATTGTAAAAGGTGAATGATAACAAGGAGCCGGAGCAGATCGCTTTTCAGGATGAGGACGAGGCCCAGCTGAACAAGGAGAACTGGACGGTTGTGAAGACTC", "cut": 100}
-{"ref": "AAAAAAAAAAAAAAAATGAAAATAAAAATCCTAATATGAAGGAGTGTGGGTGAAGCGTGGATCACTGTTACTGAATCACCCTGCAGATGCTGTCATCCTATTGTGGAAGGTGAATGATAACAAGGAGCCGGAGCAGATCGCTTTTCAGGATGAGGACGAGGCCCAGCTGAACAAGGAGAACTGGACGGTTGTGAAGACTC", "cut": 100}
-{"ref": "AAAAAAAAAAAAACAGTGAAAAGCAATCCCCTTACCACACATGCTCCAACCCCACCCCTCCCACCCTGCTGCCCCCATGTACACTTACACATTAGTGTGAAGCTAAAATTCATCAGTCTTGTAGCCAACTGCAAAGTTGCTCTGGGTCACTCGGGATTTTGCAGTCTCAAAATTCATCTGGTAGCCGGCCAGCCAGCCCT", "cut": 100}
-{"ref": "AAAAAAAAAAAAACAGTGAAAAGCAATCCCCTTACCACACATGCTCCAACCCCACCCCTCCCACCCTGCTGCCCCCATGTACACTTACACATTAGTGTGAAGCTGGAATTCATCAGTCTTGTAGCCAACTGCAAAGTTGCTCTGGGTCACTCGGGATTTTGCAGTCTCAAAATTCATCTGGTAGCCGGCCAGCCAGCCCT", "cut": 100}
-```
-
-
-
-
-
 TODO
 ```list
+upload, inference, app, space
 pandas
 bioframe
 matplotlib

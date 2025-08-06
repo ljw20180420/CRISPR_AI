@@ -34,9 +34,7 @@ class MyTest:
 
     @torch.no_grad()
     def __call__(self, train_parser: ArgumentParser) -> None:
-        if os.path.exists(self.model_path / "train.yaml"):
-            cfg = train_parser.parse_path(self.model_path / "train.yaml")
-        else:
+        if os.path.exists(self.model_path / "checkpoints"):
             best_epoch = target_to_epoch(
                 self.model_path / "checkpoints", target="NonWildTypeCrossEntropy"
             )
@@ -46,6 +44,8 @@ class MyTest:
                 / f"checkpoint-{best_epoch}"
                 / "train.yaml"
             )
+        else:
+            cfg = train_parser.parse_path(self.model_path / "train.yaml")
 
         logger = get_logger(**cfg.logger.as_dict())
 
