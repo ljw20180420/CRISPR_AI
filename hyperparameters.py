@@ -1,0 +1,583 @@
+import os
+import pathlib
+import sys
+import logging
+import optuna
+from optuna.samplers import (
+    GridSampler,
+    RandomSampler,
+    TPESampler,
+    CmaEsSampler,
+    GPSampler,
+    PartialFixedSampler,
+    NSGAIISampler,
+    QMCSampler,
+)
+from optuna.pruners import (
+    MedianPruner,
+    NopPruner,
+    PatientPruner,
+    PercentilePruner,
+    SuccessiveHalvingPruner,
+    HyperbandPruner,
+    ThresholdPruner,
+    WilcoxonPruner,
+)
+import jsonargparse
+import numpy as np
+import pandas as pd
+import yaml
+import subprocess
+from AI.preprocess.config import get_config
+from AI.preprocess.train import MyTrain
+from AI.preprocess.test import MyTest
+
+# change directory to the current script
+os.chdir(pathlib.Path(__file__).parent)
+
+
+class Objective:
+    def __init__(
+        self,
+        output_dir: os.PathLike,
+        preprocess: str,
+        model_type: str,
+        data_name: str,
+        batch_size: int,
+        num_epochs: int,
+        study_name: str,
+    ) -> None:
+        self.output_dir = pathlib.Path(os.fspath(output_dir))
+        self.preprocess = preprocess
+        self.model_type = model_type
+        self.data_name = data_name
+        self.batch_size = (batch_size,)
+        self.num_epochs = num_epochs
+        self.study_name = study_name
+        self.scikit_learn = model_type in ["XGBoost", "Ridge"]
+
+    def __call__(self, trial: optuna.Trial):
+        model_path = (
+            self.output_dir
+            / self.preprocess
+            / self.model_type
+            / self.data_name
+            / self.study_name
+            / f"trial-{trial._trial_id}"
+        )
+        with open(model_path / "train.yaml", "w") as fd:
+            yaml.dump(self.config_train(trial), fd)
+        with open(model_path / f"{self.model_type}.yaml", "w") as fd:
+            yaml.dump(self.config_model(trial), fd)
+        with open(model_path / "test.yaml", "w") as fd:
+            yaml.dump(self.config_test(trial), fd)
+
+        # parse arguments
+        parser, train_parser, test_parser = get_config()
+        train_cfg = train_parser.parse_path(model_path / "train.yaml")
+        for epoch, performance in enumerate(
+            MyTrain(**train_cfg.train.as_dict())(
+                train_parser=train_parser,
+                cfg=train_cfg,
+            )
+        ):
+            if performance is not None:
+                trial.report(
+                    value=performance["eval"]["NonWildTypeCrossEntropy"]["loss"]
+                    / performance["eval"]["NonWildTypeCrossEntropy"]["loss_num"],
+                    step=epoch,
+                )
+        subprocess.run(
+            f'./run.py train --config {model_path / "train.yaml"} --model {model_path / self.model_type}.yaml',
+            shell=True,
+            executable="/bin/bash",
+        )
+
+        subprocess.run(
+            f'./run.py test --config {model_path / "test.yaml"}',
+            shell=True,
+            executable="/bin/bash",
+        )
+
+        df = pd.read_csv(model_path / "test_result.csv")
+        return (
+            df["NonWildTypeCrossEntropy_loss"].sum()
+            / df["NonWildTypeCrossEntropy_loss_num"].sum()
+        )
+
+    def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
+        cfg = jsonargparse.Namespace()
+        cfg.test = jsonargparse.Namespace(
+            model_path=self.output_dir
+            / self.preprocess
+            / self.model_type
+            / self.data_name
+            / self.study_name
+            / f"trial-{trial._trial_id}",
+            batch_size=100,
+            device="cuda",
+        )
+        return cfg
+
+    def config_train(self, trial: optuna.Trial) -> jsonargparse.Namespace:
+        cfg = jsonargparse.Namespace()
+        cfg.train = jsonargparse.Namespace(
+            output_dir=self.output_dir,
+            trial_name=f"{self.study_name}/trial-{trial._trial_id}",
+            batch_size=self.batch_size,
+            num_epochs=self.num_epochs,
+            last_epoch=-1,
+            clip_value=1.0,
+            accumulate_steps=1,
+            device="cuda",
+        )
+        if not self.scikit_learn:
+            cfg.initializer = jsonargparse.Namespace(
+                name=trial.suggest_categorical(
+                    "initializer.name",
+                    choices=[
+                        "uniform_",
+                        "normal_",
+                        "xavier_uniform_",
+                        "xavier_normal_",
+                        "kaiming_uniform_",
+                        "kaiming_normal_",
+                        "trunc_normal_",
+                    ],
+                ),
+            )
+            cfg.optimizer = jsonargparse.Namespace(
+                name=trial.suggest_categorical(
+                    "optimizer.name",
+                    choices=[
+                        "Adadelta",
+                        "Adafactor",
+                        "Adagrad",
+                        "Adam",
+                        "AdamW",
+                        "SparseAdam",
+                        "Adamax",
+                        "ASGD",
+                        "LBFGS",
+                        "NAdam",
+                        "RAdam",
+                        "RMSprop",
+                        "Rprop",
+                        "SGD",
+                    ],
+                ),
+                learning_rate=trial.suggest_float(
+                    "optimizer.learning_rate", 1e-5, 1e-2, log=True
+                ),
+                weight_decay=0.0,
+            )
+            cfg.lr_scheduler = jsonargparse.Namespace(
+                name=trial.suggest_categorical(
+                    "lr_scheduler.name",
+                    choices=[
+                        "CosineAnnealingWarmRestarts",
+                        "ConstantLR",
+                        "ReduceLROnPlateau",
+                        "LRScheduler",
+                    ],
+                ),
+                warmup_epochs=self.num_epochs // 10,
+                period_epochs=self.num_epochs - self.num_epochs // 10,
+            )
+        else:
+            cfg.initializer = jsonargparse.Namespace(
+                name="kaiming_uniform_",
+            )
+            cfg.optimizer = jsonargparse.Namespace(
+                name="AdamW",
+                learning_rate=0.0001,
+                weight_decay=0.0,
+            )
+            cfg.lr_scheduler = jsonargparse.Namespace(
+                name="CosineAnnealingWarmRestarts",
+                warmup_epochs=3,
+                period_epochs=30,
+            )
+
+        cfg.dataset = jsonargparse.Namespace(
+            user="ljw20180420",
+            repo="CRISPR_data",
+            name=self.data_name,
+            test_ratio=0.05,
+            validation_ratio=0.05,
+            random_insert_uplimit=0,
+            insert_uplimit=2,
+            seed=63036,
+        )
+        cfg.generator = jsonargparse.Namespace(
+            seed=63036,
+        )
+        cfg.logger = jsonargparse.Namespace(
+            log_level="WARNING",
+        )
+        cfg.metric = [
+            jsonargparse.Namespace(
+                class_path="AI.preprocess.metric.NonWildTypeCrossEntropy",
+                init_args=jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                ),
+            )
+        ]
+        return cfg
+
+    def config_model(
+        self,
+        trial: optuna.Trial,
+    ) -> jsonargparse.Namespace:
+        cfg = jsonargparse.Namespace()
+        cfg.class_path = (
+            f"AI.preprocess.{self.preprocess}.model.{self.model_type}Config"
+        )
+
+        if self.preprocess == "CRIformer":
+            if self.model_type == "CRIformer":
+                cfg.init_args = jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                    hidden_size=trial.suggest_int(
+                        "CRIformer.CRIformer.hidden_size", 128, 512, step=128
+                    ),
+                    num_hidden_layers=trial.suggest_int(
+                        "CRIformer.CRIformer.num_hidden_layers", 2, 4
+                    ),
+                    num_attention_heads=trial.suggest_int(
+                        "CRIformer.CRIformer.num_hidden_layers", 3, 5
+                    ),
+                    intermediate_size=trial.suggest_int(
+                        "CRIformer.CRIformer.intermediate_size", 512, 2048, step=512
+                    ),
+                    hidden_dropout_prob=trial.suggest_uniform(
+                        "CRIformer.CRIformer.hidden_dropout_prob", 0.0, 0.1
+                    ),
+                    attention_probs_dropout_prob=trial.suggest_uniform(
+                        "CRIformer.CRIformer.attention_probs_dropout_prob", 0.0, 0.1
+                    ),
+                )
+        elif self.preprocess == "CRIfuser":
+            if self.model_type == "CRIfuser":
+                half_layer_num = trial.suggest_int(
+                    "CRIfuser.CRIfuser.unet_channels", 2, 4
+                )
+                cfg.init_args = jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                    max_micro_homology=7,
+                    loss_weights={
+                        trial.suggest_categorical(
+                            "CRIfuser.CRIfuser.loss_weights",
+                            choices=[
+                                "double_sample_negative_ELBO",
+                                "importance_sample_negative_ELBO",
+                                "forward_negative_ELBO",
+                                "reverse_negative_ELBO",
+                                "sample_CE",
+                                "non_sample_CE",
+                            ],
+                        ): 1.0,
+                    },
+                    unet_channels=(
+                        32 * np.r_[1:half_layer_num, half_layer_num:0:-1]
+                    ).tolist(),
+                    noise_scheduler=trial.suggest_categorical(
+                        "CRIfuser.CRIfuser.noise_scheduler",
+                        choices=["linear", "cosine", "exp", "uniform"],
+                    ),
+                    noise_timesteps=trial.suggest_int(
+                        "CRIfuser.CRIfuser.noise_timesteps", 10, 30
+                    ),
+                    cosine_factor=0.008,
+                    exp_scale=5.0,
+                    exp_base=5.0,
+                    uniform_scale=1.0,
+                )
+        elif self.preprocess == "DeepHF":
+            if self.model_type == "DeepHF":
+                cfg.init_args = jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                    em_drop=trial.suggest_uniform("DeepHF.DeepHF.em_drop", 0.0, 0.2),
+                    fc_drop=trial.suggest_uniform("DeepHF.DeepHF.fc_drop", 0.0, 0.4),
+                    em_dim=trial.suggest_int("DeepHF.DeepHF.em_dim", 33, 55),
+                    rnn_units=trial.suggest_int("DeepHF.DeepHF.rnn_units", 50, 70),
+                    fc_num_hidden_layers=trial.suggest_int(
+                        "DeepHF.DeepHF.fc_num_hidden_layers", 2, 5
+                    ),
+                    fc_num_units=trial.suggest_int(
+                        "DeepHF.DeepHF.fc_num_units", 220, 420
+                    ),
+                    fc_activation=trial.suggest_categorical(
+                        "DeepHF.DeepHF.fc_activation",
+                        choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+                    ),
+                )
+            elif self.model_type == "CNN":
+                cfg.init_args = (
+                    jsonargparse.Namespace(
+                        ext1_up=25,
+                        ext1_down=6,
+                        ext2_up=6,
+                        ext2_down=25,
+                        em_drop=trial.suggest_uniform("CNN.CNN.em_drop", 0.0, 0.2),
+                        fc_drop=trial.suggest_uniform("CNN.CNN.fc_drop", 0.0, 0.2),
+                        em_dim=trial.suggest_int("CNN.CNN.em_dim", 26, 46),
+                        fc_num_hidden_layers=trial.suggest_int(
+                            "CNN.CNN.fc_num_hidden_layers", 2, 4
+                        ),
+                        fc_num_units=trial.suggest_int(
+                            "CNN.CNN.fc_num_units", 300, 500
+                        ),
+                        fc_activation=trial.suggest_categorical(
+                            "CNN.CNN.fc_activation",
+                            choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+                        ),
+                        kernel_sizes=[1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13],
+                        feature_maps=trial.suggest_categorical(
+                            "CNN.CNN.feature_maps",
+                            choices=[
+                                [
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                ],
+                                [
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                ],
+                                [
+                                    20,
+                                    20,
+                                    20,
+                                    20,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    80,
+                                    80,
+                                    80,
+                                    80,
+                                    80,
+                                    80,
+                                ],
+                                [
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    40,
+                                    80,
+                                    80,
+                                    80,
+                                    80,
+                                    80,
+                                    80,
+                                ],
+                            ],
+                        ),
+                    ),
+                )
+            elif self.model_type == "MLP":
+                cfg.init_args = jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                    fc_drop=trial.suggest_uniform("MLP.MLP.fc_drop", 0.0, 0.2),
+                    fc_num_hidden_layers=trial.suggest_int(
+                        "MLP.MLP.fc_num_hidden_layers", 3, 5
+                    ),
+                    fc_num_units=trial.suggest_int("MLP.MLP.fc_num_units", 300, 500),
+                    fc_activation=trial.suggest_categorical(
+                        "MLP.MLP.fc_activation",
+                        choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+                    ),
+                )
+            elif self.model_type == "XGBoost":
+                cfg.init_args = jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                    learning_rate=trial.suggest_float(
+                        "XGBoost.XGBoost.learning_rate", 0.01, 0.2
+                    ),
+                    subsample=trial.suggest_float(
+                        "XGBoost.XGBoost.subsample", 0.1, 0.8
+                    ),
+                    colsample_bytree=trial.suggest_float(
+                        "XGBoost.XGBoost.colsample_bytree", 0.1, 0.7
+                    ),
+                    max_depath=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
+                    reg_lambda=trial.suggest_int(
+                        "XGBoost.XGBoost.reg_lambda", 600, 800
+                    ),
+                    nthread=18,
+                    booster=trial.suggest_categorical(
+                        "XGBoost.XGBoost.booster",
+                        choices=["gbtree", "gblinear", "dart"],
+                    ),
+                    num_boost_round=trial.suggest_int(
+                        "XGBoost.XGBoost.num_boost_round", 600, 800
+                    ),
+                    early_stopping_rounds=trial.suggest_int(
+                        "XGBoost.XGBoost.early_stopping_rounds", 2, 4
+                    ),
+                )
+            # elif self.model_type == "Ridge":
+            #     cfg.init_args = jsonargparse.Namespace(
+            #         ext1_up=25,
+            #         ext1_down=6,
+            #         ext2_up=6,
+            #         ext2_down=25,
+            #         alpha=trial.suggest_float("Ridge.Ridge.alpha", 50.0, 200.0),
+            #     )
+        elif self.preprocess == "FOREcasT":
+            if self.model_type == "FOREcasT":
+                cfg.init_args = jsonargparse.Namespace(
+                    max_del_size=trial.suggest_int(
+                        "FOREcasT.FOREcasT.max_del_size", 20, 40
+                    ),
+                    reg_const=trial.suggest_float(
+                        "FOREcasT.FOREcasT.reg_const", 0.0, 0.02
+                    ),
+                    i1_reg_const=trial.suggest_float(
+                        "FOREcasT.FOREcasT.i1_reg_const", 0.0, 0.02
+                    ),
+                )
+        elif self.preprocess == "inDelphi":
+            if self.model_type == "inDelphi":
+                cfg.init_args = jsonargparse.Namespace(
+                    DELLEN_LIMIT=trial.suggest_int(
+                        "inDelphi.inDelphi.DELLEN_LIMIT", 40, 80
+                    ),
+                    mid_dim=trial.suggest_int("inDelphi.inDelphi.mid_dim", 16, 64),
+                )
+        elif self.preprocess == "Lindel":
+            if self.model_type == "Lindel":
+                cfg.init_args = jsonargparse.Namespace(
+                    dlen=trial.suggest_int("Lindel.Lindel.dlen", 20, 40),
+                    mh_len=trial.suggest_int("Lindel.Lindel.mh_len", 3, 5),
+                    reg_mode=trial.suggest_categorical(
+                        "Lindel.Lindel.reg_mode", choices=["l2", "l1"]
+                    ),
+                    reg_const=trial.suggest_float("Lindel.Lindel.reg_const", 0.0, 0.02),
+                )
+
+        return cfg
+
+
+def main(
+    output_dir: os.PathLike,
+    preprocess: str,
+    model_type: str,
+    data_name: str,
+    batch_size: int,
+    num_epochs: int,
+    sampler: (
+        GridSampler
+        | RandomSampler
+        | TPESampler
+        | CmaEsSampler
+        | GPSampler
+        | PartialFixedSampler
+        | NSGAIISampler
+        | QMCSampler
+    ),
+    pruner: (
+        MedianPruner
+        | NopPruner
+        | PatientPruner
+        | PercentilePruner
+        | SuccessiveHalvingPruner
+        | HyperbandPruner
+        | ThresholdPruner
+        | WilcoxonPruner
+    ),
+    study_name: str,
+    n_trials: int,
+    load_if_exists: bool,
+) -> None:
+    """Arguments of optuna.
+
+    Args:
+        output_dir: Output directory.
+        preprocess: Preprocess method for data.
+        model_type: Type of model.
+        data_name: Dataset name.
+        sampler: Sampler continually narrows down the search space using the records of suggested parameter values and evaluated objective values.
+        pruner: Pruner to stop unpromising trials at the early stages.
+        study_name: The name of the study.
+        n_trials: The total number of trials in the study.
+        load_if_exists: Flag to control the behavior to handle a conflict of study names. In the case where a study named study_name already exists in the storage.
+    """
+    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    output_dir = pathlib.Path(os.fspath(output_dir))
+    objective = Objective(
+        output_dir=output_dir,
+        preprocess=preprocess,
+        model_type=model_type,
+        data_name=data_name,
+        batch_size=batch_size,
+        num_epochs=num_epochs,
+        study_name=study_name,
+    )
+    study = optuna.create_study(
+        storage=optuna.storages.JournalStorage(
+            optuna.storages.journal.JournalFileBackend(
+                output_dir
+                / preprocess
+                / model_type
+                / data_name
+                / study_name
+                / "optuna_journal_storage.log"
+            ),
+        ),
+        sampler=sampler,
+        pruner=pruner,
+        study_name=study_name,
+        load_if_exists=load_if_exists,
+    )
+    study.optimize(
+        func=objective,
+        n_trials=n_trials,
+    )

@@ -10,13 +10,14 @@ from AI.preprocess.test import MyTest
 os.chdir(pathlib.Path(__file__).parent)
 
 # parse arguments
-parser, train_parser = get_config()
+parser, train_parser, test_parser = get_config()
 cfg = parser.parse_args()
 if cfg.subcommand == "train":
-    MyTrain(**cfg.train.train.as_dict())(
+    for performance in MyTrain(**cfg.train.train.as_dict())(
         train_parser=train_parser,
         cfg=cfg.train,
-    )
+    ):
+        pass
 
 elif cfg.subcommand == "test":
     MyTest(**cfg.test.test.as_dict())(train_parser=train_parser)

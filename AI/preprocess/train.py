@@ -6,7 +6,7 @@ import os
 import pathlib
 from torch.utils.data import DataLoader
 import json
-from typing import Literal, Callable
+from typing import Literal, Callable, Generator
 import datasets
 import inspect
 import importlib
@@ -203,7 +203,7 @@ class MyTrain:
         self,
         train_parser: ArgumentParser,
         cfg: Namespace,
-    ) -> None:
+    ) -> Generator:
         logger = get_logger(**cfg.logger.as_dict())
 
         logger.info("load dataset")
@@ -241,11 +241,12 @@ class MyTrain:
             self.train_scikit_learn(
                 train_parser=train_parser, cfg=cfg, model_path=model_path, logger=logger
             )
-            return
+            yield None
 
-        self.train_deep_learning_model(
+        for performance in self.train_deep_learning_model(
             train_parser=train_parser, cfg=cfg, model_path=model_path, logger=logger
-        )
+        ):
+            yield performance
 
     def train_scikit_learn(
         self,
@@ -282,7 +283,7 @@ class MyTrain:
         cfg: Namespace,
         model_path: os.PathLike,
         logger: logging.Logger,
-    ) -> None:
+    ) -> Generator:
         logger.info("train deep learning model")
 
         logger.info("initialize components")
@@ -484,3 +485,5 @@ class MyTrain:
                 },
                 f=model_path / "checkpoints" / f"checkpoint-{epoch}" / "checkpoint.pt",
             )
+
+            yield performance

@@ -82,4 +82,4 @@ def get_config() -> tuple[jsonargparse.ArgumentParser]:
 
     subcommands.add_subcommand(name="train", parser=train_parser)
 
-    return parser, train_parser
+    return parser, train_parser, test_parser

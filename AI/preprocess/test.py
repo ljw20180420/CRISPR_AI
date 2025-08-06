@@ -92,6 +92,7 @@ class MyTest:
                 weights_only=False,
             )
             model.load_state_dict(checkpoint["model"])
+            model = model.to(self.device)
             model.eval()
 
         logger.info("test model")
@@ -116,7 +117,6 @@ class MyTest:
             metric_df["sample_idx"] = metric_df["sample_idx"] + accum_sample_idx
             accum_sample_idx += current_batch_size
             metric_dfs.append(metric_df)
-
         logger.info("output results")
         pd.concat(metric_dfs).to_csv(
             self.model_path / "test_result.csv",

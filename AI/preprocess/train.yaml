@@ -1,6 +1,3 @@
-# inference_data: inference.json.gz
-# inference_output: inference.output
-
 train:
   # output_dir:
   # trial_name:

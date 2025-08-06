@@ -9,6 +9,7 @@ from transformers import PreTrainedModel, PretrainedConfig
 from typing import Optional, Literal
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from tqdm import tqdm
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -404,7 +405,7 @@ class CRIfuserModel(PreTrainedModel):
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
         batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape
         probas = []
-        for i in range(batch_size):
+        for i in tqdm(range(batch_size)):
             proba = torch.ones(ref2_dim, ref1_dim, device=self.device) / (
                 ref2_dim * ref1_dim
             )

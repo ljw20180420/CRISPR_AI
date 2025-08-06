@@ -239,15 +239,7 @@ TODO
 ```list
 Use model.eval() in test and inference
 Use os.PathLike
-In the paper, remove dependency of beta on d, and apply beta_t to both ELBO and CE.
-specify model parameters by include model yaml in the total config.yaml, so that required=True comes back, and it is not necessary to check whether subcommands are given
-support multiple metrics
-add trial_name
-save test result and pipeline in the ouput directory instead of project directory
 do pre-computation when initialize data collator and model so that subsequent computations are faster
-Remove auxilary model
-add non-wild-type metric to the trainer
-learning rate
 hyperparameter choice (optuna)
 Add api documentation after finish the project
 train use float32
