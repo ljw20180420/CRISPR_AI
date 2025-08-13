@@ -20,6 +20,7 @@ from transformers import PreTrainedModel, PretrainedConfig
 import xgboost as xgb
 from sklearn import linear_model
 from .data_collator import DataCollator
+from ..utils import MyGenerator
 
 
 class DeepHFConfig(PretrainedConfig):
@@ -144,7 +145,9 @@ class DeepHFModel(PreTrainedModel):
         )
         self.mix_output = nn.Linear(config.fc_num_units, out_dim)
 
-    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+    def forward(
+        self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
+    ) -> dict:
         X = self.embedding(input["X"].to(self.device))
         X = self.dropout1d(X)
         X, _ = self.lstm(X)
@@ -194,7 +197,7 @@ class DeepHFModel(PreTrainedModel):
         return loss, loss_num
 
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
-        result = self(input=batch["input"])
+        result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]
@@ -318,7 +321,9 @@ class MLPModel(PreTrainedModel):
         )
         self.mix_output = nn.Linear(config.fc_num_units, out_dim)
 
-    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+    def forward(
+        self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
+    ) -> dict:
         X = self.fc1(
             torch.cat(
                 [
@@ -367,7 +372,7 @@ class MLPModel(PreTrainedModel):
         return loss, loss_num
 
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
-        result = self(input=batch["input"])
+        result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]
@@ -530,7 +535,9 @@ class CNNModel(PreTrainedModel):
         )
         self.mix_output = nn.Linear(config.fc_num_units, out_dim)
 
-    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+    def forward(
+        self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
+    ) -> dict:
         X = self.embedding(input["X"].to(self.device))
         X = self.dropout1d(X)
         X = torch.cat(
@@ -582,7 +589,7 @@ class CNNModel(PreTrainedModel):
         return loss, loss_num
 
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
-        result = self(input=batch["input"])
+        result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]

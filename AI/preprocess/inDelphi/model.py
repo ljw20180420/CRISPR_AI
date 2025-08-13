@@ -70,7 +70,9 @@ class inDelphiModel(PreTrainedModel):
             del_lens < self.DELLEN_LIMIT
         )
 
-    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+    def forward(
+        self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
+    ) -> dict:
         batch_size = input["mh_input"].shape[0]
         mh_weight = self.mh_in_layer(input["mh_input"].to(self.device))
         mh_weight = self.mid_active(mh_weight)
@@ -162,7 +164,7 @@ class inDelphiModel(PreTrainedModel):
         examples: list[dict],
         batch: dict,
     ) -> pd.DataFrame:
-        result = self(batch["input"])
+        result = self(input=batch["input"], label=None, my_generator=None)
         knn_feature = self._get_knn_feature(
             result["total_del_len_weight"], batch["input"]["onebp_feature"]
         )
@@ -348,7 +350,7 @@ class inDelphiModel(PreTrainedModel):
         m654s = np.zeros((4**3, 4), dtype=int)
         for examples in tqdm(itertools.chain(train_dataloader, eval_dataloader)):
             batch = self.data_collator(examples, output_label=True)
-            result = self(batch["input"])
+            result = self(input=batch["input"], label=None, my_generator=None)
             knn_features.append(
                 self._get_knn_feature(
                     result["total_del_len_weight"],

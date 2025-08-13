@@ -10,6 +10,7 @@ from torch.backends import opt_einsum
 from einops import rearrange, einsum, repeat
 from transformers import PreTrainedModel, PretrainedConfig
 from .data_collator import DataCollator
+from ..utils import MyGenerator
 
 
 class FOREcasTConfig(PretrainedConfig):
@@ -187,7 +188,9 @@ class FOREcasTModel(PreTrainedModel):
                 features_label.append(f"PW_{label1}_vs_{label2}")
         return features_label
 
-    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+    def forward(
+        self, input: dict, label: Optional[dict], my_generator: MyGenerator
+    ) -> dict:
         logit = rearrange(self.linear(input["feature"].to(self.device)), "b m 1 -> b m")
         if label is not None:
             loss, loss_num = self.loss_fun(
@@ -215,7 +218,7 @@ class FOREcasTModel(PreTrainedModel):
         return loss, loss_num
 
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
-        result = self(batch["input"])
+        result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size, feature_size = probas.shape

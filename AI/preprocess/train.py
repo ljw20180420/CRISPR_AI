@@ -313,17 +313,11 @@ class MyTrain:
         train_loss, train_loss_num, grad_norm = 0.0, 0.0, 0.0
         for step, examples in tqdm(enumerate(train_dataloader)):
             batch = model.data_collator(examples, output_label=True)
-            if "my_generator" in inspect.signature(model.forward).parameters:
-                result = model(
-                    input=batch["input"],
-                    label=batch["label"],
-                    my_generator=my_generator,
-                )
-            else:
-                result = model(
-                    input=batch["input"],
-                    label=batch["label"],
-                )
+            result = model(
+                input=batch["input"],
+                label=batch["label"],
+                my_generator=my_generator,
+            )
 
             result["loss"].backward()
             if (step + 1) % accumulate_steps == 0 or step == len(train_dataloader):
@@ -432,20 +426,12 @@ class MyTrain:
                 }
                 for examples in tqdm(eval_dataloader):
                     batch = self.model.data_collator(examples, output_label=True)
-                    if (
-                        "my_generator"
-                        in inspect.signature(self.model.forward).parameters
-                    ):
-                        result = self.model(
-                            input=batch["input"],
-                            label=batch["label"],
-                            my_generator=self.my_generator,
-                        )
-                    else:
-                        result = self.model(
-                            input=batch["input"],
-                            label=batch["label"],
-                        )
+                    result = self.model(
+                        input=batch["input"],
+                        label=batch["label"],
+                        my_generator=self.my_generator,
+                    )
+
                     eval_loss += result["loss"].item()
                     eval_loss_num += (
                         result["loss_num"].item()
@@ -470,6 +456,20 @@ class MyTrain:
                             "loss_num"
                         ] += metric_loss_num.sum().item()
 
+                if isinstance(
+                    self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+                ):
+                    self.lr_scheduler.step(eval_loss / eval_loss_num)
+                else:
+                    self.lr_scheduler.step()
+
+                print(
+                    {
+                        "train_loss": train_loss / train_loss_num,
+                        "eval_loss": eval_loss / eval_loss_num,
+                    }
+                )
+
             logger.info("save model")
             performance = {
                 "train": {
@@ -483,18 +483,6 @@ class MyTrain:
                     **metric_loss_dict,
                 },
             }
-            if isinstance(
-                self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
-            ):
-                self.lr_scheduler.step(eval_loss / eval_loss_num)
-            else:
-                self.lr_scheduler.step()
-            print(
-                {
-                    "train_loss": train_loss / train_loss_num,
-                    "eval_loss": eval_loss / eval_loss_num,
-                }
-            )
             os.makedirs(
                 model_path / "checkpoints" / f"checkpoint-{epoch}", exist_ok=True
             )

@@ -10,6 +10,7 @@ from transformers import PreTrainedModel, PretrainedConfig
 from torch.backends import opt_einsum
 from einops import einsum, repeat
 from .data_collator import DataCollator
+from ..utils import MyGenerator
 
 
 class LindelConfig(PretrainedConfig):
@@ -57,7 +58,9 @@ class LindelModel(PreTrainedModel):
             out_features=class_dim,
         )
 
-    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+    def forward(
+        self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
+    ) -> dict:
         logit_indel = self.model_indel(input["input_indel"].to(self.device))
         logit_ins = self.model_ins(input["input_ins"].to(self.device))
         logit_del = self.model_del(input["input_del"].to(self.device))
@@ -125,7 +128,7 @@ class LindelModel(PreTrainedModel):
         )
 
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
-        result = self(batch["input"])
+        result = self(input=batch["input"], label=None, my_generator=None)
 
         batch_size = len(examples)
         left_shift = np.zeros((batch_size, 20), dtype=int)

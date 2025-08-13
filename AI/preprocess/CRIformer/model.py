@@ -15,6 +15,7 @@ from typing import Optional
 from torch.backends import opt_einsum
 from einops import einsum, repeat, rearrange
 from .data_collator import DataCollator
+from ..utils import MyGenerator
 
 
 class CRIformerConfig(PretrainedConfig):
@@ -106,7 +107,9 @@ class CRIformerModel(PreTrainedModel):
             * (config.ext2_up + config.ext2_down + 1),
         )
 
-    def forward(self, input: dict, label: Optional[dict] = None) -> dict:
+    def forward(
+        self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
+    ) -> dict:
         # refcode: batch_size X (ext1_up + ext1_down + ext2_up + ext2_down)
         # model(refcode): batch_size X (ext1_up + ext1_down + ext2_up + ext2_down) X hidden_size
         # model(refcode)[:, -1, :]: arbitrary choose the last position to predict the logits
@@ -159,7 +162,7 @@ class CRIformerModel(PreTrainedModel):
         return loss, loss_num
 
     def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
-        result = self(input=batch["input"])
+        result = self(input=batch["input"], label=None, my_generator=None)
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]
         ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
