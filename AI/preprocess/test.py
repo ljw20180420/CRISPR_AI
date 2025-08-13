@@ -17,6 +17,7 @@ class MyTest:
     def __init__(
         self,
         model_path: os.PathLike,
+        target: str,
         batch_size: int,
         device: Literal["cpu", "cuda"],
     ) -> None:
@@ -24,10 +25,12 @@ class MyTest:
 
         Args:
             model_path: Path to the model.
+            target: target metric name.
             batch_size: Batch size.
             device: Device.
         """
         self.model_path = pathlib.Path(os.fspath(model_path))
+        self.target = target
         self.batch_size = batch_size
         self.device = device
 
@@ -35,7 +38,7 @@ class MyTest:
     def __call__(self, train_parser: ArgumentParser) -> None:
         if os.path.exists(self.model_path / "checkpoints"):
             best_epoch = target_to_epoch(
-                self.model_path / "checkpoints", target="NonWildTypeCrossEntropy"
+                self.model_path / "checkpoints", target=self.target
             )
             cfg = train_parser.parse_path(
                 self.model_path
