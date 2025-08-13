@@ -76,12 +76,8 @@ class MyTest:
                 **cfg.model.init_args.as_dict(),
             )
         )
-        if (
-            hasattr(model, "train_scikit_learn")
-            and hasattr(model, "save_scikit_learn")
-            and hasattr(model, "load_scikit_learn")
-        ):
-            model.load_scikit_learn(self.model_path)
+        if hasattr(model, "my_load_model"):
+            model.my_load_model(self.model_path)
         else:
             checkpoint = torch.load(
                 self.model_path

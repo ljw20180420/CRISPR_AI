@@ -148,7 +148,7 @@ class MyTrain:
         ],
         warmup_epochs: int,
         period_epochs: int,
-    ) -> torch.optim.lr_scheduler.SequentialLR:
+    ) -> torch.optim.lr_scheduler.LRScheduler:
         """Parameters for learning rate scheduler.
 
         Args:
@@ -234,49 +234,16 @@ class MyTrain:
             and model_type == self.model.config.model_type
         ), "preprocess or model type is inconsistent"
 
-        if (
-            hasattr(self.model, "train_scikit_learn")
-            and hasattr(self.model, "save_scikit_learn")
-            and hasattr(self.model, "load_scikit_learn")
-        ):
-            self.train_scikit_learn(
-                train_parser=train_parser, cfg=cfg, model_path=model_path, logger=logger
+        if hasattr(self.model, "my_train_model"):
+            self.model.my_train_model(
+                self.dataset, self.batch_size, train_parser, cfg, model_path, logger
             )
             yield None
-
-        for performance in self.train_deep_learning_model(
-            train_parser=train_parser, cfg=cfg, model_path=model_path, logger=logger
-        ):
-            yield performance
-
-    def train_scikit_learn(
-        self,
-        train_parser: ArgumentParser,
-        cfg: Namespace,
-        model_path: os.PathLike,
-        logger: logging.Logger,
-    ) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        logger.info("train scikit learn model")
-        self.model.train_scikit_learn(
-            train_dataloader=DataLoader(
-                dataset=self.dataset["train"],
-                batch_size=self.batch_size,
-                collate_fn=lambda examples: examples,
-            ),
-            eval_dataloader=DataLoader(
-                dataset=self.dataset["validation"],
-                batch_size=self.batch_size,
-                collate_fn=lambda examples: examples,
-            ),
-        )
-        logger.info("save scikit learn model model")
-        self.model.save_scikit_learn(model_path)
-        train_parser.save(
-            cfg=cfg,
-            path=model_path / "train.yaml",
-            overwrite=True,
-        )
+        else:
+            for performance in self.my_train_model(
+                train_parser, cfg, model_path, logger
+            ):
+                yield performance
 
     @staticmethod
     def my_initialize_model(model: PreTrainedModel, initializer: Callable) -> None:
@@ -334,7 +301,62 @@ class MyTrain:
             )
         return train_loss, train_loss_num, grad_norm
 
-    def train_deep_learning_model(
+    @staticmethod
+    def my_save_model(
+        model: PreTrainedModel,
+        optimizer: torch.optim.Optimizer,
+        lr_scheduler: torch.optim.lr_scheduler.LRScheduler,
+        my_generator: MyGenerator,
+        train_loss: float,
+        train_loss_num: float,
+        grad_norm: float,
+        eval_loss: float,
+        eval_loss_num: float,
+        metric_loss_dict: dict,
+        train_parser: ArgumentParser,
+        cfg: Namespace,
+        epoch: int,
+        model_path: os.PathLike,
+    ) -> dict:
+        model_path = pathlib.Path(os.fspath(model_path))
+        performance = {
+            "train": {
+                "loss": train_loss,
+                "loss_num": train_loss_num,
+                "grad_num": grad_norm,
+            },
+            "eval": {
+                "loss": eval_loss,
+                "loss_num": eval_loss_num,
+                **metric_loss_dict,
+            },
+        }
+        os.makedirs(model_path / "checkpoints" / f"checkpoint-{epoch}", exist_ok=True)
+        cfg.train.last_epoch = epoch
+        train_parser.save(
+            cfg=cfg,
+            path=model_path / "checkpoints" / f"checkpoint-{epoch}" / "train.yaml",
+            overwrite=True,
+        )
+        with open(
+            model_path / "checkpoints" / f"checkpoint-{epoch}" / "performance.json",
+            "w",
+        ) as fd:
+            json.dump(performance, fd, indent=4)
+
+        torch.save(
+            obj={
+                "generator": my_generator.state_dict(),
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "lr_scheduler": lr_scheduler.state_dict(),
+            },
+            f=model_path / "checkpoints" / f"checkpoint-{epoch}" / "checkpoint.pt",
+        )
+
+        return performance
+
+    def my_train_model(
         self,
         train_parser: ArgumentParser,
         cfg: Namespace,
@@ -396,6 +418,7 @@ class MyTrain:
 
         logger.info("enter train loop")
         for epoch in tqdm(range(self.last_epoch + 1, self.num_epochs)):
+            logger.info("train model")
             if hasattr(self.model, "my_train_epoch"):
                 train_loss, train_loss_num, grad_norm = self.model.my_train_epoch(
                     self.my_train_epoch,
@@ -471,41 +494,21 @@ class MyTrain:
                 )
 
             logger.info("save model")
-            performance = {
-                "train": {
-                    "loss": train_loss,
-                    "loss_num": train_loss_num,
-                    "grad_num": grad_norm,
-                },
-                "eval": {
-                    "loss": eval_loss,
-                    "loss_num": eval_loss_num,
-                    **metric_loss_dict,
-                },
-            }
-            os.makedirs(
-                model_path / "checkpoints" / f"checkpoint-{epoch}", exist_ok=True
-            )
-            cfg.train.last_epoch = epoch
-            train_parser.save(
-                cfg=cfg,
-                path=model_path / "checkpoints" / f"checkpoint-{epoch}" / "train.yaml",
-                overwrite=True,
-            )
-            with open(
-                model_path / "checkpoints" / f"checkpoint-{epoch}" / "performance.json",
-                "w",
-            ) as fd:
-                json.dump(performance, fd, indent=4)
-
-            torch.save(
-                obj={
-                    "generator": self.my_generator.state_dict(),
-                    "model": self.model.state_dict(),
-                    "optimizer": self.optimizer.state_dict(),
-                    "lr_scheduler": self.lr_scheduler.state_dict(),
-                },
-                f=model_path / "checkpoints" / f"checkpoint-{epoch}" / "checkpoint.pt",
+            performance = self.my_save_model(
+                self.model,
+                self.optimizer,
+                self.lr_scheduler,
+                self.my_generator,
+                train_loss,
+                train_loss_num,
+                grad_norm,
+                eval_loss,
+                eval_loss_num,
+                metric_loss_dict,
+                train_parser,
+                cfg,
+                epoch,
+                model_path,
             )
 
             yield performance

@@ -19,6 +19,9 @@ from einops.layers.torch import Rearrange
 from transformers import PreTrainedModel, PretrainedConfig
 import xgboost as xgb
 from sklearn import linear_model
+import jsonargparse
+import logging
+import datasets
 from .data_collator import DataCollator
 from ..utils import MyGenerator
 
@@ -730,16 +733,47 @@ class XGBoostModel(PreTrainedModel):
         )
         return df
 
-    def save_scikit_learn(self, model_path: os.PathLike) -> None:
+    def my_train_model(
+        self,
+        dataset: datasets.Dataset,
+        batch_size: int,
+        train_parser: jsonargparse.ArgumentParser,
+        cfg: jsonargparse.Namespace,
+        model_path: os.PathLike,
+        logger: logging.Logger,
+    ) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        logger.info("train XGBoost")
+        self.train_XGBoost(
+            train_dataloader=torch.utils.data.DataLoader(
+                dataset=dataset["train"],
+                batch_size=batch_size,
+                collate_fn=lambda examples: examples,
+            ),
+            eval_dataloader=torch.utils.data.DataLoader(
+                dataset=dataset["validation"],
+                batch_size=batch_size,
+                collate_fn=lambda examples: examples,
+            ),
+        )
+        logger.info("save XGBoost")
+        self.save_XGBoost(model_path)
+        train_parser.save(
+            cfg=cfg,
+            path=model_path / "train.yaml",
+            overwrite=True,
+        )
+
+    def my_load_model(self, model_path: os.PathLike) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        self.booster = xgb.Booster(model_file=model_path / "XGBoost.json")
+
+    def save_XGBoost(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         os.makedirs(model_path, exist_ok=True)
         self.booster.save_model(fname=model_path / "XGBoost.json")
 
-    def load_scikit_learn(self, model_path: os.PathLike) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        self.booster = xgb.Booster(model_file=model_path / "XGBoost.json")
-
-    def train_scikit_learn(
+    def train_XGBoost(
         self,
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
@@ -936,18 +970,49 @@ class RidgeModel(PreTrainedModel):
         )
         return df
 
-    def save_scikit_learn(self, model_path: os.PathLike) -> None:
+    def my_train_model(
+        self,
+        dataset: datasets.Dataset,
+        batch_size: int,
+        train_parser: jsonargparse.ArgumentParser,
+        cfg: jsonargparse.Namespace,
+        model_path: os.PathLike,
+        logger: logging.Logger,
+    ) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        logger.info("train Ridge")
+        self.train_Ridge(
+            train_dataloader=torch.utils.data.DataLoader(
+                dataset=dataset["train"],
+                batch_size=batch_size,
+                collate_fn=lambda examples: examples,
+            ),
+            eval_dataloader=torch.utils.data.DataLoader(
+                dataset=dataset["validation"],
+                batch_size=batch_size,
+                collate_fn=lambda examples: examples,
+            ),
+        )
+        logger.info("save Ridge")
+        self.save_Ridge(model_path)
+        train_parser.save(
+            cfg=cfg,
+            path=model_path / "train.yaml",
+            overwrite=True,
+        )
+
+    def my_load_model(self, model_path: os.PathLike) -> None:
+        model_path = pathlib.Path(os.fspath(model_path))
+        with open(model_path / "ridge.pkl", "rb") as fd:
+            self.ridge = pickle.load(fd)
+
+    def save_Ridge(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         os.makedirs(model_path, exist_ok=True)
         with open(model_path / "ridge.pkl", "wb") as fd:
             pickle.dump(self.ridge, fd)
 
-    def load_scikit_learn(self, model_path: os.PathLike) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        with open(model_path / "ridge.pkl", "rb") as fd:
-            self.ridge = pickle.load(fd)
-
-    def train_scikit_learn(
+    def train_Ridge(
         self,
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
