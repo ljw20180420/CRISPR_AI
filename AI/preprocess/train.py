@@ -279,7 +279,7 @@ class MyTrain:
         )
 
     @staticmethod
-    def my_initialize_model(model: PreTrainedModel, initializer: Callable):
+    def my_initialize_model(model: PreTrainedModel, initializer: Callable) -> None:
         for m in model.modules():
             # linear layers
             if isinstance(m, nn.Linear) or isinstance(m, nn.Bilinear):
@@ -298,6 +298,47 @@ class MyTrain:
                 initializer(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+
+    @staticmethod
+    def my_train_epoch(
+        model: PreTrainedModel,
+        train_dataloader: DataLoader,
+        optimizer: torch.optim.Optimizer,
+        my_generator: MyGenerator,
+        accumulate_steps: int,
+        clip_value: float,
+    ) -> tuple[float]:
+        model.train()
+        model.zero_grad()  # optimizer.zero_grad() is different when multiple models share a common optimizer
+        train_loss, train_loss_num, grad_norm = 0.0, 0.0, 0.0
+        for step, examples in tqdm(enumerate(train_dataloader)):
+            batch = model.data_collator(examples, output_label=True)
+            if "my_generator" in inspect.signature(model.forward).parameters:
+                result = model(
+                    input=batch["input"],
+                    label=batch["label"],
+                    my_generator=my_generator,
+                )
+            else:
+                result = model(
+                    input=batch["input"],
+                    label=batch["label"],
+                )
+
+            result["loss"].backward()
+            if (step + 1) % accumulate_steps == 0 or step == len(train_dataloader):
+                grad_norm += nn.utils.clip_grad_norm_(
+                    parameters=model.parameters(), max_norm=clip_value
+                ).item()
+                optimizer.step()
+                model.zero_grad()
+            train_loss += result["loss"].item()
+            train_loss_num += (
+                result["loss_num"].item()
+                if torch.is_tensor(result["loss_num"])
+                else result["loss_num"]
+            )
+        return train_loss, train_loss_num, grad_norm
 
     def train_deep_learning_model(
         self,
@@ -361,45 +402,24 @@ class MyTrain:
 
         logger.info("enter train loop")
         for epoch in tqdm(range(self.last_epoch + 1, self.num_epochs)):
-            logger.info("train model")
-            self.model.train()
-            self.model.zero_grad()  # optimizer.zero_grad() is different when multiple models share a common optimizer
-            train_loss, train_loss_num, grad_norm = 0.0, 0.0, 0.0
-            for step, examples in tqdm(enumerate(train_dataloader)):
-                batch = self.model.data_collator(examples, output_label=True)
-                if "my_generator" in inspect.signature(self.model.forward).parameters:
-                    result = self.model(
-                        input=batch["input"],
-                        label=batch["label"],
-                        my_generator=self.my_generator,
-                    )
-                else:
-                    result = self.model(
-                        input=batch["input"],
-                        label=batch["label"],
-                    )
-
-                result["loss"].backward()
-                if (step + 1) % self.accumulate_steps == 0 or step == len(
-                    train_dataloader
-                ):
-                    grad_norm += nn.utils.clip_grad_norm_(
-                        parameters=self.model.parameters(), max_norm=self.clip_value
-                    ).item()
-                    self.optimizer.step()
-                    self.model.zero_grad()
-                train_loss += result["loss"].item()
-                train_loss_num += (
-                    result["loss_num"].item()
-                    if torch.is_tensor(result["loss_num"])
-                    else result["loss_num"]
+            if hasattr(self.model, "my_train_epoch"):
+                train_loss, train_loss_num, grad_norm = self.model.my_train_epoch(
+                    self.my_train_epoch,
+                    train_dataloader,
+                    eval_dataloader,
+                    self.optimizer,
+                    self.my_generator,
+                    self.accumulate_steps,
+                    self.clip_value,
                 )
-
-            if hasattr(self.model, "train_scikit_learn"):
-                logger.info("train scikit_learn")
-                self.model.train_scikit_learn(
-                    train_dataloader=train_dataloader,
-                    eval_dataloader=eval_dataloader,
+            else:
+                train_loss, train_loss_num, grad_norm = self.my_train_epoch(
+                    self.model,
+                    train_dataloader,
+                    self.optimizer,
+                    self.my_generator,
+                    self.accumulate_steps,
+                    self.clip_value,
                 )
 
             logger.info("eval model")

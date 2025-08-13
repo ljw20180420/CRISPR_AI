@@ -8,11 +8,13 @@ import pandas as pd
 from tqdm import tqdm
 from transformers import PreTrainedModel, PretrainedConfig
 import itertools
+from typing import Callable
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, repeat
 from .data_collator import DataCollator
+from ..utils import MyGenerator
 
 
 class inDelphiConfig(PretrainedConfig):
@@ -310,8 +312,32 @@ class inDelphiModel(PreTrainedModel):
         ]:
             setattr(self, component, state_dict["scikit_learn_state_dict"][component])
 
+    def my_train_epoch(
+        self,
+        my_train_train_epoch: Callable,
+        train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
+        optimizer: torch.optim.Optimizer,
+        my_generator: MyGenerator,
+        accumulate_steps: int,
+        clip_value: float,
+    ) -> tuple[float]:
+        train_loss, train_loss_num, grad_norm = my_train_train_epoch(
+            self,
+            train_dataloader,
+            optimizer,
+            my_generator,
+            accumulate_steps,
+            clip_value,
+        )
+        self.train_knn(
+            train_dataloader=train_dataloader,
+            eval_dataloader=eval_dataloader,
+        )
+        return train_loss, train_loss_num, grad_norm
+
     @torch.no_grad()
-    def train_scikit_learn(
+    def train_knn(
         self,
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
