@@ -9,6 +9,7 @@ import json
 from typing import Literal, Callable, Generator
 import inspect
 import importlib
+from transformers import PreTrainedModel
 from transformers.trainer_pt_utils import get_parameter_names
 from tqdm import tqdm
 import logging
@@ -277,11 +278,12 @@ class MyTrain:
             overwrite=True,
         )
 
-    def initialize_deep_learning_model(self):
-        for m in self.model.modules():
+    @staticmethod
+    def my_initialize_model(model: PreTrainedModel, initializer: Callable):
+        for m in model.modules():
             # linear layers
             if isinstance(m, nn.Linear) or isinstance(m, nn.Bilinear):
-                self.initializer(m.weight)
+                initializer(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             # (transposed) convolution layers
@@ -293,7 +295,7 @@ class MyTrain:
                 or isinstance(m, nn.ConvTranspose2d)
                 or isinstance(m, nn.ConvTranspose3d)
             ):
-                self.initializer(m.weight)
+                initializer(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
@@ -337,10 +339,12 @@ class MyTrain:
             self.model.load_state_dict(checkpoint["model"])
         else:
             logger.info("initialize model weights")
-            if hasattr(self.model, "initialize_deep_learning_model"):
-                self.model.initialize_deep_learning_model(self.initializer)
+            if hasattr(self.model, "my_initialize_model"):
+                self.model.my_initialize_model(
+                    self.my_initialize_model, self.initializer
+                )
             else:
-                self.initialize_deep_learning_model()
+                self.my_initialize_model(self.model, self.initializer)
 
         train_dataloader = DataLoader(
             dataset=self.dataset["train"],
