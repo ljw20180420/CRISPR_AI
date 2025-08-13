@@ -1,11 +1,13 @@
 #!/bin/bash
 
+# change to the dir of the script
+cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 train_config=AI/preprocess/train.yaml
 output_dir=/home/ljw/sdc1/CRISPR_results
 test_config=AI/preprocess/test.yaml
 
-# for data_name in SX_spcas9 SX_spymac SX_ispymac
-for data_name in SX_spymac SX_ispymac
+for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
     for pre_model in \
         CRIformer:CRIformer \

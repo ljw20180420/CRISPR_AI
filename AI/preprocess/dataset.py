@@ -1,7 +1,6 @@
 import datasets
 from typing import Literal
 import numpy as np
-from .utils import MyGenerator
 
 
 def get_dataset(

@@ -1,3 +1,5 @@
 torchtune
 torchao
 gradio
+pandas[all]
+jsonargparse[all]

@@ -277,6 +277,26 @@ class MyTrain:
             overwrite=True,
         )
 
+    def initialize_deep_learning_model(self):
+        for m in self.model.modules():
+            # linear layers
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Bilinear):
+                self.initializer(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            # (transposed) convolution layers
+            if (
+                isinstance(m, nn.Conv1d)
+                or isinstance(m, nn.Conv2d)
+                or isinstance(m, nn.Conv3d)
+                or isinstance(m, nn.ConvTranspose1d)
+                or isinstance(m, nn.ConvTranspose2d)
+                or isinstance(m, nn.ConvTranspose3d)
+            ):
+                self.initializer(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
     def train_deep_learning_model(
         self,
         train_parser: ArgumentParser,
@@ -317,24 +337,10 @@ class MyTrain:
             self.model.load_state_dict(checkpoint["model"])
         else:
             logger.info("initialize model weights")
-            for m in self.model.modules():
-                # linear layers
-                if isinstance(m, nn.Linear) or isinstance(m, nn.Bilinear):
-                    self.initializer(m.weight)
-                    if m.bias is not None:
-                        nn.init.constant_(m.bias, 0)
-                # (transposed) convolution layers
-                if (
-                    isinstance(m, nn.Conv1d)
-                    or isinstance(m, nn.Conv2d)
-                    or isinstance(m, nn.Conv3d)
-                    or isinstance(m, nn.ConvTranspose1d)
-                    or isinstance(m, nn.ConvTranspose2d)
-                    or isinstance(m, nn.ConvTranspose3d)
-                ):
-                    self.initializer(m.weight)
-                    if m.bias is not None:
-                        nn.init.constant_(m.bias, 0)
+            if hasattr(self.model, "initialize_deep_learning_model"):
+                self.model.initialize_deep_learning_model(self.initializer)
+            else:
+                self.initialize_deep_learning_model()
 
         train_dataloader = DataLoader(
             dataset=self.dataset["train"],

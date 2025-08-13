@@ -3,6 +3,7 @@
 import os
 import pandas as pd
 import pathlib
+import matplotlib.pyplot as plt
 
 output_dir = pathlib.Path("/home/ljw/sdc1/CRISPR_results")
 preprocess_model_type_pairs = [
@@ -19,7 +20,7 @@ preprocess_model_type_pairs = [
 ]
 preprocesses, model_types, data_names, metrics = [], [], [], []
 for preprocess, model_type in preprocess_model_type_pairs:
-    for data_name in ["SX_spcas9"]:
+    for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
         model_path = output_dir / preprocess / model_type / data_name / "default"
         df = pd.read_csv(model_path / "test_result.csv")
         metrics.append(
@@ -47,5 +48,4 @@ ax = df.set_index(keys=["preprocess", "model_type", "data_name"]).plot.bar(
     figsize=(20, 10)
 )
 ax.set_xticklabels(ax.get_xticklabels(), rotation=10, ha="right")
-fig = ax.get_figure()
-fig.savefig("benchmark/default.pdf")
+ax.get_figure().savefig("benchmark/default.pdf")

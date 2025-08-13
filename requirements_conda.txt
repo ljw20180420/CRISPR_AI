@@ -1,4 +1,3 @@
-conda-forge::jsonargparse
 conda-forge::datasets
 conda-forge::diffusers
 conda-forge::transformers
@@ -11,5 +10,4 @@ conda-forge::optuna
 conda-forge::lightgbm
 bioconda::viennarna
 conda-forge::scikit-learn
-conda-forge::matplotlib
 conda-forge::xgboost

@@ -45,32 +45,33 @@ Summarize benchmarks results by
 ```
 
 TODO
-```list
-upload, inference, app, space
-pandas
-bioframe
-matplotlib
-optuna dashboard
-tensorboard
-early stopping
-model interpretable
-Use model.eval() in test and inference
-Use os.PathLike
-do pre-computation when initialize data collator and model so that subsequent computations are faster
-hyperparameter choice (optuna)
-Add api documentation after finish the project
-train use float32
-add type hint
+- statistic handbook and R
+- pandas, bioframe, matplotlib, scipy, numpy
+- cython, numba
+- MCP, reinforcement learning
+- stream handling
+- optuna, optuna dashboard, tensorboard
+- early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
+- LightGBM, XGBoost, scikit-learn, statsmodel, hmmlearn
+- pytorch, tensorflow, keras, huggingface
+- upload, inference, app, space
+- model interpretable
+- Use model.eval() in test and inference
+- Use os.PathLike
+- do pre-computation when initialize data collator and model so that subsequent computations are faster
+- hyperparameter choice (optuna)
+- Add api documentation after finish the project
+- train use float32
+- add type hint
 
-parallel data_collator, especially for FOREcasT
+- parallel data_collator, especially for FOREcasT
 
-noise2noise explanation of prediction results
-put more weights on small steps of diffusion
-increase model parameters
-decrease model window size (128 -> 64 -> 32)
-use latent diffuser
-use mamba
-use KAN
-discriminative routing mechanism (https://arxiv.org/pdf/2302.05737)
-sample temperature (https://arxiv.org/pdf/2302.05737)
-```
+- noise2noise explanation of prediction results
+- put more weights on small steps of diffusion
+- increase model parameters
+- decrease model window size (128 -> 64 -> 32)
+- use latent diffuser
+- use mamba
+- use KAN
+- discriminative routing mechanism (https://arxiv.org/pdf/2302.05737)
+- sample temperature (https://arxiv.org/pdf/2302.05737)
