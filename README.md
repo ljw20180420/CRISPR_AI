@@ -45,6 +45,7 @@ Summarize benchmarks results by
 ```
 
 TODO
+- modify metric to fit the new api in common_ai
 - statistic handbook and R
 - pandas, bioframe, matplotlib, scipy, numpy
 - cython, numba

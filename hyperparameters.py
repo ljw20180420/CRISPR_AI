@@ -87,8 +87,7 @@ class Objective:
         # ):
         #     if performance is not None:
         #         trial.report(
-        #             value=performance["eval"]["NonWildTypeCrossEntropy"]["loss"]
-        #             / performance["eval"]["NonWildTypeCrossEntropy"]["loss_num"],
+        #             value=performance["eval"]["NonWildTypeCrossEntropy"],
         #             step=epoch,
         #         )
         #         if trial.should_prune():
