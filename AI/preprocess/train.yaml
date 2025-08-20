@@ -40,6 +40,12 @@ logger:
   log_level: WARNING # CRITICAL, FATAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 
 metric:
+  - class_path: AI.preprocess.metric.CrossEntropy
+    init_args:
+      ext1_up: 25
+      ext1_down: 6
+      ext2_up: 6
+      ext2_down: 25
   - class_path: AI.preprocess.metric.NonWildTypeCrossEntropy
     init_args:
       ext1_up: 25

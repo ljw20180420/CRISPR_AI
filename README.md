@@ -45,6 +45,8 @@ Summarize benchmarks results by
 ```
 
 TODO
+- Add test for both --test.target NonWildTypeCrossEntropy and --test.target CrossEntropy in CRIfuser_loss_functions.sh
+- Add metric including wild type
 - modify metric to fit the new api in common_ai
 - statistic handbook and R
 - pandas, bioframe, matplotlib, scipy, numpy
