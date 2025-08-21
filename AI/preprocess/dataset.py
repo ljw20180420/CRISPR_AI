@@ -285,3 +285,5 @@ def get_dataset(
     )
 
     ds = split_train_valid_test(ds, validation_ratio, test_ratio, seed)
+
+    return ds

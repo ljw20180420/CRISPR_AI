@@ -744,7 +744,7 @@ class XGBoostModel(PreTrainedModel):
     ) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         logger.info("train XGBoost")
-        self.train_XGBoost(
+        self._train_XGBoost(
             train_dataloader=torch.utils.data.DataLoader(
                 dataset=dataset["train"],
                 batch_size=batch_size,
@@ -757,7 +757,7 @@ class XGBoostModel(PreTrainedModel):
             ),
         )
         logger.info("save XGBoost")
-        self.save_XGBoost(model_path)
+        self._save_XGBoost(model_path)
         train_parser.save(
             cfg=cfg,
             path=model_path / "train.yaml",
@@ -768,12 +768,12 @@ class XGBoostModel(PreTrainedModel):
         model_path = pathlib.Path(os.fspath(model_path))
         self.booster = xgb.Booster(model_file=model_path / "XGBoost.json")
 
-    def save_XGBoost(self, model_path: os.PathLike) -> None:
+    def _save_XGBoost(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         os.makedirs(model_path, exist_ok=True)
         self.booster.save_model(fname=model_path / "XGBoost.json")
 
-    def train_XGBoost(
+    def _train_XGBoost(
         self,
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
@@ -981,7 +981,7 @@ class RidgeModel(PreTrainedModel):
     ) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         logger.info("train Ridge")
-        self.train_Ridge(
+        self._train_Ridge(
             train_dataloader=torch.utils.data.DataLoader(
                 dataset=dataset["train"],
                 batch_size=batch_size,
@@ -994,7 +994,7 @@ class RidgeModel(PreTrainedModel):
             ),
         )
         logger.info("save Ridge")
-        self.save_Ridge(model_path)
+        self._save_Ridge(model_path)
         train_parser.save(
             cfg=cfg,
             path=model_path / "train.yaml",
@@ -1006,13 +1006,13 @@ class RidgeModel(PreTrainedModel):
         with open(model_path / "ridge.pkl", "rb") as fd:
             self.ridge = pickle.load(fd)
 
-    def save_Ridge(self, model_path: os.PathLike) -> None:
+    def _save_Ridge(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         os.makedirs(model_path, exist_ok=True)
         with open(model_path / "ridge.pkl", "wb") as fd:
             pickle.dump(self.ridge, fd)
 
-    def train_Ridge(
+    def _train_Ridge(
         self,
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
@@ -1026,6 +1026,9 @@ class RidgeModel(PreTrainedModel):
             X_train.append(X_value)
             y_train.append(y_value)
             w_train.append(w_value)
+        X_train.append(X_train[-1][[-1] * 1024, :])
+        y_train.append(np.arange(1024))
+        w_train.append(np.zeros(1024))
         X_train = np.concatenate(X_train)
         y_train = np.concatenate(y_train)
         w_train = np.concatenate(w_train)

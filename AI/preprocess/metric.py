@@ -66,7 +66,7 @@ class CrossEntropy:
         mean_loss = self.accum_loss / self.accum_loss_num
         self.accum_loss = 0.0
         self.accum_loss_num = 0.0
-        return mean_loss
+        return mean_loss.item()
 
 
 class NonWildTypeCrossEntropy:
@@ -133,4 +133,4 @@ class NonWildTypeCrossEntropy:
         mean_loss = self.accum_loss / self.accum_loss_num
         self.accum_loss = 0.0
         self.accum_loss_num = 0.0
-        return mean_loss
+        return mean_loss.item()

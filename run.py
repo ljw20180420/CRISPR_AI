@@ -13,7 +13,6 @@ os.chdir(pathlib.Path(__file__).parent)
 # parse arguments
 parser, train_parser, test_parser = get_config()
 cfg = parser.parse_args()
-breakpoint()
 
 if cfg.subcommand == "train":
     dataset = get_dataset(**cfg.train.dataset.as_dict())

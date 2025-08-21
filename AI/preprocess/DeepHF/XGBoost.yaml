@@ -12,4 +12,4 @@ init_args:
   nthread: 18
   booster: gbtree # gbtree, gblinear, dart
   num_boost_round: 700
-  early_stopping_rounds: 3
+  early_stopping_rounds: 30

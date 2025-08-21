@@ -327,6 +327,7 @@ class inDelphiModel(PreTrainedModel):
         train_loss, train_loss_num, grad_norm = my_train_train_epoch(
             self,
             train_dataloader,
+            eval_dataloader,
             optimizer,
             my_generator,
             accumulate_steps,
