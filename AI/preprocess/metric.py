@@ -26,14 +26,13 @@ class CrossEntropy:
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
+        self.accum_loss = 0.0
+        self.accum_loss_num = 0.0
 
-    def __call__(
-        self,
-        df: pd.DataFrame,
-        observation: np.ndarray,
-        cut1: np.ndarray,
-        cut2: np.ndarray,
-    ) -> tuple:
+    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
+        observation = batch["label"]["observation"].cpu().numpy()
+        cut1 = np.array([example["cut1"] for example in examples])
+        cut2 = np.array([example["cut2"] for example in examples])
         observation = np.stack(
             [
                 ob[
@@ -58,12 +57,16 @@ class CrossEntropy:
             np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
             "b -> b 1 1",
         )
-        loss = -einsum(
-            np.ma.log(probas).filled(-1000), observation, "b r2 r1, b r2 r1 -> b"
+        self.accum_loss += -einsum(
+            np.ma.log(probas).filled(-1000), observation, "b r2 r1, b r2 r1 -> "
         )
-        loss_num = einsum(observation, "b r2 r1 -> b")
+        self.accum_loss_num += einsum(observation, "b r2 r1 -> ")
 
-        return loss, loss_num
+    def epoch(self) -> float:
+        mean_loss = self.accum_loss / self.accum_loss_num
+        self.accum_loss = 0.0
+        self.accum_loss_num = 0.0
+        return mean_loss
 
 
 class NonWildTypeCrossEntropy:
@@ -86,14 +89,13 @@ class NonWildTypeCrossEntropy:
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
+        self.accum_loss = 0.0
+        self.accum_loss_num = 0.0
 
-    def __call__(
-        self,
-        df: pd.DataFrame,
-        observation: np.ndarray,
-        cut1: np.ndarray,
-        cut2: np.ndarray,
-    ) -> tuple:
+    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
+        observation = batch["label"]["observation"].cpu().numpy()
+        cut1 = np.array([example["cut1"] for example in examples])
+        cut2 = np.array([example["cut2"] for example in examples])
         batch_size = observation.shape[0]
         observation[np.arange(batch_size), cut2, cut1] = 0
         observation = np.stack(
@@ -122,9 +124,13 @@ class NonWildTypeCrossEntropy:
             np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
             "b -> b 1 1",
         )
-        loss = -einsum(
-            np.ma.log(probas).filled(-1000), observation, "b r2 r1, b r2 r1 -> b"
+        self.accum_loss += -einsum(
+            np.ma.log(probas).filled(-1000), observation, "b r2 r1, b r2 r1 -> "
         )
-        loss_num = einsum(observation, "b r2 r1 -> b")
+        self.accum_loss_num += einsum(observation, "b r2 r1 -> ")
 
-        return loss, loss_num
+    def epoch(self) -> float:
+        mean_loss = self.accum_loss / self.accum_loss_num
+        self.accum_loss = 0.0
+        self.accum_loss_num = 0.0
+        return mean_loss
