@@ -14,7 +14,7 @@ from typing import Callable
 from torch.backends import opt_einsum
 from einops import einsum, repeat
 from .data_collator import DataCollator
-from ..utils import MyGenerator
+from common_ai.utils import MyGenerator
 
 
 class inDelphiConfig(PretrainedConfig):

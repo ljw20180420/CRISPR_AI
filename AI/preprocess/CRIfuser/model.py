@@ -15,7 +15,7 @@ from tqdm import tqdm
 from torch.backends import opt_einsum
 from einops import einsum, rearrange, repeat
 from .data_collator import DataCollator
-from ..utils import MyGenerator
+from common_ai.utils import MyGenerator
 
 
 class CRIfuserConfig(PretrainedConfig):

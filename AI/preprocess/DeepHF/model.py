@@ -23,7 +23,7 @@ import jsonargparse
 import logging
 import datasets
 from .data_collator import DataCollator
-from ..utils import MyGenerator
+from common_ai.utils import MyGenerator
 
 
 class DeepHFConfig(PretrainedConfig):

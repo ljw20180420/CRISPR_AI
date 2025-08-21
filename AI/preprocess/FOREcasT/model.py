@@ -10,7 +10,7 @@ from torch.backends import opt_einsum
 from einops import rearrange, einsum, repeat
 from transformers import PreTrainedModel, PretrainedConfig
 from .data_collator import DataCollator
-from ..utils import MyGenerator
+from common_ai.utils import MyGenerator
 
 
 class FOREcasTConfig(PretrainedConfig):
