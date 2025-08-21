@@ -23,8 +23,7 @@ lr_scheduler:
   period_epochs: 30
 
 dataset:
-  user: ljw20180420
-  repo: CRISPR_data
+  data_file: AI/dataset/dataset.json.gz
   # name: # SX_spcas9, SX_spymac, SX_ispymac
   test_ratio: 0.05
   validation_ratio: 0.05

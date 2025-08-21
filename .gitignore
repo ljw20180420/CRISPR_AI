@@ -1,10 +1,12 @@
+.vscode/settings.json
 **/__pycache__
 theory/*
 !theory/theory.tex
-AI/dataset/README.md
 AI/preprocess/DeepHF/reference/
 AI/preprocess/FOREcasT/reference/
 AI/preprocess/Lindel/reference/
 AI/preprocess/inDelphi/reference/
 AI/preprocess/malijia/reference/
 benchmark
+AI/dataset/data/SX/csvfiles/*
+!AI/dataset/data/SX/csvfiles/*.csv

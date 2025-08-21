@@ -7,7 +7,7 @@ from .inDelphi import model as inDelphi_M
 from .Lindel import model as Lindel_M
 from .train import MyTrain
 from .test import MyTest
-from .metric import NonWildTypeCrossEntropy
+from .metric import CrossEntropy, NonWildTypeCrossEntropy
 from .dataset import get_dataset
 from .utils import MyGenerator, get_logger
 
@@ -59,7 +59,7 @@ def get_config() -> tuple[jsonargparse.ArgumentParser]:
     train_parser.add_argument(
         "--metric",
         nargs="+",
-        type=NonWildTypeCrossEntropy,
+        type=CrossEntropy | NonWildTypeCrossEntropy,
         required=True,
         enable_path=True,
     )

@@ -12,87 +12,90 @@ from typing import Literal, Optional
 from torch.backends import opt_einsum
 from einops import repeat, rearrange
 
-
-def target_to_epoch(checkpoints_path: os.PathLike, target: str) -> int:
-    """
-    Infer the epoch from either the last checkpoint or the loweset metric (including loss).
-    """
-    checkpoints_path = pathlib.Path(os.fspath(checkpoints_path))
-    if not os.path.exists(checkpoints_path):
-        return -1
-    check_epochs = [
-        check_epoch
-        for check_epoch in os.listdir(checkpoints_path)
-        if re.search(r"^checkpoint-(\d+)$", check_epoch)
-    ]
-    if len(check_epochs) == 0:
-        return -1
-
-    metric_value_min = np.inf
-    for check_epoch in check_epochs:
-        with open(checkpoints_path / check_epoch / "performance.json", "r") as fd:
-            performance = json.load(fd)
-        if target == "loss":
-            metric_value = performance["eval"]["loss"] / performance["eval"]["loss_num"]
-        else:
-            metric_value = (
-                performance["eval"][target]["loss"]
-                / performance["eval"][target]["loss_num"]
-            )
-        if metric_value < metric_value_min:
-            metric_value_min = metric_value
-            epoch = int(check_epoch.split("-")[1])
-
-    return epoch
+from common_ai.utils import SeqTokenizer
 
 
-class MyGenerator:
-    def __init__(self, seed: int) -> None:
-        """Generator arguments.
+class GetInsertionCount:
+    def __init__(self, alphabet: str, insert_uplimit: int) -> None:
+        self.insert_uplimit = insert_uplimit
+        self.alphabet = alphabet
+        self.base_cutoff = len(self.alphabet) ** np.arange(insert_uplimit + 1)
+        self.base_cutoff[0] = 0
+        self.base_cutoff = np.cumsum(self.base_cutoff)
+        # ACGT to 0123
+        self.DNA_tokenizer = SeqTokenizer("ACGT")
 
-        Args:
-            seed: Random seed.
-        """
-        self.seed = seed
-        self.np_rng = np.random.default_rng(self.seed)
-        self.torch_c_rng = torch.Generator(device="cpu").manual_seed(self.seed)
-        self.torch_g_rng = torch.Generator(device="cuda").manual_seed(self.seed)
+    def DNA_to_idx(self, DNA: str) -> int:
+        vec = self.DNA_tokenizer(DNA) * (len("ACGT") ** np.arange(len(DNA) - 1, -1, -1))
+        return self.base_cutoff[len(DNA) - 1] + vec.sum()
 
-    def get_torch_generator_by_device(
-        self, device: str | torch.device
-    ) -> torch.Generator:
-        if device == "cpu" or device == torch.device("cpu"):
-            return self.torch_c_rng
-        return self.torch_g_rng
+    def extract_insert_idx(
+        self,
+        ref1: str,
+        ref2: str,
+        cut1: int,
+        cut2: int,
+        ref1_end: int,
+        ref2_start: int,
+        random_insert: str,
+    ) -> int:
+        # base_cutoff[-1] = base + base^2 + base^3 + ... + base^insert_uplimit
+        if ref1_end < cut1 or ref2_start > cut2:  # deletion or indel
+            return -1
+        insert = ref1[cut1:ref1_end] + random_insert + ref2[ref2_start:cut2]
+        if not insert:  # wildtype
+            return -1
+        if insert.find("N") != -1:  # ambitious insertion
+            return -1
+        if len(insert) > self.insert_uplimit:  # insertion length beyond insert_uplimit
+            return self.base_cutoff[-1]
+        return self.DNA_to_idx(insert)
 
-    def state_dict(self) -> dict:
-        return {
-            "np_rng": self.np_rng.bit_generator.state,
-            "torch_c_rng": self.torch_c_rng.get_state(),
-            "torch_g_rng": self.torch_g_rng.get_state(),
-        }
+    def __call__(self, ref1: str, ref2: str, cut: dict) -> tuple[np.ndarray, int]:
+        cut1, cut2, authors = cut["cut1"], cut["cut2"], cut["authors"]
+        insert_counts = np.zeros(self.base_cutoff[-1])
+        insert_count_long = 0
+        for author in authors:
+            for file in author["files"]:
+                for ref1_end, ref2_start, random_insert, count in zip(
+                    file["ref1_end"],
+                    file["ref2_start"],
+                    file["random_insert"],
+                    file["count"],
+                ):
+                    idx = self.extract_insert_idx(
+                        ref1, ref2, cut1, cut2, ref1_end, ref2_start, random_insert
+                    )
+                    if idx == -1:
+                        continue
+                    if idx < self.base_cutoff[-1]:
+                        insert_counts[idx] += count
+                    else:
+                        insert_count_long += count
 
-    def load_state_dict(self, state_dict: dict) -> None:
-        self.np_rng.bit_generator.state = state_dict["np_rng"]
-        self.torch_c_rng.set_state(state_dict["torch_c_rng"])
-        self.torch_g_rng.set_state(state_dict["torch_g_rng"])
+        return insert_counts, insert_count_long
 
 
-def get_logger(
-    log_level: Literal[
-        "CRITICAL", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"
-    ],
-) -> None:
-    """Logger arguments.
+class GetObservation:
+    def __init__(self, random_insert_uplimit: int) -> None:
+        self.random_insert_uplimit = random_insert_uplimit
 
-    Args:
-        log_level: The level of logging.
-    """
-    logger = logging.getLogger("logger")
-    handler = logging.StreamHandler(stream=sys.stdout)
-    handler.setLevel(log_level)
-    logger.addHandler(handler)
-    return logger
+    def __call__(self, ref1: str, ref2: str, authors: list[dict]) -> np.ndarray:
+        observations = np.zeros(
+            [self.random_insert_uplimit + 2, len(ref2) + 1, len(ref1) + 1],
+            dtype=float,
+        )
+        for author in authors:
+            for file in author["files"]:
+                observations[
+                    np.array(
+                        [len(random_insert) for random_insert in file["random_insert"]]
+                    ).clip(0, self.random_insert_uplimit + 1),
+                    np.array(file["ref2_start"]),
+                    np.array(file["ref1_end"]),
+                ] += np.array(file["count"])
+
+        return observations
 
 
 class MicroHomologyTool:
