@@ -123,7 +123,7 @@ def determine_scaffold(cut: dict) -> str:
 def trans_func(
     examples: dict,
     random_insert_uplimit: int,
-    get_observations: GetObservation,
+    get_observation: GetObservation,
     get_insertion_count: GetInsertionCount,
 ):
     (
@@ -148,7 +148,7 @@ def trans_func(
             # scaffold
             scaffolds.append(determine_scaffold(cut))
             # observe
-            observations = get_observations(ref1, ref2, cut["authors"]).flatten()
+            observations = get_observation(ref1, ref2, cut["authors"]).flatten()
             (ob_idx,) = observations.nonzero()
             ob_idxs.append(ob_idx)
             ob_vals.append(observations[ob_idx])
@@ -268,17 +268,16 @@ def get_dataset(
         }
 
     ds = ds.map(
-        lambda examples, filters=filters: filter_refs(examples, **filters),
-        batched=True,
+        lambda examples, filters=filters: filter_refs(examples, **filters), batched=True
     )
 
     ds = ds.map(
-        lambda examples, random_insert_uplimit=random_insert_uplimit, get_observations=GetObservation(
+        lambda examples, random_insert_uplimit=random_insert_uplimit, get_observation=GetObservation(
             random_insert_uplimit
         ), get_insertion_count=GetInsertionCount(
             "ACGT", insert_uplimit
         ): trans_func(
-            examples, random_insert_uplimit, get_observations, get_insertion_count
+            examples, random_insert_uplimit, get_observation, get_insertion_count
         ),
         batched=True,
         remove_columns=["cuts"],
