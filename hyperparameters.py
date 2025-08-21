@@ -31,8 +31,9 @@ import numpy as np
 import pandas as pd
 import yaml
 from AI.preprocess.config import get_config
-from AI.preprocess.train import MyTrain
-from AI.preprocess.test import MyTest
+from AI.preprocess.dataset import get_dataset
+from common_ai.train import MyTrain
+from common_ai.test import MyTest
 
 # change directory to the current script
 os.chdir(pathlib.Path(__file__).parent)
@@ -77,25 +78,30 @@ class Objective:
 
         _, train_parser, test_parser = get_config()
 
-        # # train
-        # train_cfg = train_parser.parse_path(model_path / "train.yaml")
-        # for epoch, performance in enumerate(
-        #     MyTrain(**train_cfg.train.as_dict())(
-        #         train_parser=train_parser,
-        #         cfg=train_cfg,
-        #     )
-        # ):
-        #     if performance is not None:
-        #         trial.report(
-        #             value=performance["eval"]["NonWildTypeCrossEntropy"],
-        #             step=epoch,
-        #         )
-        #         if trial.should_prune():
-        #             break
+        # train
+        train_cfg = train_parser.parse_path(model_path / "train.yaml")
+        dataset = get_dataset(**train_cfg.dataset.as_dict())
+        for epoch, performance in enumerate(
+            MyTrain(**train_cfg.train.as_dict())(
+                train_parser=train_parser,
+                cfg=train_cfg,
+                dataset=dataset,
+            )
+        ):
+            if performance is not None:
+                trial.report(
+                    value=performance["eval"]["NonWildTypeCrossEntropy"],
+                    step=epoch,
+                )
+                if trial.should_prune():
+                    break
 
         # test
         test_cfg = test_parser.parse_path(model_path / "test.yaml")
-        MyTest(**test_cfg.test.as_dict())(train_parser=train_parser)
+        my_test = MyTest(**test_cfg.test.as_dict())
+        best_train_cfg = my_test.get_best_cfg(train_parser)
+        dataset = get_dataset(best_train_cfg.dataset.as_dict())
+        my_test(cfg=best_train_cfg, dataset=dataset)
 
         df = pd.read_csv(model_path / "test_result.csv")
         return (

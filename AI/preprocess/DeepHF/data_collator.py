@@ -4,7 +4,7 @@ import more_itertools
 import Bio.SeqUtils.MeltingTemp as Tm
 import subprocess
 from ..utils import MicroHomologyTool
-from ...dataset.utils import SeqTokenizer
+from common_ai.utils import SeqTokenizer
 
 
 class TwoMerEnergy:

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from ..utils import MicroHomologyTool
-from ...dataset.utils import SeqTokenizer
+from common_ai.utils import SeqTokenizer
 
 
 class DataCollator:

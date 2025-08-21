@@ -5,7 +5,7 @@ import numpy as np
 from torch.backends import opt_einsum
 from einops import repeat, rearrange
 from ..utils import MicroHomologyTool
-from ...dataset.utils import SeqTokenizer
+from common_ai.utils import SeqTokenizer
 
 
 class DataCollator:
