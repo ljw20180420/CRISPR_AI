@@ -5,7 +5,7 @@ from .DeepHF import model as DeepHF_M
 from .FOREcasT import model as FOREcasT_M
 from .inDelphi import model as inDelphi_M
 from .Lindel import model as Lindel_M
-from .metric import CrossEntropy, NonWildTypeCrossEntropy
+from .metric import CrossEntropyBase
 from .dataset import get_dataset
 from common_ai import config
 
@@ -21,7 +21,7 @@ def get_config() -> tuple[jsonargparse.ArgumentParser]:
     train_parser.add_argument(
         "--metric",
         nargs="+",
-        type=CrossEntropy | NonWildTypeCrossEntropy,
+        type=CrossEntropyBase,
         required=True,
         enable_path=True,
     )

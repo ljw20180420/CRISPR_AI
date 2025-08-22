@@ -1026,6 +1026,7 @@ class RidgeModel(PreTrainedModel):
             X_train.append(X_value)
             y_train.append(y_value)
             w_train.append(w_value)
+        # Append all 1024 classes with zero weights to force ridge's internal classes_ equals 1024.
         X_train.append(X_train[-1][[-1] * 1024, :])
         y_train.append(np.arange(1024))
         w_train.append(np.zeros(1024))

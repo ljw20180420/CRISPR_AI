@@ -29,6 +29,8 @@ do
         model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/unit_test
         # Test
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target CrossEntropy
+        ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonZeroCrossEntropy
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonWildTypeCrossEntropy
+        ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonZeroNonWildTypeCrossEntropy
     done
 done

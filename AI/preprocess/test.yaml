@@ -1,5 +1,5 @@
 test:
   # model_path:
-  target: NonWildTypeCrossEntropy
+  target: NonZeroNonWildTypeCrossEntropy
   batch_size: 100
   device: cuda # cuda, cpu

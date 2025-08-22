@@ -45,7 +45,19 @@ metric:
       ext1_down: 6
       ext2_up: 6
       ext2_down: 25
+  - class_path: AI.preprocess.metric.NonZeroCrossEntropy
+    init_args:
+      ext1_up: 25
+      ext1_down: 6
+      ext2_up: 6
+      ext2_down: 25
   - class_path: AI.preprocess.metric.NonWildTypeCrossEntropy
+    init_args:
+      ext1_up: 25
+      ext1_down: 6
+      ext2_up: 6
+      ext2_down: 25
+  - class_path: AI.preprocess.metric.NonZeroNonWildTypeCrossEntropy
     init_args:
       ext1_up: 25
       ext1_down: 6
