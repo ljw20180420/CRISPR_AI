@@ -4,6 +4,7 @@ conda-forge::pandas
 conda-forge::matplotlib
 conda-forge::more-itertools
 conda-forge::biopython
+conda-forge::triton
 conda-forge::datasets
 conda-forge::diffusers
 conda-forge::transformers
