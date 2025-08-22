@@ -4,7 +4,7 @@
 cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 train_config=AI/preprocess/train.yaml
-output_dir=/home/ljw/sdc1/CRISPR_results
+output_dir=${OUTPUT_DIR:-$HOME}
 test_config=AI/preprocess/test.yaml
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac

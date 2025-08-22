@@ -45,7 +45,6 @@ Summarize benchmarks results by
 ```
 
 TODO
-- Add test for both --test.target NonWildTypeCrossEntropy and --test.target CrossEntropy in CRIfuser_loss_functions.sh
 - statistic handbook and R
 - pandas, bioframe, matplotlib, scipy, numpy
 - cython, numba
