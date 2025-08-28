@@ -45,15 +45,8 @@ Summarize benchmarks results by
 ```
 
 TODO
-- statistic handbook and R
-- pandas, bioframe, matplotlib, scipy, numpy
-- cython, numba
-- MCP, reinforcement learning
-- stream handling
-- optuna, optuna dashboard, tensorboard
 - early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
-- LightGBM, XGBoost, scikit-learn, statsmodel, hmmlearn
-- pytorch, tensorflow, keras, huggingface
+- LightGBM, XGBoost, hmmlearn
 - upload, inference, app, space
 - model interpretable
 - Use model.eval() in test and inference
