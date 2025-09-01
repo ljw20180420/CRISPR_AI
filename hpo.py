@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
+import torch
 import os
 import pathlib
-import sys
-import logging
 import optuna
 from typing import Literal
 import importlib
@@ -104,11 +103,11 @@ class Objective:
         test_cfg = test_parser.parse_path(model_path / "test.yaml")
         my_test = MyTest(**test_cfg.test.as_dict())
         best_train_cfg = my_test.get_best_cfg(train_parser)
-        dataset = get_dataset(best_train_cfg.dataset.as_dict())
+        dataset = get_dataset(**best_train_cfg.dataset.as_dict())
         my_test(cfg=best_train_cfg, dataset=dataset)
 
         df = pd.read_csv(model_path / "test_result.csv")
-        return df.loc[df["name"] == self.target_metric, "loss"]
+        return df.loc[df["name"] == self.target_metric, "loss"].item()
 
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
@@ -571,7 +570,8 @@ def main(
         n_trials: The total number of trials in the study.
         load_if_exists: Flag to control the behavior to handle a conflict of study names. In the case where a study named study_name already exists in the storage.
     """
-    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    if model_type == "DeepHF":
+        torch.backends.cudnn.enabled = False
     output_dir = pathlib.Path(os.fspath(output_dir))
     objective = Objective(
         output_dir=output_dir,

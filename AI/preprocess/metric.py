@@ -31,7 +31,11 @@ class CrossEntropyBase(metaclass=NumpyDocstringInheritanceMeta):
         self.accum_loss_num = 0.0
 
     def epoch(self) -> float:
-        mean_loss = self.accum_loss / self.accum_loss_num
+        mean_loss = (
+            np.inf
+            if self.accum_loss_num == 0.0
+            else self.accum_loss / self.accum_loss_num
+        )
         self.accum_loss = 0.0
         self.accum_loss_num = 0.0
         return mean_loss.item()
