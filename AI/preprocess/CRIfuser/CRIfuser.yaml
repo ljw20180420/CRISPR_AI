@@ -6,7 +6,7 @@ init_args:
   ext2_down: 25
   max_micro_homology: 7
   loss_weights: # double_sample_negative_ELBO, importance_sample_negative_ELBO, forward_negative_ELBO, reverse_negative_ELBO, sample_CE, non_sample_CE
-    reverse_negative_ELBO: 1.0
+    importance_sample_negative_ELBO: 1.0
     non_sample_CE: 1.0
   unet_channels:
     - 32
