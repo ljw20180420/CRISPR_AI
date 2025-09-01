@@ -13,12 +13,12 @@ initializer:
   name: kaiming_uniform_ # uniform_, normal_, xavier_uniform_, xavier_normal_, kaiming_uniform_, kaiming_normal_, trunc_normal_
 
 optimizer:
-  name: AdamW # Adadelta, Adafactor, Adagrad, Adam, AdamW, SparseAdam, Adamax, ASGD, LBFGS, NAdam, RAdam, RMSprop, Rprop, SGD
+  name: AdamW # Adadelta, Adafactor, Adagrad, Adam, AdamW, Adamax, ASGD, NAdam, RAdam, RMSprop, SGD
   learning_rate: 0.0001
   weight_decay: 0.0
 
 lr_scheduler:
-  name: CosineAnnealingWarmRestarts # CosineAnnealingWarmRestarts, ConstantLR, ReduceLROnPlateau, LRScheduler,
+  name: CosineAnnealingWarmRestarts # CosineAnnealingWarmRestarts, ConstantLR, ReduceLROnPlateau
   warmup_epochs: 3
   period_epochs: 30
 

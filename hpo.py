@@ -6,6 +6,7 @@ import sys
 import logging
 import optuna
 from typing import Literal
+import importlib
 from optuna.samplers import (
     GridSampler,
     RandomSampler,
@@ -45,19 +46,22 @@ class Objective:
         output_dir: os.PathLike,
         preprocess: str,
         model_type: str,
+        data_file: os.PathLike,
         data_name: str,
         batch_size: int,
         num_epochs: int,
         study_name: str,
+        target_metric: str,
     ) -> None:
         self.output_dir = pathlib.Path(os.fspath(output_dir))
         self.preprocess = preprocess
         self.model_type = model_type
+        self.data_file = os.fspath(data_file)
         self.data_name = data_name
         self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.study_name = study_name
-        self.scikit_learn = model_type in ["XGBoost", "Ridge"]
+        self.target_metric = target_metric
 
     def __call__(self, trial: optuna.Trial):
         model_path = (
@@ -90,7 +94,7 @@ class Objective:
         ):
             if performance is not None:
                 trial.report(
-                    value=performance["eval"]["NonWildTypeCrossEntropy"],
+                    value=performance["eval"][self.target_metric],
                     step=epoch,
                 )
                 if trial.should_prune():
@@ -104,10 +108,7 @@ class Objective:
         my_test(cfg=best_train_cfg, dataset=dataset)
 
         df = pd.read_csv(model_path / "test_result.csv")
-        return (
-            df["NonWildTypeCrossEntropy_loss"].sum().item()
-            / df["NonWildTypeCrossEntropy_loss_num"].sum().item()
-        )
+        return df.loc[df["name"] == self.target_metric, "loss"]
 
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
@@ -120,6 +121,7 @@ class Objective:
                 / self.study_name
                 / f"trial-{trial._trial_id}"
             ).as_posix(),
+            target=self.target_metric,
             batch_size=100,
             device="cuda",
         )
@@ -137,7 +139,10 @@ class Objective:
             accumulate_steps=1,
             device="cuda",
         )
-        if not self.scikit_learn:
+        model_module = importlib.import_module(f"AI.preprocess.{self.preprocess}.model")
+        if not hasattr(
+            getattr(model_module, f"{self.model_type}Model"), "my_train_model"
+        ):
             cfg.initializer = jsonargparse.Namespace(
                 name=trial.suggest_categorical(
                     "initializer.name",
@@ -187,6 +192,7 @@ class Objective:
                 period_epochs=self.num_epochs - self.num_epochs // 10,
             )
         else:
+            # initializer, optimizer, lr_scheduler are not used. Assign dummy values to them.
             cfg.initializer = jsonargparse.Namespace(
                 name="kaiming_uniform_",
             )
@@ -202,8 +208,7 @@ class Objective:
             )
 
         cfg.dataset = jsonargparse.Namespace(
-            user="ljw20180420",
-            repo="CRISPR_data",
+            data_file=self.data_file,
             name=self.data_name,
             test_ratio=0.05,
             validation_ratio=0.05,
@@ -219,7 +224,7 @@ class Objective:
         )
         cfg.metric = [
             jsonargparse.Namespace(
-                class_path="AI.preprocess.metric.NonWildTypeCrossEntropy",
+                class_path=class_path,
                 init_args=jsonargparse.Namespace(
                     ext1_up=25,
                     ext1_down=6,
@@ -227,6 +232,12 @@ class Objective:
                     ext2_down=25,
                 ),
             )
+            for class_path in [
+                "AI.preprocess.metric.CrossEntropy",
+                "AI.preprocess.metric.NonZeroCrossEntropy",
+                "AI.preprocess.metric.NonWildTypeCrossEntropy",
+                "AI.preprocess.metric.NonZeroNonWildTypeCrossEntropy",
+            ]
         ]
         cfg.model = f"{self.model_type}.yaml"
         return cfg
@@ -514,9 +525,11 @@ def main(
     output_dir: os.PathLike,
     preprocess: str,
     model_type: str,
+    data_file: os.PathLike,
     data_name: str,
     batch_size: int,
     num_epochs: int,
+    target_metric: str,
     sampler: Literal[
         "GridSampler",
         "RandomSampler",
@@ -547,7 +560,11 @@ def main(
         output_dir: Output directory.
         preprocess: Preprocess method for data.
         model_type: Type of model.
+        data_file: Data file.
         data_name: Dataset name.
+        batch_size: Batch size.
+        num_epochs: Number of epochs.
+        target_metric: Metric used to select hyperparameters.
         sampler: Sampler continually narrows down the search space using the records of suggested parameter values and evaluated objective values.
         pruner: Pruner to stop unpromising trials at the early stages.
         study_name: The name of the study.
@@ -560,10 +577,12 @@ def main(
         output_dir=output_dir,
         preprocess=preprocess,
         model_type=model_type,
+        data_file=data_file,
         data_name=data_name,
         batch_size=batch_size,
         num_epochs=num_epochs,
         study_name=study_name,
+        target_metric=target_metric,
     )
     study_path = output_dir / preprocess / model_type / data_name / study_name
     os.makedirs(study_path, exist_ok=True)
