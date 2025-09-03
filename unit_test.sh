@@ -7,21 +7,19 @@ train_config=AI/preprocess/train.yaml
 output_dir=${OUTPUT_DIR:-$HOME}
 test_config=AI/preprocess/test.yaml
 
-for data_name in SX_spcas9
-# for data_name in SX_spcas9 SX_spymac SX_ispymac
+for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
-    for pre_model in DeepHF:DeepHF
-    # for pre_model in \
-    #     CRIformer:CRIformer \
-    #     inDelphi:inDelphi \
-    #     Lindel:Lindel \
-    #     DeepHF:DeepHF \
-    #     DeepHF:CNN \
-    #     DeepHF:MLP \
-    #     DeepHF:XGBoost \
-    #     DeepHF:Ridge \
-    #     CRIfuser:CRIfuser \
-    #     FOREcasT:FOREcasT
+    for pre_model in \
+        CRIformer:CRIformer \
+        inDelphi:inDelphi \
+        Lindel:Lindel \
+        DeepHF:DeepHF \
+        DeepHF:CNN \
+        DeepHF:MLP \
+        DeepHF:XGBoost \
+        DeepHF:Ridge \
+        CRIfuser:CRIfuser \
+        FOREcasT:FOREcasT
     do
         IFS=":" read preprocess model_type <<<${pre_model}
         model_config=AI/preprocess/${preprocess}/${model_type}.yaml

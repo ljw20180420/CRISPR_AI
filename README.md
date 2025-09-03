@@ -59,9 +59,6 @@ Summarize benchmarks results by
 
 # TODO
 
-- Recover test from comment after troubleshooting
-- Use separate requirements for 1080
-- RuntimeError: cuDNN error: CUDNN_STATUS_EXECUTION_FAILED
 - early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
 - LightGBM, XGBoost, hmmlearn
 - upload, inference, app, space
