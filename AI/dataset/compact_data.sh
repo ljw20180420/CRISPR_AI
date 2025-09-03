@@ -20,4 +20,34 @@ concat_algs()
     done
 }
 
-concat_algs | sort --parallel 24 -t $'\t' -k1,9 | ./to_json.awk -v min_score=0 | gzip >dataset.json.gz
+random_DNA()
+{
+    local length=$1
+    local chars="ACGT"
+    str=""
+    for ((i = 0; i < ${length}; ++i)); do
+        str+=${chars:RANDOM%${#chars}:1}
+    done
+    printf $str
+}
+
+# Collate all data
+concat_algs |
+sort --parallel 24 -t $'\t' -k1,9 |
+./to_json.awk -v min_score=0 |
+gzip > dataset.json.gz
+
+# Get samll test dataset
+zcat dataset.json.gz |
+head -n 3000 |
+gzip > test.json.gz
+
+# Generate inference data
+> inference.json
+for i in {1..1000}
+do
+    ref=$(random_DNA 104)"GG"$(random_DNA 94)
+    printf "{\"ref\": \"%s\", \"cut\": 100}\n" $ref \
+        >> inference.json
+done
+gzip --force inference.json
