@@ -1,9 +1,11 @@
 # Introduction
+
 This repository includes several models to predict the CRISPR editing products from the sgRNA sequences. The dataset is held on anthor repository [here](https://github.com/ljw20180420/CRISPRdata).
 
 
 
 # Install
+
 ```bash
 git clone https://github.com/ljw20180420/CRISPR_AI.git
 cd CRISPR_AI
@@ -16,6 +18,7 @@ pip install --upgrade gradio
 ```
 
 # Train and test
+
 For helps, execute
 ```console
 ./run.py -h
@@ -25,12 +28,14 @@ For helps, execute
 The example training config is `AI/preprocess/train.yaml`. The example testing config is `AI/preprocess/test.yaml`. The example model configs is `AI/preprocess/[preprocess]/[model_type].yaml`. `defaults.sh` containes example runs.
 
 # Hyperparameter search
+
 The hyperparameter-searching is based on [Optuna](https://optuna.readthedocs.io). For helps. execute
 ```console
 ./hyperparameters.py -h
 ```
 
 # Benchmark
+
 Train and test models with default parameters by
 ```
 ./defaults.sh
@@ -44,7 +49,10 @@ Summarize benchmarks results by
 ./benchmark.py
 ```
 
-TODO
+# TODO
+
+- Recover test from comment after troubleshooting
+- Use separate requirements for 1080
 - RuntimeError: cuDNN error: CUDNN_STATUS_EXECUTION_FAILED
 - early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
 - LightGBM, XGBoost, hmmlearn

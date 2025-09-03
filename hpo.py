@@ -570,8 +570,8 @@ def main(
         n_trials: The total number of trials in the study.
         load_if_exists: Flag to control the behavior to handle a conflict of study names. In the case where a study named study_name already exists in the storage.
     """
-    if model_type == "DeepHF":
-        torch.backends.cudnn.enabled = False
+    # if model_type == "DeepHF":
+    #     torch.backends.cudnn.enabled = False
     output_dir = pathlib.Path(os.fspath(output_dir))
     objective = Objective(
         output_dir=output_dir,

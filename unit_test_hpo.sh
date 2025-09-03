@@ -5,8 +5,7 @@ cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 output_dir=${OUTPUT_DIR:-$HOME}
 
-for data_name in SX_spymac
-# for data_name in SX_spcas9 SX_spymac SX_ispymac
+for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
     # for pre_model in \
     #     CRIformer:CRIformer \
