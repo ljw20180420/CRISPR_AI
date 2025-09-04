@@ -339,95 +339,91 @@ class Objective:
                     ),
                 )
             elif self.model_type == "CNN":
-                cfg.init_args = (
-                    jsonargparse.Namespace(
-                        ext1_up=25,
-                        ext1_down=6,
-                        ext2_up=6,
-                        ext2_down=25,
-                        em_drop=trial.suggest_float("CNN.CNN.em_drop", 0.0, 0.2),
-                        fc_drop=trial.suggest_float("CNN.CNN.fc_drop", 0.0, 0.2),
-                        em_dim=trial.suggest_int("CNN.CNN.em_dim", 26, 46),
-                        fc_num_hidden_layers=trial.suggest_int(
-                            "CNN.CNN.fc_num_hidden_layers", 2, 4
-                        ),
-                        fc_num_units=trial.suggest_int(
-                            "CNN.CNN.fc_num_units", 300, 500
-                        ),
-                        fc_activation=trial.suggest_categorical(
-                            "CNN.CNN.fc_activation",
-                            choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-                        ),
-                        kernel_sizes=[1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13],
-                        feature_maps=trial.suggest_categorical(
-                            "CNN.CNN.feature_maps",
-                            choices=[
-                                [
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                ],
-                                [
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                ],
-                                [
-                                    20,
-                                    20,
-                                    20,
-                                    20,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    80,
-                                    80,
-                                    80,
-                                    80,
-                                    80,
-                                    80,
-                                ],
-                                [
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    40,
-                                    80,
-                                    80,
-                                    80,
-                                    80,
-                                    80,
-                                    80,
-                                ],
+                cfg.init_args = jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                    em_drop=trial.suggest_float("CNN.CNN.em_drop", 0.0, 0.2),
+                    fc_drop=trial.suggest_float("CNN.CNN.fc_drop", 0.0, 0.2),
+                    em_dim=trial.suggest_int("CNN.CNN.em_dim", 26, 46),
+                    fc_num_hidden_layers=trial.suggest_int(
+                        "CNN.CNN.fc_num_hidden_layers", 2, 4
+                    ),
+                    fc_num_units=trial.suggest_int("CNN.CNN.fc_num_units", 300, 500),
+                    fc_activation=trial.suggest_categorical(
+                        "CNN.CNN.fc_activation",
+                        choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+                    ),
+                    kernel_sizes=[1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13],
+                    feature_maps=trial.suggest_categorical(
+                        "CNN.CNN.feature_maps",
+                        choices=[
+                            [
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
                             ],
-                        ),
+                            [
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                20,
+                                40,
+                                40,
+                                40,
+                                40,
+                                40,
+                                40,
+                                40,
+                            ],
+                            [
+                                20,
+                                20,
+                                20,
+                                20,
+                                40,
+                                40,
+                                40,
+                                40,
+                                80,
+                                80,
+                                80,
+                                80,
+                                80,
+                                80,
+                            ],
+                            [
+                                40,
+                                40,
+                                40,
+                                40,
+                                40,
+                                40,
+                                40,
+                                40,
+                                80,
+                                80,
+                                80,
+                                80,
+                                80,
+                                80,
+                            ],
+                        ],
                     ),
                 )
             elif self.model_type == "MLP":
@@ -461,7 +457,7 @@ class Objective:
                     colsample_bytree=trial.suggest_float(
                         "XGBoost.XGBoost.colsample_bytree", 0.1, 0.7
                     ),
-                    max_depath=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
+                    max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
                     reg_lambda=trial.suggest_int(
                         "XGBoost.XGBoost.reg_lambda", 600, 800
                     ),
@@ -474,17 +470,17 @@ class Objective:
                         "XGBoost.XGBoost.num_boost_round", 600, 800
                     ),
                     early_stopping_rounds=trial.suggest_int(
-                        "XGBoost.XGBoost.early_stopping_rounds", 2, 4
+                        "XGBoost.XGBoost.early_stopping_rounds", 20, 40
                     ),
                 )
-            # elif self.model_type == "Ridge":
-            #     cfg.init_args = jsonargparse.Namespace(
-            #         ext1_up=25,
-            #         ext1_down=6,
-            #         ext2_up=6,
-            #         ext2_down=25,
-            #         alpha=trial.suggest_float("Ridge.Ridge.alpha", 50.0, 200.0),
-            #     )
+            elif self.model_type == "Ridge":
+                cfg.init_args = jsonargparse.Namespace(
+                    ext1_up=25,
+                    ext1_down=6,
+                    ext2_up=6,
+                    ext2_down=25,
+                    alpha=trial.suggest_float("Ridge.Ridge.alpha", 50.0, 200.0),
+                )
         elif self.preprocess == "FOREcasT":
             if self.model_type == "FOREcasT":
                 cfg.init_args = jsonargparse.Namespace(

@@ -10,7 +10,7 @@ This repository includes several models to predict the CRISPR editing products f
 $ git clone https://github.com/ljw20180420/CRISPR_AI.git
 $ cd CRISPR_AI
 $ conda install --file requirements_conda.txt
-$ pip install -r requirements_pip.txt
+$ pip install -r requirements.txt
 ```
 For old pascal gpu,
 ```console
@@ -18,7 +18,7 @@ $ git clone https://github.com/ljw20180420/CRISPR_AI.git
 $ cd CRISPR_AI
 $ conda install --file requirements_conda.txt
 $ pip install -r requirements_torch_pascal.txt
-$ pip install -r requirements_pip.txt
+$ pip install -r requirements.txt
 ```
 If you have problem with gradio, upgrade it.
 ```console
@@ -59,14 +59,18 @@ Summarize benchmarks results by
 
 # TODO
 
+- Use GPU or even federated learning for XGBoost.
+- Modify XGBoost according to the result of unit_test_hpo.sh. Rerun XGBoost.
+- Rerun hpo.
+- Benchmarks.
+- hyperparameter choice (optuna) for models with good benchmarks.
+- upload, inference, app, space
+- model interpret.
 - early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
 - LightGBM, XGBoost, hmmlearn
-- upload, inference, app, space
-- model interpretable
 - Use model.eval() in test and inference
 - Use os.PathLike
 - do pre-computation when initialize data collator and model so that subsequent computations are faster
-- hyperparameter choice (optuna)
 - Add api documentation after finish the project
 - train use float32
 - add type hint

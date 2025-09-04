@@ -7,17 +7,18 @@ output_dir=${OUTPUT_DIR:-$HOME}
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
-    for pre_model in \
-        CRIformer:CRIformer \
-        inDelphi:inDelphi \
-        Lindel:Lindel \
-        DeepHF:DeepHF \
-        DeepHF:CNN \
-        DeepHF:MLP \
-        DeepHF:XGBoost \
-        DeepHF:Ridge \
-        CRIfuser:CRIfuser \
-        FOREcasT:FOREcasT
+    for pre_model in DeepHF:Ridge
+    # for pre_model in \
+    #     CRIformer:CRIformer \
+    #     inDelphi:inDelphi \
+    #     Lindel:Lindel \
+    #     DeepHF:DeepHF \
+    #     DeepHF:CNN \
+    #     DeepHF:MLP \
+    #     DeepHF:XGBoost \
+    #     DeepHF:Ridge \
+    #     CRIfuser:CRIfuser \
+    #     FOREcasT:FOREcasT
     do
         IFS=":" read preprocess model_type <<<${pre_model}
         # Hpo
