@@ -462,6 +462,7 @@ class Objective:
                         "XGBoost.XGBoost.reg_lambda", 600, 800
                     ),
                     nthread=16,
+                    device="gpu",
                     booster=trial.suggest_categorical(
                         "XGBoost.XGBoost.booster",
                         choices=["gbtree", "gblinear", "dart"],

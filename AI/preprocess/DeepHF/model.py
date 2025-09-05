@@ -639,6 +639,7 @@ class XGBoostConfig(PretrainedConfig):
         max_depth: int,
         reg_lambda: float,
         nthread: int,
+        device: Literal["gpu", "cpu"],
         booster: Literal["gbtree", "gblinear", "dart"],
         num_boost_round: int,
         early_stopping_rounds: int,
@@ -657,6 +658,7 @@ class XGBoostConfig(PretrainedConfig):
             max_depth: maximum depth of a tree.
             reg_lambda: L2 regularization term on weights.
             nthread: number of threads.
+            device: device to use, cpu or gpu.
             booster: booster to use. gbtree and dart use tree based models while gblinear uses linear functions.
             num_boost_round: XGBoost iteration numbers.
             early_stopping_rounds: Early stopping rounds of XGBoost.
@@ -671,6 +673,7 @@ class XGBoostConfig(PretrainedConfig):
         self.max_depth = max_depth
         self.reg_lambda = reg_lambda
         self.nthread = nthread
+        self.device = device
         self.booster = booster
         self.num_boost_round = num_boost_round
         self.early_stopping_rounds = early_stopping_rounds
@@ -832,6 +835,7 @@ class XGBoostModel(PreTrainedModel):
                 "objective": "multi:softprob",
                 "num_class": num_class,
                 "nthread": self.config.nthread,
+                "device": self.config.device,
                 "booster": self.config.booster,
                 "seed": 63036,
             },
