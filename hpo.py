@@ -449,19 +449,19 @@ class Objective:
                     ext2_up=6,
                     ext2_down=25,
                     learning_rate=trial.suggest_float(
-                        "XGBoost.XGBoost.learning_rate", 0.01, 0.2
+                        "XGBoost.XGBoost.learning_rate", 0.01, 0.1
                     ),
                     subsample=trial.suggest_float(
-                        "XGBoost.XGBoost.subsample", 0.1, 0.8
+                        "XGBoost.XGBoost.subsample", 0.05, 0.2
                     ),
                     colsample_bytree=trial.suggest_float(
-                        "XGBoost.XGBoost.colsample_bytree", 0.1, 0.7
+                        "XGBoost.XGBoost.colsample_bytree", 0.15, 0.6
                     ),
-                    max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
+                    max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 8),
                     reg_lambda=trial.suggest_int(
                         "XGBoost.XGBoost.reg_lambda", 600, 800
                     ),
-                    nthread=18,
+                    nthread=16,
                     booster=trial.suggest_categorical(
                         "XGBoost.XGBoost.booster",
                         choices=["gbtree", "gblinear", "dart"],
