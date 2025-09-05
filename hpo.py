@@ -465,7 +465,7 @@ class Objective:
                     device="gpu",
                     booster=trial.suggest_categorical(
                         "XGBoost.XGBoost.booster",
-                        choices=["gbtree", "gblinear", "dart"],
+                        choices=["gbtree", "dart"],
                     ),
                     num_boost_round=trial.suggest_int(
                         "XGBoost.XGBoost.num_boost_round", 50, 200

@@ -640,7 +640,7 @@ class XGBoostConfig(PretrainedConfig):
         reg_lambda: float,
         nthread: int,
         device: Literal["gpu", "cpu"],
-        booster: Literal["gbtree", "gblinear", "dart"],
+        booster: Literal["gbtree", "dart"],
         num_boost_round: int,
         early_stopping_rounds: int,
         **kwargs,
@@ -659,7 +659,7 @@ class XGBoostConfig(PretrainedConfig):
             reg_lambda: L2 regularization term on weights.
             nthread: number of threads.
             device: device to use, cpu or gpu.
-            booster: booster to use. gbtree and dart use tree based models while gblinear uses linear functions.
+            booster: booster to use. gbtree and dart use tree based models. gblinear uses linear functions and does not support categorial feature.
             num_boost_round: XGBoost iteration numbers.
             early_stopping_rounds: Early stopping rounds of XGBoost.
         """
