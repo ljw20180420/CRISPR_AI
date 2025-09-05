@@ -7,9 +7,9 @@ init_args:
   learning_rate: 0.05
   subsample: 0.1
   colsample_bytree: 0.3
-  max_depth: 5
+  max_depth: 6
   reg_lambda: 700
-  nthread: 18
+  nthread: 16
   booster: dart # gbtree, gblinear, dart
-  num_boost_round: 700
-  early_stopping_rounds: 30
+  num_boost_round: 100
+  early_stopping_rounds: 10

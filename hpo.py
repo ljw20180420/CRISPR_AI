@@ -467,10 +467,10 @@ class Objective:
                         choices=["gbtree", "gblinear", "dart"],
                     ),
                     num_boost_round=trial.suggest_int(
-                        "XGBoost.XGBoost.num_boost_round", 600, 800
+                        "XGBoost.XGBoost.num_boost_round", 50, 200
                     ),
                     early_stopping_rounds=trial.suggest_int(
-                        "XGBoost.XGBoost.early_stopping_rounds", 20, 40
+                        "XGBoost.XGBoost.early_stopping_rounds", 5, 20
                     ),
                 )
             elif self.model_type == "Ridge":
