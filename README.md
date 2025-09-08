@@ -59,7 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
-- Use GPU or even federated learning for XGBoost.
+- Recover `unit_test_hpo.sh` after test.
 - Modify XGBoost according to the result of unit_test_hpo.sh. Rerun XGBoost.
 - Rerun hpo.
 - Benchmarks.

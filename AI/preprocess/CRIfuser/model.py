@@ -649,12 +649,12 @@ class CRIfuserModel(PreTrainedModel):
             return (
                 self.config.exp_scale
                 * self.config.exp_base ** (t / self.config.noise_timesteps)
-                * torch.log(self.config.exp_base)
+                * torch.log(torch.tensor(self.config.exp_base))
             )
         assert (
             self.config.noise_scheduler == "uniform"
         ), "supported noise schedulers are linear, cosine, exp, uniform"
-        return torch.full(t.shape, self.config.uniform_scale)
+        return torch.full(t.shape, self.config.uniform_scale, device=self.device)
 
     def _q_rkm_d(
         self,
