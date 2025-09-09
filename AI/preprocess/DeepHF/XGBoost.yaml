@@ -7,10 +7,10 @@ init_args:
   learning_rate: 0.05
   subsample: 0.1
   colsample_bytree: 0.3
-  max_depth: 6
+  max_depth: 5
   reg_lambda: 700
   nthread: 16
   device: gpu # cpu, gpu
-  booster: dart # gbtree, dart
+  booster: gbtree # gbtree, dart
   num_boost_round: 100
   early_stopping_rounds: 10
