@@ -59,9 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
-- Recover `unit_test_hpo.sh` after test.
 - Modify XGBoost according to the result of unit_test_hpo.sh. Rerun XGBoost.
-- Rerun hpo.
 - Benchmarks.
 - hyperparameter choice (optuna) for models with good benchmarks.
 - upload, inference, app, space
