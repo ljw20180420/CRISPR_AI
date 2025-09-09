@@ -769,12 +769,12 @@ class XGBoostModel(PreTrainedModel):
 
     def my_load_model(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
-        self.booster = xgb.Booster(model_file=model_path / "XGBoost.json")
+        self.booster = xgb.Booster(model_file=model_path / "XGBoost.ubj")
 
     def _save_XGBoost(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         os.makedirs(model_path, exist_ok=True)
-        self.booster.save_model(fname=model_path / "XGBoost.json")
+        self.booster.save_model(fname=model_path / "XGBoost.ubj")
 
     def _train_XGBoost(
         self,
