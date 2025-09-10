@@ -17,11 +17,7 @@ from einops.layers.torch import Rearrange
 from einops import rearrange, einsum, repeat
 from einops.layers.torch import Rearrange
 from transformers import PreTrainedModel, PretrainedConfig
-
 import xgboost as xgb
-
-xgb.config_context(use_rmm=True)
-
 from sklearn import linear_model
 import jsonargparse
 import logging
