@@ -4,7 +4,6 @@ init_args:
   ext1_down: 6
   ext2_up: 6
   ext2_down: 25
-  booster: gbtree # gbtree, dart
   device: gpu # cpu, gpu
   eta: 0.3
   max_depth: 5

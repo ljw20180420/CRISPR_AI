@@ -448,10 +448,6 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    booster=trial.suggest_categorical(
-                        "XGBoost.XGBoost.booster",
-                        choices=["gbtree", "dart"],
-                    ),
                     device="gpu",
                     eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.2, 0.8),
                     max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),

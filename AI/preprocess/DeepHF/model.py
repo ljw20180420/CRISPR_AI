@@ -633,7 +633,6 @@ class XGBoostConfig(PretrainedConfig):
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
-        booster: Literal["gbtree", "dart"],
         device: Literal["gpu", "cpu"],
         eta: float,
         max_depth: int,
@@ -650,7 +649,6 @@ class XGBoostConfig(PretrainedConfig):
             ext1_down: downstream limit of the templated insertion of the upstream end.
             ext2_up: upstream limit of the templated insertion of the downstream end.
             ext2_down: downstream limit of the resection of the downstream end.
-            booster: booster to use. gbtree and dart use tree based models. gblinear uses linear functions and does not support categorial feature.
             device: device to use, cpu or gpu.
             eta: Shrink of step size after each round.
             max_depth: maximum depth of a tree.
@@ -663,7 +661,6 @@ class XGBoostConfig(PretrainedConfig):
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.booster = booster
         self.device = device
         self.eta = eta
         self.max_depth = max_depth
@@ -821,7 +818,6 @@ class XGBoostModel(PreTrainedModel):
         )
         self.booster = xgb.train(
             params={
-                "booster": self.config.booster,
                 "device": self.config.device,
                 "eta": self.config.eta,
                 "max_depth": self.config.max_depth,
