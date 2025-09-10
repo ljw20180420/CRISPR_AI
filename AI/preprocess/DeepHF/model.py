@@ -642,7 +642,6 @@ class XGBoostConfig(PretrainedConfig):
         eta: float,
         max_depth: int,
         subsample: float,
-        colsample_bytree: float,
         reg_lambda: float,
         num_boost_round: int,
         early_stopping_rounds: int,
@@ -660,7 +659,6 @@ class XGBoostConfig(PretrainedConfig):
             eta: Shrink of step size after each round.
             max_depth: maximum depth of a tree.
             subsample: subsample ratio of the training instances.
-            colsample_bytree: subsample ratio of columns when constructing each tree.
             reg_lambda: L2 regularization term on weights.
             num_boost_round: XGBoost iteration numbers.
             early_stopping_rounds: Early stopping rounds of XGBoost.
@@ -674,7 +672,6 @@ class XGBoostConfig(PretrainedConfig):
         self.eta = eta
         self.max_depth = max_depth
         self.subsample = subsample
-        self.colsample_bytree = colsample_bytree
         self.reg_lambda = reg_lambda
         self.num_boost_round = num_boost_round
         self.early_stopping_rounds = early_stopping_rounds
@@ -833,7 +830,6 @@ class XGBoostModel(PreTrainedModel):
                 "eta": self.config.eta,
                 "max_depth": self.config.max_depth,
                 "subsample": self.config.subsample,
-                "colsample_bytree": self.config.colsample_bytree,
                 "reg_lambda": self.config.reg_lambda,
                 "objective": "multi:softprob",
                 "num_class": num_class,

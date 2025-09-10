@@ -458,9 +458,6 @@ class Objective:
                     subsample=trial.suggest_float(
                         "XGBoost.XGBoost.subsample", 0.5, 1.0
                     ),
-                    colsample_bytree=trial.suggest_float(
-                        "XGBoost.XGBoost.colsample_bytree", 0.15, 0.6
-                    ),
                     reg_lambda=trial.suggest_int(
                         "XGBoost.XGBoost.reg_lambda", 600, 800
                     ),
