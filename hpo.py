@@ -458,10 +458,10 @@ class Objective:
                         "XGBoost.XGBoost.reg_lambda", 0.5, 2.0
                     ),
                     num_boost_round=trial.suggest_int(
-                        "XGBoost.XGBoost.num_boost_round", 50, 200
+                        "XGBoost.XGBoost.num_boost_round", 25, 100
                     ),
                     early_stopping_rounds=trial.suggest_int(
-                        "XGBoost.XGBoost.early_stopping_rounds", 5, 20
+                        "XGBoost.XGBoost.early_stopping_rounds", 3, 10
                     ),
                 )
             elif self.model_type == "Ridge":
