@@ -452,7 +452,7 @@ class Objective:
                     eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.05, 0.2),
                     max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
                     subsample=trial.suggest_float(
-                        "XGBoost.XGBoost.subsample", 0.5, 1.0
+                        "XGBoost.XGBoost.subsample", 0.8, 1.0
                     ),
                     reg_lambda=trial.suggest_float(
                         "XGBoost.XGBoost.reg_lambda", 400.0, 1000.0
