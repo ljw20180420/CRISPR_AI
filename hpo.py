@@ -453,16 +453,14 @@ class Objective:
                         choices=["gbtree", "dart"],
                     ),
                     device="gpu",
-                    learning_rate=trial.suggest_float(
-                        "XGBoost.XGBoost.learning_rate", 0.01, 0.1
-                    ),
+                    eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.2, 0.8),
+                    max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
                     subsample=trial.suggest_float(
                         "XGBoost.XGBoost.subsample", 0.05, 0.2
                     ),
                     colsample_bytree=trial.suggest_float(
                         "XGBoost.XGBoost.colsample_bytree", 0.15, 0.6
                     ),
-                    max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 8),
                     reg_lambda=trial.suggest_int(
                         "XGBoost.XGBoost.reg_lambda", 600, 800
                     ),

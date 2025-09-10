@@ -639,10 +639,10 @@ class XGBoostConfig(PretrainedConfig):
         ext2_down: int,
         booster: Literal["gbtree", "dart"],
         device: Literal["gpu", "cpu"],
-        learning_rate: float,
+        eta: float,
+        max_depth: int,
         subsample: float,
         colsample_bytree: float,
-        max_depth: int,
         reg_lambda: float,
         num_boost_round: int,
         early_stopping_rounds: int,
@@ -657,10 +657,10 @@ class XGBoostConfig(PretrainedConfig):
             ext2_down: downstream limit of the resection of the downstream end.
             booster: booster to use. gbtree and dart use tree based models. gblinear uses linear functions and does not support categorial feature.
             device: device to use, cpu or gpu.
-            learning_rate: learning rate.
+            eta: Shrink of step size after each round.
+            max_depth: maximum depth of a tree.
             subsample: subsample ratio of the training instances.
             colsample_bytree: subsample ratio of columns when constructing each tree.
-            max_depth: maximum depth of a tree.
             reg_lambda: L2 regularization term on weights.
             num_boost_round: XGBoost iteration numbers.
             early_stopping_rounds: Early stopping rounds of XGBoost.
@@ -671,10 +671,10 @@ class XGBoostConfig(PretrainedConfig):
         self.ext2_down = ext2_down
         self.booster = booster
         self.device = device
-        self.learning_rate = learning_rate
+        self.eta = eta
+        self.max_depth = max_depth
         self.subsample = subsample
         self.colsample_bytree = colsample_bytree
-        self.max_depth = max_depth
         self.reg_lambda = reg_lambda
         self.num_boost_round = num_boost_round
         self.early_stopping_rounds = early_stopping_rounds
@@ -830,10 +830,10 @@ class XGBoostModel(PreTrainedModel):
             params={
                 "booster": self.config.booster,
                 "device": self.config.device,
-                "learning_rate": self.config.learning_rate,
+                "eta": self.config.eta,
+                "max_depth": self.config.max_depth,
                 "subsample": self.config.subsample,
                 "colsample_bytree": self.config.colsample_bytree,
-                "max_depth": self.config.max_depth,
                 "reg_lambda": self.config.reg_lambda,
                 "objective": "multi:softprob",
                 "num_class": num_class,
