@@ -637,14 +637,13 @@ class XGBoostConfig(PretrainedConfig):
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
+        booster: Literal["gbtree", "dart"],
+        device: Literal["gpu", "cpu"],
         learning_rate: float,
         subsample: float,
         colsample_bytree: float,
         max_depth: int,
         reg_lambda: float,
-        nthread: int,
-        device: Literal["gpu", "cpu"],
-        booster: Literal["gbtree", "dart"],
         num_boost_round: int,
         early_stopping_rounds: int,
         **kwargs,
@@ -656,14 +655,13 @@ class XGBoostConfig(PretrainedConfig):
             ext1_down: downstream limit of the templated insertion of the upstream end.
             ext2_up: upstream limit of the templated insertion of the downstream end.
             ext2_down: downstream limit of the resection of the downstream end.
+            booster: booster to use. gbtree and dart use tree based models. gblinear uses linear functions and does not support categorial feature.
+            device: device to use, cpu or gpu.
             learning_rate: learning rate.
             subsample: subsample ratio of the training instances.
             colsample_bytree: subsample ratio of columns when constructing each tree.
             max_depth: maximum depth of a tree.
             reg_lambda: L2 regularization term on weights.
-            nthread: number of threads.
-            device: device to use, cpu or gpu.
-            booster: booster to use. gbtree and dart use tree based models. gblinear uses linear functions and does not support categorial feature.
             num_boost_round: XGBoost iteration numbers.
             early_stopping_rounds: Early stopping rounds of XGBoost.
         """
@@ -671,14 +669,13 @@ class XGBoostConfig(PretrainedConfig):
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
+        self.booster = booster
+        self.device = device
         self.learning_rate = learning_rate
         self.subsample = subsample
         self.colsample_bytree = colsample_bytree
         self.max_depth = max_depth
         self.reg_lambda = reg_lambda
-        self.nthread = nthread
-        self.device = device
-        self.booster = booster
         self.num_boost_round = num_boost_round
         self.early_stopping_rounds = early_stopping_rounds
         super().__init__(**kwargs)
@@ -831,6 +828,8 @@ class XGBoostModel(PreTrainedModel):
         )
         self.booster = xgb.train(
             params={
+                "booster": self.config.booster,
+                "device": self.config.device,
                 "learning_rate": self.config.learning_rate,
                 "subsample": self.config.subsample,
                 "colsample_bytree": self.config.colsample_bytree,
@@ -838,9 +837,6 @@ class XGBoostModel(PreTrainedModel):
                 "reg_lambda": self.config.reg_lambda,
                 "objective": "multi:softprob",
                 "num_class": num_class,
-                "nthread": self.config.nthread,
-                "device": self.config.device,
-                "booster": self.config.booster,
                 "seed": 63036,
             },
             dtrain=Xy_train,

@@ -448,6 +448,11 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
+                    booster=trial.suggest_categorical(
+                        "XGBoost.XGBoost.booster",
+                        choices=["gbtree", "dart"],
+                    ),
+                    device="gpu",
                     learning_rate=trial.suggest_float(
                         "XGBoost.XGBoost.learning_rate", 0.01, 0.1
                     ),
@@ -460,12 +465,6 @@ class Objective:
                     max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 8),
                     reg_lambda=trial.suggest_int(
                         "XGBoost.XGBoost.reg_lambda", 600, 800
-                    ),
-                    nthread=16,
-                    device="gpu",
-                    booster=trial.suggest_categorical(
-                        "XGBoost.XGBoost.booster",
-                        choices=["gbtree", "dart"],
                     ),
                     num_boost_round=trial.suggest_int(
                         "XGBoost.XGBoost.num_boost_round", 50, 200
