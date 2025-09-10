@@ -798,13 +798,14 @@ class XGBoostModel(PreTrainedModel):
         y_eval = np.concatenate(y_eval)
         w_eval = np.concatenate(w_eval)
 
-        Xy_train = xgb.DMatrix(
+        Xy_train = xgb.QuantileDMatrix(
             data=X_train,
             label=y_train,
             weight=w_train,
             feature_types=["c"] * 22 + ["q"] * 11,
             enable_categorical=True,
         )
+        # Use QuantileDMatrix for evaluation and test is not recommanded because it needs train data as ref, which defeats the purpose of saving memory. See https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.QuantileDMatrix and https://www.kaggle.com/code/cdeotte/xgboost-using-original-data-cv-0-976?scriptVersionId=257750413&cellId=24
         Xy_eval = xgb.DMatrix(
             data=X_eval,
             label=y_eval,
