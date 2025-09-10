@@ -834,7 +834,16 @@ class XGBoostModel(PreTrainedModel):
                 (Xy_train, "train"),
                 (Xy_eval, "eval"),
             ],
-            early_stopping_rounds=self.config.early_stopping_rounds,
+            callbacks=[
+                xgb.callback.EarlyStopping(
+                    rounds=self.config.early_stopping_rounds,
+                    metric_name="mlogloss",
+                    data_name="eval",
+                    maximize=False,
+                    save_best=True,
+                    min_delta=0.0,
+                )
+            ],
         )
 
     def _get_feature(
