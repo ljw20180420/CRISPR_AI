@@ -449,19 +449,19 @@ class Objective:
                     ext2_up=6,
                     ext2_down=25,
                     device="gpu",
-                    eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.2, 0.8),
+                    eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.05, 0.2),
                     max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
                     subsample=trial.suggest_float(
                         "XGBoost.XGBoost.subsample", 0.5, 1.0
                     ),
                     reg_lambda=trial.suggest_float(
-                        "XGBoost.XGBoost.reg_lambda", 0.5, 2.0
+                        "XGBoost.XGBoost.reg_lambda", 400.0, 1000.0
                     ),
                     num_boost_round=trial.suggest_int(
-                        "XGBoost.XGBoost.num_boost_round", 25, 100
+                        "XGBoost.XGBoost.num_boost_round", 50, 200
                     ),
                     early_stopping_rounds=trial.suggest_int(
-                        "XGBoost.XGBoost.early_stopping_rounds", 3, 10
+                        "XGBoost.XGBoost.early_stopping_rounds", 5, 20
                     ),
                 )
             elif self.model_type == "Ridge":
