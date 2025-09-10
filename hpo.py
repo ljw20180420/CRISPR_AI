@@ -458,8 +458,8 @@ class Objective:
                     subsample=trial.suggest_float(
                         "XGBoost.XGBoost.subsample", 0.5, 1.0
                     ),
-                    reg_lambda=trial.suggest_int(
-                        "XGBoost.XGBoost.reg_lambda", 600, 800
+                    reg_lambda=trial.suggest_float(
+                        "XGBoost.XGBoost.reg_lambda", 0.5, 2.0
                     ),
                     num_boost_round=trial.suggest_int(
                         "XGBoost.XGBoost.num_boost_round", 50, 200
