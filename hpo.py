@@ -456,7 +456,7 @@ class Objective:
                     eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.2, 0.8),
                     max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
                     subsample=trial.suggest_float(
-                        "XGBoost.XGBoost.subsample", 0.05, 0.2
+                        "XGBoost.XGBoost.subsample", 0.5, 1.0
                     ),
                     colsample_bytree=trial.suggest_float(
                         "XGBoost.XGBoost.colsample_bytree", 0.15, 0.6
