@@ -692,13 +692,8 @@ class XGBoostModel(PreTrainedModel):
             input=batch["input"],
             label=None,
         )
-        probas = self.booster.predict(
-            xgb.DMatrix(
-                data=X_value,
-                feature_types=["c"] * 22 + ["q"] * 11,
-                enable_categorical=True,
-            )
-        )
+        # inplace_predict automatically detect feature_types during training
+        probas = self.booster.inplace_predict(data=X_value)
         batch_size = probas.shape[0]
         ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
         ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
