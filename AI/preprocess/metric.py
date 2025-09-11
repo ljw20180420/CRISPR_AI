@@ -29,6 +29,51 @@ class CrossEntropyBase(metaclass=NumpyDocstringInheritanceMeta):
         self.ext2_down = ext2_down
         self.accum_loss = 0.0
         self.accum_loss_num = 0.0
+        self.mask = np.ones(
+            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
+        )
+        self.fill = -1000
+        self.include_fill = True
+
+    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
+        observation = batch["label"]["observation"].cpu().numpy()
+        cut1 = np.array([example["cut1"] for example in examples])
+        cut2 = np.array([example["cut2"] for example in examples])
+        observation = np.stack(
+            [
+                ob[
+                    c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                    c1 - self.ext1_up : c1 + self.ext1_down + 1,
+                ]
+                for ob, c1, c2 in zip(observation, cut1, cut2)
+            ]
+        )
+        observation = observation * self.mask
+        # filter out of range data
+        df = df.query(
+            "rpos1 <= @self.ext1_down & rpos1 >= -@self.ext1_up & rpos2 <= @self.ext2_down & rpos2 >= -@self.ext2_up"
+        )
+        # assume df contains not duplicates
+        probas = np.zeros(observation.shape)
+        probas[
+            df["sample_idx"],
+            df["rpos2"] + self.ext2_up,
+            df["rpos1"] + self.ext1_up,
+        ] = df["proba"]
+        probas = probas * self.mask
+        probas = probas / rearrange(
+            np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
+            "b -> b 1 1",
+        )
+        log_probas = np.ma.log(probas).filled(self.fill)
+        if self.include_fill:
+            mask_probas = np.ones(log_probas.shape)
+        else:
+            mask_probas = log_probas != self.fill
+        self.accum_loss += -einsum(
+            mask_probas, log_probas, observation, "b r2 r1, b r2 r1, b r2 r1 -> "
+        )
+        self.accum_loss_num += einsum(mask_probas, observation, "b r2 r1, b r2 r1 -> ")
 
     def epoch(self) -> float:
         mean_loss = (
@@ -47,80 +92,13 @@ class CrossEntropy(CrossEntropyBase):
     ) -> None:
         super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
 
-    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
-        observation = batch["label"]["observation"].cpu().numpy()
-        cut1 = np.array([example["cut1"] for example in examples])
-        cut2 = np.array([example["cut2"] for example in examples])
-        observation = np.stack(
-            [
-                ob[
-                    c2 - self.ext2_up : c2 + self.ext2_down + 1,
-                    c1 - self.ext1_up : c1 + self.ext1_down + 1,
-                ]
-                for ob, c1, c2 in zip(observation, cut1, cut2)
-            ]
-        )
-        # filter out of range data
-        df = df.query(
-            "rpos1 <= @self.ext1_down & rpos1 >= -@self.ext1_up & rpos2 <= @self.ext2_down & rpos2 >= -@self.ext2_up"
-        )
-        # assume df contains not duplicates
-        probas = np.zeros(observation.shape)
-        probas[
-            df["sample_idx"],
-            df["rpos2"] + self.ext2_up,
-            df["rpos1"] + self.ext1_up,
-        ] = df["proba"]
-        probas = probas / rearrange(
-            np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
-            "b -> b 1 1",
-        )
-        self.accum_loss += -einsum(
-            np.ma.log(probas).filled(-1000), observation, "b r2 r1, b r2 r1 -> "
-        )
-        self.accum_loss_num += einsum(observation, "b r2 r1 -> ")
-
 
 class NonZeroCrossEntropy(CrossEntropyBase):
     def __init__(
         self, ext1_up: int, ext1_down: int, ext2_up: int, ext2_down: int
     ) -> None:
         super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
-
-    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
-        observation = batch["label"]["observation"].cpu().numpy()
-        cut1 = np.array([example["cut1"] for example in examples])
-        cut2 = np.array([example["cut2"] for example in examples])
-        observation = np.stack(
-            [
-                ob[
-                    c2 - self.ext2_up : c2 + self.ext2_down + 1,
-                    c1 - self.ext1_up : c1 + self.ext1_down + 1,
-                ]
-                for ob, c1, c2 in zip(observation, cut1, cut2)
-            ]
-        )
-        # filter out of range data
-        df = df.query(
-            "rpos1 <= @self.ext1_down & rpos1 >= -@self.ext1_up & rpos2 <= @self.ext2_down & rpos2 >= -@self.ext2_up"
-        )
-        # assume df contains not duplicates
-        probas = np.zeros(observation.shape)
-        probas[
-            df["sample_idx"],
-            df["rpos2"] + self.ext2_up,
-            df["rpos1"] + self.ext1_up,
-        ] = df["proba"]
-        probas = probas / rearrange(
-            np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
-            "b -> b 1 1",
-        )
-        # Fill 0 to mask 0 probabilities from loss.
-        self.accum_loss += -einsum(
-            np.ma.log(probas).filled(0), observation, "b r2 r1, b r2 r1 -> "
-        )
-        # Only nonzero probabbilities observation are counted.
-        self.accum_loss_num += einsum(probas > 0, observation, "b r2 r1, b r2 r1 -> ")
+        self.include_fill = False
 
 
 class NonWildTypeCrossEntropy(CrossEntropyBase):
@@ -128,43 +106,10 @@ class NonWildTypeCrossEntropy(CrossEntropyBase):
         self, ext1_up: int, ext1_down: int, ext2_up: int, ext2_down: int
     ) -> None:
         super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
-
-    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
-        observation = batch["label"]["observation"].cpu().numpy()
-        cut1 = np.array([example["cut1"] for example in examples])
-        cut2 = np.array([example["cut2"] for example in examples])
-        batch_size = observation.shape[0]
-        observation[np.arange(batch_size), cut2, cut1] = 0
-        observation = np.stack(
-            [
-                ob[
-                    c2 - self.ext2_up : c2 + self.ext2_down + 1,
-                    c1 - self.ext1_up : c1 + self.ext1_down + 1,
-                ]
-                for ob, c1, c2 in zip(observation, cut1, cut2)
-            ]
+        self.mask = np.ones(
+            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
         )
-        # filter wild type
-        df = df.query("rpos1 != 0 | rpos2 !=0")
-        # filter out of range data
-        df = df.query(
-            "rpos1 <= @self.ext1_down & rpos1 >= -@self.ext1_up & rpos2 <= @self.ext2_down & rpos2 >= -@self.ext2_up"
-        )
-        # assume df contains not duplicates
-        probas = np.zeros(observation.shape)
-        probas[
-            df["sample_idx"],
-            df["rpos2"] + self.ext2_up,
-            df["rpos1"] + self.ext1_up,
-        ] = df["proba"]
-        probas = probas / rearrange(
-            np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
-            "b -> b 1 1",
-        )
-        self.accum_loss += -einsum(
-            np.ma.log(probas).filled(-1000), observation, "b r2 r1, b r2 r1 -> "
-        )
-        self.accum_loss_num += einsum(observation, "b r2 r1 -> ")
+        self.mask[self.ext2_up, self.ext1_up] = 0
 
 
 class NonZeroNonWildTypeCrossEntropy(CrossEntropyBase):
@@ -172,42 +117,77 @@ class NonZeroNonWildTypeCrossEntropy(CrossEntropyBase):
         self, ext1_up: int, ext1_down: int, ext2_up: int, ext2_down: int
     ) -> None:
         super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
+        self.mask = np.ones(
+            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
+        )
+        self.mask[self.ext2_up, self.ext1_up] = 0
+        self.include_fill = False
 
-    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
-        observation = batch["label"]["observation"].cpu().numpy()
-        cut1 = np.array([example["cut1"] for example in examples])
-        cut2 = np.array([example["cut2"] for example in examples])
-        batch_size = observation.shape[0]
-        observation[np.arange(batch_size), cut2, cut1] = 0
-        observation = np.stack(
+
+class GreatestCommonCrossEntropy(CrossEntropyBase):
+    def __init__(
+        self,
+        ext1_up: int,
+        ext1_down: int,
+        ext2_up: int,
+        ext2_down: int,
+        max_del_size: int,
+        DELLEN_LIMIT: int,
+        dlen: int,
+    ) -> None:
+        """GreatestCommonCrossEntropy arguments.
+
+        Args:
+            max_del_size: Maximal FOREcasT deletion size.
+            DELLEN_LIMIT: Maximal inDelphi deletion size.
+            dlen: Maximal Lindel deletion size.
+        """
+        super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
+        FOREcasT_min_del_size = 0
+        inDelphi_min_del_size = 1
+        Lindel_min_del_size = 1
+        min_del_size = max(
+            FOREcasT_min_del_size, inDelphi_min_del_size, Lindel_min_del_size
+        )
+        FOREcasT_max_del_size = max_del_size
+        inDelphi_max_del_size = DELLEN_LIMIT - 1
+        Lindel_max_del_size = dlen - 1
+        max_del_size = min(
+            FOREcasT_max_del_size, inDelphi_max_del_size, Lindel_max_del_size
+        )
+        FOREcasT_ext = 0
+        inDelphi_ext = 0
+        Lindel_ext = 2
+        ext = min(FOREcasT_ext, inDelphi_ext, Lindel_ext)
+        FOREcasT_max_ins_size = 2
+        inDelphi_max_ins_size = 1
+        Lindel_max_ins_size = 2
+        max_ins_size = min(
+            FOREcasT_max_ins_size, inDelphi_max_ins_size, Lindel_max_ins_size
+        )
+        lefts = np.concatenate(
             [
-                ob[
-                    c2 - self.ext2_up : c2 + self.ext2_down + 1,
-                    c1 - self.ext1_up : c1 + self.ext1_down + 1,
-                ]
-                for ob, c1, c2 in zip(observation, cut1, cut2)
+                np.arange(-DEL_SIZE - ext, ext + 1)
+                for DEL_SIZE in range(min_del_size, max_del_size + 1)
             ]
+            + [np.arange(1, max_ins_size + 1)]
         )
-        # filter wild type
-        df = df.query("rpos1 != 0 | rpos2 !=0")
-        # filter out of range data
-        df = df.query(
-            "rpos1 <= @self.ext1_down & rpos1 >= -@self.ext1_up & rpos2 <= @self.ext2_down & rpos2 >= -@self.ext2_up"
+        rights = np.concatenate(
+            [
+                np.arange(-ext, DEL_SIZE + ext + 1)
+                for DEL_SIZE in range(min_del_size, max_del_size + 1)
+            ]
+            + [np.zeros(max_ins_size, dtype=int)]
         )
-        # assume df contains not duplicates
-        probas = np.zeros(observation.shape)
-        probas[
-            df["sample_idx"],
-            df["rpos2"] + self.ext2_up,
-            df["rpos1"] + self.ext1_up,
-        ] = df["proba"]
-        probas = probas / rearrange(
-            np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
-            "b -> b 1 1",
+        in_range = (
+            (lefts >= -self.ext2_up)
+            & (lefts <= self.ext2_down)
+            & (rights >= -self.ext1_up)
+            & (rights <= self.ext1_down)
         )
-        # Fill 0 to mask 0 probabilities from loss.
-        self.accum_loss += -einsum(
-            np.ma.log(probas).filled(0), observation, "b r2 r1, b r2 r1 -> "
+        lefts = lefts[in_range]
+        rights = rights[in_range]
+        self.mask = np.zeros(
+            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
         )
-        # Only nonzero probabbilities observation are counted.
-        self.accum_loss_num += einsum(probas > 0, observation, "b r2 r1, b r2 r1 -> ")
+        self.mask[lefts, rights] = 1.0
