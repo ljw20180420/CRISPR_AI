@@ -19,6 +19,6 @@ do
         ./run.py test --config ${test_config} --test.model_path ${model_path}  --test.target NonZeroCrossEntropy
         ./run.py test --config ${test_config} --test.model_path ${model_path}  --test.target NonWildTypeCrossEntropy
         ./run.py test --config ${test_config} --test.model_path ${model_path}  --test.target NonZeroNonWildTypeCrossEntropy
-        # ./run.py test --config ${test_config} --test.model_path ${model_path}  --test.target GreatestCommonCrossEntropy
+        ./run.py test --config ${test_config} --test.model_path ${model_path}  --test.target GreatestCommonCrossEntropy
     done
 done
