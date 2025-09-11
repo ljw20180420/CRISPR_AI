@@ -6,6 +6,7 @@ cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 train_config=AI/preprocess/train.yaml
 output_dir=${OUTPUT_DIR:-$HOME}
 test_config=AI/preprocess/test.yaml
+evaluation_only=${evaluation_only:-true}
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
@@ -22,11 +23,11 @@ do
     do
         IFS=":" read preprocess model_type <<<${pre_model}
         model_config=AI/preprocess/${preprocess}/${model_type}.yaml
-        # Train
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --dataset.name ${data_name} --model ${model_config}
+        # Train or Eval
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model ${model_config}
 
-        model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/default
         # Test
+        model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/default
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target CrossEntropy
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonZeroCrossEntropy
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonWildTypeCrossEntropy

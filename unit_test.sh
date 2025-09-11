@@ -26,8 +26,11 @@ do
         # Train
         ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name unit_test --train.num_epochs 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
-        model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/unit_test
+        # Eval
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name unit_test --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
+
         # Test
+        model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/unit_test
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target CrossEntropy
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonZeroCrossEntropy
         ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonWildTypeCrossEntropy

@@ -164,14 +164,14 @@ class GreatestCommonCrossEntropy(CrossEntropyBase):
             + [np.zeros(max_ins_size, dtype=int)]
         )
         in_range = (
-            (lefts >= -self.ext2_up)
-            & (lefts <= self.ext2_down)
-            & (rights >= -self.ext1_up)
-            & (rights <= self.ext1_down)
+            (lefts >= -self.ext1_up)
+            & (lefts <= self.ext1_down)
+            & (rights >= -self.ext2_up)
+            & (rights <= self.ext2_down)
         )
         lefts = lefts[in_range]
         rights = rights[in_range]
         self.mask = np.zeros(
             (self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1)
         )
-        self.mask[lefts, rights] = 1.0
+        self.mask[rights + self.ext2_up, lefts + self.ext1_up] = 1.0
