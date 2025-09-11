@@ -236,6 +236,7 @@ class Objective:
                 "AI.preprocess.metric.NonZeroCrossEntropy",
                 "AI.preprocess.metric.NonWildTypeCrossEntropy",
                 "AI.preprocess.metric.NonZeroNonWildTypeCrossEntropy",
+                "AI.preprocess.metric.GreatestCommonCrossEntropy",
             ]
         ]
         cfg.model = f"{self.model_type}.yaml"
@@ -475,9 +476,7 @@ class Objective:
         elif self.preprocess == "FOREcasT":
             if self.model_type == "FOREcasT":
                 cfg.init_args = jsonargparse.Namespace(
-                    max_del_size=trial.suggest_int(
-                        "FOREcasT.FOREcasT.max_del_size", 20, 40
-                    ),
+                    max_del_size=30,
                     reg_const=trial.suggest_float(
                         "FOREcasT.FOREcasT.reg_const", 0.0, 0.02
                     ),
@@ -488,15 +487,13 @@ class Objective:
         elif self.preprocess == "inDelphi":
             if self.model_type == "inDelphi":
                 cfg.init_args = jsonargparse.Namespace(
-                    DELLEN_LIMIT=trial.suggest_int(
-                        "inDelphi.inDelphi.DELLEN_LIMIT", 40, 80
-                    ),
+                    DELLEN_LIMIT=60,
                     mid_dim=trial.suggest_int("inDelphi.inDelphi.mid_dim", 16, 64),
                 )
         elif self.preprocess == "Lindel":
             if self.model_type == "Lindel":
                 cfg.init_args = jsonargparse.Namespace(
-                    dlen=trial.suggest_int("Lindel.Lindel.dlen", 20, 40),
+                    dlen=30,
                     mh_len=trial.suggest_int("Lindel.Lindel.mh_len", 3, 5),
                     reg_mode=trial.suggest_categorical(
                         "Lindel.Lindel.reg_mode", choices=["l2", "l1"]

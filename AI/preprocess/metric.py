@@ -30,7 +30,7 @@ class CrossEntropyBase(metaclass=NumpyDocstringInheritanceMeta):
         self.accum_loss = 0.0
         self.accum_loss_num = 0.0
         self.mask = np.ones(
-            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
+            (self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1)
         )
         self.fill = -1000
         self.include_fill = True
@@ -106,9 +106,6 @@ class NonWildTypeCrossEntropy(CrossEntropyBase):
         self, ext1_up: int, ext1_down: int, ext2_up: int, ext2_down: int
     ) -> None:
         super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
-        self.mask = np.ones(
-            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
-        )
         self.mask[self.ext2_up, self.ext1_up] = 0
 
 
@@ -117,9 +114,6 @@ class NonZeroNonWildTypeCrossEntropy(CrossEntropyBase):
         self, ext1_up: int, ext1_down: int, ext2_up: int, ext2_down: int
     ) -> None:
         super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
-        self.mask = np.ones(
-            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
-        )
         self.mask[self.ext2_up, self.ext1_up] = 0
         self.include_fill = False
 
@@ -131,17 +125,7 @@ class GreatestCommonCrossEntropy(CrossEntropyBase):
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
-        max_del_size: int,
-        DELLEN_LIMIT: int,
-        dlen: int,
     ) -> None:
-        """GreatestCommonCrossEntropy arguments.
-
-        Args:
-            max_del_size: Maximal FOREcasT deletion size.
-            DELLEN_LIMIT: Maximal inDelphi deletion size.
-            dlen: Maximal Lindel deletion size.
-        """
         super().__init__(ext1_up, ext1_down, ext2_up, ext2_down)
         FOREcasT_min_del_size = 0
         inDelphi_min_del_size = 1
@@ -149,9 +133,9 @@ class GreatestCommonCrossEntropy(CrossEntropyBase):
         min_del_size = max(
             FOREcasT_min_del_size, inDelphi_min_del_size, Lindel_min_del_size
         )
-        FOREcasT_max_del_size = max_del_size
-        inDelphi_max_del_size = DELLEN_LIMIT - 1
-        Lindel_max_del_size = dlen - 1
+        FOREcasT_max_del_size = 30
+        inDelphi_max_del_size = 59
+        Lindel_max_del_size = 29
         max_del_size = min(
             FOREcasT_max_del_size, inDelphi_max_del_size, Lindel_max_del_size
         )
@@ -188,6 +172,6 @@ class GreatestCommonCrossEntropy(CrossEntropyBase):
         lefts = lefts[in_range]
         rights = rights[in_range]
         self.mask = np.zeros(
-            self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1
+            (self.ext2_up + self.ext2_down + 1, self.ext1_up + self.ext1_down + 1)
         )
         self.mask[lefts, rights] = 1.0
