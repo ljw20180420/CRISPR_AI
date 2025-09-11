@@ -448,7 +448,7 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    device="gpu",
+                    device="cpu",
                     eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.05, 0.2),
                     max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
                     subsample=trial.suggest_float(
