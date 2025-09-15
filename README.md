@@ -59,10 +59,19 @@ Summarize benchmarks results by
 
 # TODO
 
+- Tune reg_lambda for XGBoost.
 - Benchmarks.
+  - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
 - upload, inference, app, space
+- xgboost interpret.
+  - get_score
+  - pred_contribs
+  - pred_interactions
+  - plot_importance
+  - plot_tree
 - model interpret.
+- tensorboard.
 - early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
 - LightGBM, XGBoost, hmmlearn
 - Use model.eval() in test and inference
