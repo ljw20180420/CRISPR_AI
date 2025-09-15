@@ -59,7 +59,8 @@ Summarize benchmarks results by
 
 # TODO
 
-- Tune reg_lambda for XGBoost.
+- Restore `defaults.sh` after test `reg_lambda`.
+- Tune `reg_lambda` for XGBoost.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
