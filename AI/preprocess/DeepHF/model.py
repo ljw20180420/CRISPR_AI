@@ -1,29 +1,31 @@
-import numpy as np
-import pandas as pd
-import torch.nn as nn
-import torch
-import torch.nn.functional as F
-from typing import Literal, Optional
+import itertools
+import json
+import logging
 import os
 import pathlib
-from scipy.special import softmax
 import pickle
-import itertools
-from tqdm import tqdm
+from typing import Literal, Optional
+
+import datasets
+import jsonargparse
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import xgboost as xgb
+from common_ai.utils import MyGenerator
+from einops import einsum, rearrange, repeat
+from einops.layers.torch import Rearrange
+from scipy.special import softmax
+from sklearn import linear_model
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from einops.layers.torch import Rearrange
-from einops import rearrange, einsum, repeat
-from einops.layers.torch import Rearrange
-from transformers import PreTrainedModel, PretrainedConfig
-import xgboost as xgb
-from sklearn import linear_model
-import jsonargparse
-import logging
-import datasets
+from tqdm import tqdm
+from transformers import PretrainedConfig, PreTrainedModel
+
 from .data_collator import DataCollator
-from common_ai.utils import MyGenerator
 
 
 class DeepHFConfig(PretrainedConfig):
@@ -761,6 +763,8 @@ class XGBoostModel(PreTrainedModel):
         model_path = pathlib.Path(os.fspath(model_path))
         os.makedirs(model_path, exist_ok=True)
         self.booster.save_model(fname=model_path / "XGBoost.ubj")
+        with open(model_path / "evals_result.json", "w") as fd:
+            json.dump(self.evals_result, fd)
 
     def _train_XGBoost(
         self,
@@ -812,6 +816,7 @@ class XGBoostModel(PreTrainedModel):
         num_class = (self.config.ext1_up + self.config.ext1_down + 1) * (
             self.config.ext2_up + self.config.ext2_down + 1
         )
+        self.evals_result = {}
         self.booster = xgb.train(
             params={
                 "device": self.config.device,
@@ -829,6 +834,7 @@ class XGBoostModel(PreTrainedModel):
                 (Xy_train, "train"),
                 (Xy_eval, "eval"),
             ],
+            evals_result=self.evals_result,
             callbacks=[
                 xgb.callback.EarlyStopping(
                     rounds=self.config.early_stopping_rounds,
