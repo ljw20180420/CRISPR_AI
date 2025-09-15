@@ -10,17 +10,16 @@ evaluation_only=${evaluation_only:-true}
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
-    for pre_model in DeepHF:XGBoost
-    # for pre_model in \
-    #     CRIformer:CRIformer \
-    #     inDelphi:inDelphi \
-    #     Lindel:Lindel \
-    #     DeepHF:DeepHF \
-    #     DeepHF:CNN \
-    #     DeepHF:MLP \
-    #     DeepHF:XGBoost \
-    #     CRIfuser:CRIfuser \
-    #     FOREcasT:FOREcasT
+    for pre_model in \
+        CRIformer:CRIformer \
+        inDelphi:inDelphi \
+        Lindel:Lindel \
+        DeepHF:DeepHF \
+        DeepHF:CNN \
+        DeepHF:MLP \
+        DeepHF:XGBoost \
+        CRIfuser:CRIfuser \
+        FOREcasT:FOREcasT
     do
         IFS=":" read preprocess model_type <<<${pre_model}
         model_config=AI/preprocess/${preprocess}/${model_type}.yaml

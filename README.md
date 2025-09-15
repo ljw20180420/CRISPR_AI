@@ -59,7 +59,6 @@ Summarize benchmarks results by
 
 # TODO
 
-- Restore `defaults.sh` after test `reg_lambda`.
 - Tune `reg_lambda` for XGBoost.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
