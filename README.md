@@ -59,6 +59,8 @@ Summarize benchmarks results by
 
 # TODO
 
+- Clarify early stopping, metric, pruner.
+- Modify hpo.py accordingly.
 - Tune `reg_lambda` for XGBoost.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.

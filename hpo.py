@@ -1,39 +1,41 @@
 #!/usr/bin/env python
 
-import torch
+import importlib
 import os
 import pathlib
-import optuna
 from typing import Literal
-import importlib
-from optuna.samplers import (
-    GridSampler,
-    RandomSampler,
-    TPESampler,
-    CmaEsSampler,
-    GPSampler,
-    PartialFixedSampler,
-    NSGAIISampler,
-    QMCSampler,
-)
+
+import jsonargparse
+import numpy as np
+import optuna
+import pandas as pd
+import torch
+import yaml
+from common_ai.test import MyTest
+from common_ai.train import MyTrain
 from optuna.pruners import (
+    HyperbandPruner,
     MedianPruner,
     NopPruner,
     PatientPruner,
     PercentilePruner,
     SuccessiveHalvingPruner,
-    HyperbandPruner,
     ThresholdPruner,
     WilcoxonPruner,
 )
-import jsonargparse
-import numpy as np
-import pandas as pd
-import yaml
+from optuna.samplers import (
+    CmaEsSampler,
+    GPSampler,
+    GridSampler,
+    NSGAIISampler,
+    PartialFixedSampler,
+    QMCSampler,
+    RandomSampler,
+    TPESampler,
+)
+
 from AI.preprocess.config import get_config
 from AI.preprocess.dataset import get_dataset
-from common_ai.train import MyTrain
-from common_ai.test import MyTest
 
 # change directory to the current script
 os.chdir(pathlib.Path(__file__).parent)
@@ -458,12 +460,8 @@ class Objective:
                     reg_lambda=trial.suggest_float(
                         "XGBoost.XGBoost.reg_lambda", 400.0, 1000.0
                     ),
-                    num_boost_round=trial.suggest_int(
-                        "XGBoost.XGBoost.num_boost_round", 50, 200
-                    ),
-                    early_stopping_rounds=trial.suggest_int(
-                        "XGBoost.XGBoost.early_stopping_rounds", 5, 20
-                    ),
+                    num_boost_round=500,
+                    early_stopping_rounds=25,
                 )
             elif self.model_type == "Ridge":
                 cfg.init_args = jsonargparse.Namespace(

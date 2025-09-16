@@ -1,3 +1,4 @@
+import importlib
 import itertools
 import json
 import logging
@@ -657,7 +658,7 @@ class XGBoostConfig(PretrainedConfig):
             subsample: subsample ratio of the training instances.
             reg_lambda: L2 regularization term on weights.
             num_boost_round: XGBoost iteration numbers.
-            early_stopping_rounds: Early stopping rounds of XGBoost.
+            early_stopping_rounds: objectve function must improve every these many rounds.
         """
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
@@ -671,6 +672,34 @@ class XGBoostConfig(PretrainedConfig):
         self.num_boost_round = num_boost_round
         self.early_stopping_rounds = early_stopping_rounds
         super().__init__(**kwargs)
+
+
+class XGBoostEvalCallBack(xgb.callback.TrainingCallback):
+    def __init__(
+        self,
+        parent: PreTrainedModel,
+    ):
+        self.parent = parent
+
+    def after_iteration(
+        self, booster: xgb.Booster, epoch: int, performance: dict[str, dict]
+    ) -> False:
+        # parent.eval_output needs parent.booster
+        self.parent.booster = booster
+        for examples in tqdm(self.parent.eval_dataloader):
+            batch = self.parent.data_collator(examples, output_label=True)
+            df = self.parent.eval_output(examples, batch)
+            for metric_name, metric_fun in self.parent.metrics.items():
+                metric_fun.step(
+                    df=df,
+                    examples=examples,
+                    batch=batch,
+                )
+
+        for metric_name, metric_fun in self.parent.metrics.items():
+            performance["eval"][metric_name] = (
+                performance["eval"].get(metric_name, []).append(metric_fun.epoch())
+            )
 
 
 class XGBoostModel(PreTrainedModel):
@@ -734,6 +763,13 @@ class XGBoostModel(PreTrainedModel):
         logger: logging.Logger,
     ) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
+        logger.info("collect metrics")
+        self.metrics = {}
+        for metric in cfg.metric:
+            metric_module, metric_cls = metric.class_path.rsplit(".", 1)
+            self.metrics[metric_cls] = getattr(
+                importlib.import_module(metric_module), metric_cls
+            )(**metric.init_args.as_dict())
         logger.info("train XGBoost")
         self._train_XGBoost(
             train_dataloader=torch.utils.data.DataLoader(
@@ -755,16 +791,23 @@ class XGBoostModel(PreTrainedModel):
             overwrite=True,
         )
 
-    def my_load_model(self, model_path: os.PathLike) -> None:
+    def my_load_model(self, model_path: os.PathLike, target: str) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         self.booster = xgb.Booster(model_file=model_path / "XGBoost.ubj")
+        with open(model_path / "performance.json", "r") as fd:
+            performance = json.load(fd)
+        best_score = float("inf")
+        for i, score in enumerate(performance["eval"][target]):
+            if score < best_score:
+                best_iteration = i
+        self.booster = self.booster[: best_iteration + 1]
 
     def _save_XGBoost(self, model_path: os.PathLike) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         os.makedirs(model_path, exist_ok=True)
         self.booster.save_model(fname=model_path / "XGBoost.ubj")
-        with open(model_path / "evals_result.json", "w") as fd:
-            json.dump(self.evals_result, fd)
+        with open(model_path / "performance.json", "w") as fd:
+            json.dump(self.performance, fd)
 
     def _train_XGBoost(
         self,
@@ -816,7 +859,7 @@ class XGBoostModel(PreTrainedModel):
         num_class = (self.config.ext1_up + self.config.ext1_down + 1) * (
             self.config.ext2_up + self.config.ext2_down + 1
         )
-        self.evals_result = {}
+        self.performance = {}
         self.booster = xgb.train(
             params={
                 "device": self.config.device,
@@ -830,21 +873,14 @@ class XGBoostModel(PreTrainedModel):
             },
             dtrain=Xy_train,
             num_boost_round=self.config.num_boost_round,
+            # put Xy_eval at the last in evals because early stopping use the last dataset in evals by default
             evals=[
                 (Xy_train, "train"),
                 (Xy_eval, "eval"),
             ],
-            evals_result=self.evals_result,
-            callbacks=[
-                xgb.callback.EarlyStopping(
-                    rounds=self.config.early_stopping_rounds,
-                    metric_name="mlogloss",
-                    data_name="eval",
-                    maximize=False,
-                    save_best=True,
-                    min_delta=0.0,
-                )
-            ],
+            early_stopping_rounds=self.early_stopping_rounds,
+            evals_result=self.performance,
+            callbacks=[XGBoostEvalCallBack(self)],
         )
 
     def _get_feature(
@@ -1004,7 +1040,7 @@ class RidgeModel(PreTrainedModel):
             overwrite=True,
         )
 
-    def my_load_model(self, model_path: os.PathLike) -> None:
+    def my_load_model(self, model_path: os.PathLike, target: str) -> None:
         model_path = pathlib.Path(os.fspath(model_path))
         with open(model_path / "ridge.pkl", "rb") as fd:
             self.ridge = pickle.load(fd)
