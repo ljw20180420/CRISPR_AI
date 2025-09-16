@@ -5,9 +5,9 @@ init_args:
   ext2_up: 6
   ext2_down: 25
   device: cpu # cpu, gpu
-  eta: 0.01
+  eta: 0.02
   max_depth: 10
   subsample: 0.8
   reg_lambda: 10.0
-  num_boost_round: 1000
-  early_stopping_rounds: 50
+  num_boost_round: 500
+  early_stopping_rounds: 25
