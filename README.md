@@ -61,7 +61,7 @@ Summarize benchmarks results by
 
 - Clarify early stopping, metric, pruner.
 - Modify hpo.py accordingly.
-- Tune `reg_lambda` for XGBoost.
+- git pull from both common_ai and CRISPR_AI. Tune `reg_lambda` for XGBoost.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.

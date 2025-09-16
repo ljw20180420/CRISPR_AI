@@ -17,7 +17,6 @@ do
         DeepHF:CNN \
         DeepHF:MLP \
         DeepHF:XGBoost \
-        DeepHF:Ridge \
         CRIfuser:CRIfuser \
         FOREcasT:FOREcasT
     do
