@@ -394,7 +394,7 @@ class MLPModel(PreTrainedModel):
         return df
 
 
-class CNNConfig(PretrainedConfig):
+class CNNModel(nn.Module):
     model_type = "CNN"
 
     def __init__(
@@ -411,7 +411,6 @@ class CNNConfig(PretrainedConfig):
         fc_activation: Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
         kernel_sizes: list[int],
         feature_maps: list[int],
-        **kwargs,
     ) -> None:
         """CNN arguments.
 
@@ -429,52 +428,38 @@ class CNNConfig(PretrainedConfig):
             kernel_sizes: kernel sizes for CNN.
             feature_maps: channel sizes of CNN.
         """
+        super().__init__()
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.em_drop = em_drop
-        self.fc_drop = fc_drop
-        self.em_dim = em_dim
-        self.fc_num_hidden_layers = fc_num_hidden_layers
-        self.fc_num_units = fc_num_units
-        self.fc_activation = fc_activation
-        self.kernel_sizes = kernel_sizes
-        self.feature_maps = feature_maps
-        super().__init__(**kwargs)
 
-
-class CNNModel(PreTrainedModel):
-    config_class = CNNConfig
-
-    def __init__(self, config: CNNConfig) -> None:
-        super().__init__(config)
         self.data_collator = DataCollator(
-            ext1_up=config.ext1_up,
-            ext1_down=config.ext1_down,
-            ext2_up=config.ext2_up,
-            ext2_down=config.ext2_down,
+            ext1_up=ext1_up,
+            ext1_down=ext1_down,
+            ext2_up=ext2_up,
+            ext2_down=ext2_down,
         )
 
         self.embedding = nn.Embedding(
             num_embeddings=6,
-            embedding_dim=config.em_dim,
+            embedding_dim=em_dim,
         )
 
-        self.dropout1d = nn.Dropout1d(p=config.em_drop)
+        self.dropout1d = nn.Dropout1d(p=em_drop)
 
-        if config.fc_activation == "elu":
+        if fc_activation == "elu":
             self.fc_activation = nn.ELU()
-        elif config.fc_activation == "relu":
+        elif fc_activation == "relu":
             self.fc_activation = nn.ReLU()
-        elif config.fc_activation == "tanh":
+        elif fc_activation == "tanh":
             self.fc_activation = nn.Tanh()
-        elif config.fc_activation == "sigmoid":
+        elif fc_activation == "sigmoid":
             self.fc_activation = nn.Sigmoid()
         else:
             assert (
-                config.fc_activation == "hard_sigmoid"
-            ), f"unknown fc_activation {config.fc_activation}"
+                fc_activation == "hard_sigmoid"
+            ), f"unknown fc_activation {fc_activation}"
             self.fc_activation = nn.Hardsigmoid()
 
         self.cnns = nn.ModuleList(
@@ -482,7 +467,7 @@ class CNNModel(PreTrainedModel):
                 nn.Sequential(
                     Rearrange("b l c -> b c l"),
                     nn.Conv1d(
-                        in_channels=config.em_dim,
+                        in_channels=em_dim,
                         out_channels=feature_map,
                         kernel_size=kernel_size,
                         stride=1,
@@ -492,38 +477,34 @@ class CNNModel(PreTrainedModel):
                     nn.MaxPool1d(kernel_size=22),
                     Rearrange("b c 1 -> b c"),
                 )
-                for kernel_size, feature_map in zip(
-                    config.kernel_sizes, config.feature_maps
-                )
+                for kernel_size, feature_map in zip(kernel_sizes, feature_maps)
             ]
         )
 
         self.fc1 = nn.Sequential(
             nn.Linear(
-                sum(config.feature_maps) + 11,
-                config.fc_num_units,
+                sum(feature_maps) + 11,
+                fc_num_units,
             ),
             self.fc_activation,
-            nn.Dropout(config.fc_drop),
+            nn.Dropout(fc_drop),
         )
         self.fcs = nn.Sequential(
             *sum(
                 [
                     [
-                        nn.Linear(config.fc_num_units, config.fc_num_units),
+                        nn.Linear(fc_num_units, fc_num_units),
                         self.fc_activation,
-                        nn.Dropout(config.fc_drop),
+                        nn.Dropout(fc_drop),
                     ]
-                    for _ in range(1, config.fc_num_hidden_layers)
+                    for _ in range(1, fc_num_hidden_layers)
                 ],
                 [],
             )
         )
 
-        out_dim = (config.ext1_up + config.ext1_down + 1) * (
-            config.ext2_up + config.ext2_down + 1
-        )
-        self.mix_output = nn.Linear(config.fc_num_units, out_dim)
+        out_dim = (ext1_up + ext1_down + 1) * (ext2_up + ext2_down + 1)
+        self.mix_output = nn.Linear(fc_num_units, out_dim)
 
     def forward(
         self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
@@ -549,8 +530,8 @@ class CNNModel(PreTrainedModel):
             observation = torch.stack(
                 [
                     ob[
-                        c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
-                        c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                        c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                        c1 - self.ext1_up : c1 + self.ext1_down + 1,
                     ]
                     for ob, c1, c2 in zip(
                         label["observation"], label["cut1"], label["cut2"]
@@ -583,8 +564,8 @@ class CNNModel(PreTrainedModel):
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]
-        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
-        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        ref1_dim = self.ext1_up + self.ext1_down + 1
+        ref2_dim = self.ext2_up + self.ext2_down + 1
         df = pd.DataFrame(
             {
                 "sample_idx": repeat(
@@ -595,13 +576,13 @@ class CNNModel(PreTrainedModel):
                 ),
                 "proba": probas.flatten(),
                 "rpos1": repeat(
-                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    np.arange(-self.ext1_up, self.ext1_down + 1),
                     "r1 -> (b r2 r1)",
                     b=batch_size,
                     r2=ref2_dim,
                 ),
                 "rpos2": repeat(
-                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    np.arange(-self.ext2_up, self.ext2_down + 1),
                     "r2 -> (b r2 r1)",
                     b=batch_size,
                     r1=ref1_dim,
