@@ -219,7 +219,7 @@ class DeepHFModel(nn.Module):
         return df
 
 
-class MLPConfig(PretrainedConfig):
+class MLPModel(nn.Module):
     model_type = "MLP"
 
     def __init__(
@@ -232,7 +232,6 @@ class MLPConfig(PretrainedConfig):
         fc_num_hidden_layers: int,
         fc_num_units: int,
         fc_activation: Literal["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-        **kwargs,
     ) -> None:
         """MLP arguments.
 
@@ -246,70 +245,58 @@ class MLPConfig(PretrainedConfig):
             fc_num_units: hidden dimension of output fully connected layers.
             fc_activation: activation function of output fully connected layers.
         """
+        super().__init__()
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.fc_drop = fc_drop
-        self.fc_num_hidden_layers = fc_num_hidden_layers
-        self.fc_num_units = fc_num_units
-        self.fc_activation = fc_activation
-        super().__init__(**kwargs)
 
-
-class MLPModel(PreTrainedModel):
-    config_class = MLPConfig
-
-    def __init__(self, config: MLPConfig) -> None:
-        super().__init__(config)
         self.data_collator = DataCollator(
-            ext1_up=config.ext1_up,
-            ext1_down=config.ext1_down,
-            ext2_up=config.ext2_up,
-            ext2_down=config.ext2_down,
+            ext1_up=ext1_up,
+            ext1_down=ext1_down,
+            ext2_up=ext2_up,
+            ext2_down=ext2_down,
         )
 
-        if config.fc_activation == "elu":
+        if fc_activation == "elu":
             self.fc_activation = nn.ELU()
-        elif config.fc_activation == "relu":
+        elif fc_activation == "relu":
             self.fc_activation = nn.ReLU()
-        elif config.fc_activation == "tanh":
+        elif fc_activation == "tanh":
             self.fc_activation = nn.Tanh()
-        elif config.fc_activation == "sigmoid":
+        elif fc_activation == "sigmoid":
             self.fc_activation = nn.Sigmoid()
         else:
             assert (
-                config.fc_activation == "hard_sigmoid"
-            ), f"unknown fc_activation {config.fc_activation}"
+                fc_activation == "hard_sigmoid"
+            ), f"unknown fc_activation {fc_activation}"
             self.fc_activation = nn.Hardsigmoid()
 
         # 22 is "S" + sgRNA21mer, 6 is PSACGT
         self.fc1 = nn.Sequential(
             nn.Linear(
                 22 * 6 + 11,
-                config.fc_num_units,
+                fc_num_units,
             ),
             self.fc_activation,
-            nn.Dropout(config.fc_drop),
+            nn.Dropout(fc_drop),
         )
         self.fcs = nn.Sequential(
             *sum(
                 [
                     [
-                        nn.Linear(config.fc_num_units, config.fc_num_units),
+                        nn.Linear(fc_num_units, fc_num_units),
                         self.fc_activation,
-                        nn.Dropout(config.fc_drop),
+                        nn.Dropout(fc_drop),
                     ]
-                    for _ in range(1, config.fc_num_hidden_layers)
+                    for _ in range(1, fc_num_hidden_layers)
                 ],
                 [],
             )
         )
 
-        out_dim = (config.ext1_up + config.ext1_down + 1) * (
-            config.ext2_up + config.ext2_down + 1
-        )
-        self.mix_output = nn.Linear(config.fc_num_units, out_dim)
+        out_dim = (ext1_up + ext1_down + 1) * (ext2_up + ext2_down + 1)
+        self.mix_output = nn.Linear(fc_num_units, out_dim)
 
     def forward(
         self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
@@ -332,8 +319,8 @@ class MLPModel(PreTrainedModel):
             observation = torch.stack(
                 [
                     ob[
-                        c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
-                        c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                        c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                        c1 - self.ext1_up : c1 + self.ext1_down + 1,
                     ]
                     for ob, c1, c2 in zip(
                         label["observation"], label["cut1"], label["cut2"]
@@ -366,8 +353,8 @@ class MLPModel(PreTrainedModel):
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]
-        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
-        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        ref1_dim = self.ext1_up + self.ext1_down + 1
+        ref2_dim = self.ext2_up + self.ext2_down + 1
         df = pd.DataFrame(
             {
                 "sample_idx": repeat(
@@ -378,13 +365,13 @@ class MLPModel(PreTrainedModel):
                 ),
                 "proba": probas.flatten(),
                 "rpos1": repeat(
-                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    np.arange(-self.ext1_up, self.ext1_down + 1),
                     "r1 -> (b r2 r1)",
                     b=batch_size,
                     r2=ref2_dim,
                 ),
                 "rpos2": repeat(
-                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    np.arange(-self.ext2_up, self.ext2_down + 1),
                     "r2 -> (b r2 r1)",
                     b=batch_size,
                     r1=ref1_dim,

@@ -1,4 +1,4 @@
-class_path: AI.preprocess.DeepHF.model.MLPConfig
+class_path: AI.preprocess.DeepHF.model.MLPModel
 init_args:
   ext1_up: 25
   ext1_down: 6
