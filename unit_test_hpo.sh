@@ -7,7 +7,7 @@ output_dir=${OUTPUT_DIR:-$HOME}
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
-    for pre_model in Lindel:Lindel
+    for pre_model in DeepHF:DeepHF
     # for pre_model in \
     #     CRIformer:CRIformer \
     #     inDelphi:inDelphi \
