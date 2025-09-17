@@ -6,7 +6,6 @@ from sklearn.neighbors import KNeighborsRegressor
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from transformers import PreTrainedModel, PretrainedConfig
 import itertools
 from typing import Callable
 
@@ -17,14 +16,13 @@ from .data_collator import DataCollator
 from common_ai.utils import MyGenerator
 
 
-class inDelphiConfig(PretrainedConfig):
+class inDelphiModel(nn.Module):
     model_type = "inDelphi"
 
     def __init__(
         self,
         DELLEN_LIMIT: int,
         mid_dim: int,
-        **kwargs,
     ) -> None:
         """inDelphi paramters.
 
@@ -32,31 +30,19 @@ class inDelphiConfig(PretrainedConfig):
             DELLEN_LIMIT: the upper limit of deletion length (strictly less than DELLEN_LIMIT).
             mid_dim: the size of middle layer of MLP.
         """
+        super().__init__()
         self.DELLEN_LIMIT = DELLEN_LIMIT
-        self.mid_dim = mid_dim
-        super().__init__(**kwargs)
 
-
-class inDelphiModel(PreTrainedModel):
-    config_class = inDelphiConfig
-
-    def __init__(self, config: inDelphiConfig) -> None:
-        super().__init__(config)
-        self.data_collator = DataCollator(DELLEN_LIMIT=config.DELLEN_LIMIT)
-        self.DELLEN_LIMIT = config.DELLEN_LIMIT
+        self.data_collator = DataCollator(DELLEN_LIMIT=DELLEN_LIMIT)
         self.register_buffer(
-            "del_lens", torch.arange(1, config.DELLEN_LIMIT, dtype=torch.float32)
+            "del_lens", torch.arange(1, DELLEN_LIMIT, dtype=torch.float32)
         )
-        self.mh_in_layer = nn.Linear(in_features=2, out_features=config.mid_dim)
-        self.mh_mid_layer = nn.Linear(
-            in_features=config.mid_dim, out_features=config.mid_dim
-        )
-        self.mh_out_layer = nn.Linear(in_features=config.mid_dim, out_features=1)
-        self.mhless_in_layer = nn.Linear(in_features=1, out_features=config.mid_dim)
-        self.mhless_mid_layer = nn.Linear(
-            in_features=config.mid_dim, out_features=config.mid_dim
-        )
-        self.mhless_out_layer = nn.Linear(in_features=config.mid_dim, out_features=1)
+        self.mh_in_layer = nn.Linear(in_features=2, out_features=mid_dim)
+        self.mh_mid_layer = nn.Linear(in_features=mid_dim, out_features=mid_dim)
+        self.mh_out_layer = nn.Linear(in_features=mid_dim, out_features=1)
+        self.mhless_in_layer = nn.Linear(in_features=1, out_features=mid_dim)
+        self.mhless_mid_layer = nn.Linear(in_features=mid_dim, out_features=mid_dim)
+        self.mhless_out_layer = nn.Linear(in_features=mid_dim, out_features=1)
         self.mid_active = self._sigmoid
         self.out_active = self._logit_to_weight
 
@@ -193,7 +179,7 @@ class inDelphiModel(PreTrainedModel):
             1 - insert_probabilities,
             "b w, b -> b w",
         )
-        DELLEN_LIMIT = self.config.DELLEN_LIMIT
+        DELLEN_LIMIT = self.DELLEN_LIMIT
         sample_idxs, probas, rpos1s, rpos2s, random_inss = [], [], [], [], []
         for sample_idx, (
             delete_probability,
@@ -215,7 +201,7 @@ class inDelphiModel(PreTrainedModel):
             )
         ):
             mh_mh_len = mh_mh_len[mh_mh_len > 0].astype(int)
-            mh_del_len = mh_del_len[mh_del_len < self.config.DELLEN_LIMIT]
+            mh_del_len = mh_del_len[mh_del_len < self.DELLEN_LIMIT]
             probas.append(
                 (delete_probability[: len(mh_mh_len)] / (mh_mh_len + 1)).repeat(
                     mh_mh_len + 1

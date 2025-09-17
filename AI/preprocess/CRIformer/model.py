@@ -58,46 +58,29 @@ class CRIformerModel(nn.Module):
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.hidden_size = hidden_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.intermediate_size = intermediate_size
-        self.hidden_dropout_prob = hidden_dropout_prob
-        self.attention_probs_dropout_prob = attention_probs_dropout_prob
 
         self.data_collator = DataCollator(
-            ext1_up=self.ext1_up,
-            ext1_down=self.ext1_down,
-            ext2_up=self.ext2_up,
-            ext2_down=self.ext2_down,
+            ext1_up=ext1_up,
+            ext1_down=ext1_down,
+            ext2_up=ext2_up,
+            ext2_down=ext2_down,
         )
         self.model = RoFormerModel(
             RoFormerConfig(
                 vocab_size=4,  # ACGT
-                hidden_size=self.hidden_size,
-                num_hidden_layers=self.num_hidden_layers,
-                num_attention_heads=self.num_attention_heads,
-                intermediate_size=self.intermediate_size,
-                hidden_dropout_prob=self.hidden_dropout_prob,
-                attention_probs_dropout_prob=self.attention_probs_dropout_prob,
+                hidden_size=hidden_size,
+                num_hidden_layers=num_hidden_layers,
+                num_attention_heads=num_attention_heads,
+                intermediate_size=intermediate_size,
+                hidden_dropout_prob=hidden_dropout_prob,
+                attention_probs_dropout_prob=attention_probs_dropout_prob,
                 max_position_embeddings=2
-                ** int(
-                    np.ceil(
-                        np.log2(
-                            self.ext1_up
-                            + self.ext1_down
-                            + self.ext2_up
-                            + self.ext2_down
-                            + 2
-                        )
-                    )
-                ),
+                ** int(np.ceil(np.log2(ext1_up + ext1_down + ext2_up + ext2_down + 2))),
             )
         )
         self.mlp = nn.Linear(
-            in_features=self.hidden_size,
-            out_features=(self.ext1_up + self.ext1_down + 1)
-            * (self.ext2_up + self.ext2_down + 1),
+            in_features=hidden_size,
+            out_features=(ext1_up + ext1_down + 1) * (ext2_up + ext2_down + 1),
         )
 
     def forward(
