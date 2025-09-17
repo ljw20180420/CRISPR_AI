@@ -1,6 +1,4 @@
 from transformers import (
-    PreTrainedModel,
-    PretrainedConfig,
     RoFormerConfig,
     RoFormerModel,
 )

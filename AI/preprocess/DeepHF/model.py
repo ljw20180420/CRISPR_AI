@@ -5,7 +5,7 @@ import logging
 import os
 import pathlib
 import pickle
-from typing import Literal, Optional
+from typing import Literal, Optional, Callable
 
 import datasets
 import jsonargparse
@@ -15,7 +15,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import xgboost as xgb
-from common_ai.utils import MyGenerator
 from einops import einsum, rearrange, repeat
 from einops.layers.torch import Rearrange
 from scipy.special import softmax
@@ -27,6 +26,8 @@ from tqdm import tqdm
 from transformers import PretrainedConfig, PreTrainedModel
 
 from .data_collator import DataCollator
+from common_ai.utils import MyGenerator
+from common_ai.train import MyTrain
 
 
 class DeepHFModel(nn.Module):
@@ -579,7 +580,7 @@ class CNNModel(nn.Module):
         return df
 
 
-class XGBoostConfig(PretrainedConfig):
+class XGBoostModel:
     model_type = "XGBoost"
 
     def __init__(
@@ -588,14 +589,10 @@ class XGBoostConfig(PretrainedConfig):
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
-        device: Literal["gpu", "cpu"],
         eta: float,
         max_depth: int,
         subsample: float,
         reg_lambda: float,
-        num_boost_round: int,
-        early_stopping_rounds: int,
-        **kwargs,
     ) -> None:
         """XGBoost arguments.
 
@@ -604,69 +601,28 @@ class XGBoostConfig(PretrainedConfig):
             ext1_down: downstream limit of the templated insertion of the upstream end.
             ext2_up: upstream limit of the templated insertion of the downstream end.
             ext2_down: downstream limit of the resection of the downstream end.
-            device: device to use, cpu or gpu.
             eta: Shrink of step size after each round.
             max_depth: maximum depth of a tree.
             subsample: subsample ratio of the training instances.
             reg_lambda: L2 regularization term on weights.
-            num_boost_round: XGBoost iteration numbers.
-            early_stopping_rounds: objectve function must improve every these many rounds.
         """
+        super().__init__()
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.device = device
         self.eta = eta
         self.max_depth = max_depth
         self.subsample = subsample
         self.reg_lambda = reg_lambda
-        self.num_boost_round = num_boost_round
-        self.early_stopping_rounds = early_stopping_rounds
-        super().__init__(**kwargs)
 
-
-class XGBoostEvalCallBack(xgb.callback.TrainingCallback):
-    def __init__(
-        self,
-        parent: PreTrainedModel,
-        eval_dataloader: torch.utils.data.DataLoader,
-    ):
-        self.parent = parent
-        self.eval_dataloader = eval_dataloader
-
-    def after_iteration(
-        self, booster: xgb.Booster, epoch: int, performance: dict[str, dict]
-    ) -> False:
-        # parent.eval_output needs parent.booster
-        self.parent.booster = booster
-        for examples in tqdm(self.eval_dataloader):
-            batch = self.parent.data_collator(examples, output_label=True)
-            df = self.parent.eval_output(examples, batch)
-            for metric_name, metric_fun in self.parent.metrics.items():
-                metric_fun.step(
-                    df=df,
-                    examples=examples,
-                    batch=batch,
-                )
-
-        for metric_name, metric_fun in self.parent.metrics.items():
-            performance["eval"][metric_name] = (
-                performance["eval"].get(metric_name, []).append(metric_fun.epoch())
-            )
-
-
-class XGBoostModel(PreTrainedModel):
-    config_class = XGBoostConfig
-
-    def __init__(self, config: XGBoostConfig) -> None:
-        super().__init__(config)
         self.data_collator = DataCollator(
-            ext1_up=config.ext1_up,
-            ext1_down=config.ext1_down,
-            ext2_up=config.ext2_up,
-            ext2_down=config.ext2_down,
+            ext1_up=ext1_up,
+            ext1_down=ext1_down,
+            ext2_up=ext2_up,
+            ext2_down=ext2_down,
         )
+        self.booster = None
 
     def eval_output(
         self,
@@ -677,11 +633,17 @@ class XGBoostModel(PreTrainedModel):
             input=batch["input"],
             label=None,
         )
-        # inplace_predict automatically detect feature_types during training
-        probas = self.booster.inplace_predict(data=X_value)
+        # Do not use inplace_predict because of WARNING of device.
+        probas = self.booster.predict(
+            data=xgb.DMatrix(
+                data=X_value,
+                feature_types=["c"] * 22 + ["q"] * 11,
+                enable_categorical=True,
+            )
+        )
         batch_size = probas.shape[0]
-        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
-        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        ref1_dim = self.ext1_up + self.ext1_down + 1
+        ref2_dim = self.ext2_up + self.ext2_down + 1
         df = pd.DataFrame(
             {
                 "sample_idx": repeat(
@@ -692,13 +654,13 @@ class XGBoostModel(PreTrainedModel):
                 ),
                 "proba": probas.flatten(),
                 "rpos1": repeat(
-                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    np.arange(-self.ext1_up, self.ext1_down + 1),
                     "r1 -> (b r2 r1)",
                     b=batch_size,
                     r2=ref2_dim,
                 ),
                 "rpos2": repeat(
-                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    np.arange(-self.ext2_up, self.ext2_down + 1),
                     "r2 -> (b r2 r1)",
                     b=batch_size,
                     r1=ref1_dim,
@@ -707,135 +669,108 @@ class XGBoostModel(PreTrainedModel):
         )
         return df
 
-    def my_train_model(
-        self,
-        dataset: datasets.Dataset,
-        batch_size: int,
-        train_parser: jsonargparse.ArgumentParser,
-        cfg: jsonargparse.Namespace,
-        model_path: os.PathLike,
-        logger: logging.Logger,
-    ) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        logger.info("collect metrics")
-        self.metrics = {}
-        for metric in cfg.metric:
-            metric_module, metric_cls = metric.class_path.rsplit(".", 1)
-            self.metrics[metric_cls] = getattr(
-                importlib.import_module(metric_module), metric_cls
-            )(**metric.init_args.as_dict())
-        logger.info("train XGBoost")
-        self._train_XGBoost(
-            train_dataloader=torch.utils.data.DataLoader(
-                dataset=dataset["train"],
-                batch_size=batch_size,
-                collate_fn=lambda examples: examples,
-            ),
-            eval_dataloader=torch.utils.data.DataLoader(
-                dataset=dataset["validation"],
-                batch_size=batch_size,
-                collate_fn=lambda examples: examples,
-            ),
-        )
-        logger.info("save XGBoost")
-        self._save_XGBoost(model_path)
-        train_parser.save(
-            cfg=cfg,
-            path=model_path / "train.yaml",
-            overwrite=True,
-        )
+    def state_dict(self) -> dict:
+        return {"booster": self.booster.save_raw()}
 
-    def my_load_model(self, model_path: os.PathLike, target: str) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        self.booster = xgb.Booster(model_file=model_path / "XGBoost.ubj")
-        with open(model_path / "performance.json", "r") as fd:
-            performance = json.load(fd)
-        best_score = float("inf")
-        for i, score in enumerate(performance["eval"][target]):
-            if score < best_score:
-                best_iteration = i
-        self.booster = self.booster[: best_iteration + 1]
+    def load_state_dict(self, state_dict: dict) -> None:
+        self.booster = xgb.Booster(model_file=state_dict["booster"])
 
-    def _save_XGBoost(self, model_path: os.PathLike) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        os.makedirs(model_path, exist_ok=True)
-        self.booster.save_model(fname=model_path / "XGBoost.ubj")
-        with open(model_path / "performance.json", "w") as fd:
-            json.dump(self.performance, fd)
+    def my_train_epoch(self, my_train: MyTrain):
+        if not hasattr(self, "Xy_train") or not hasattr(self, "train_loss_num"):
+            X_train, y_train, w_train = [], [], []
+            for examples in tqdm(my_train.train_dataloader):
+                batch = self.data_collator(examples, output_label=True)
+                X_value, y_value, w_value = self._get_feature(
+                    input=batch["input"], label=batch["label"]
+                )
+                X_train.append(X_value)
+                y_train.append(y_value)
+                w_train.append(w_value)
+            X_train = np.concatenate(X_train)
+            y_train = np.concatenate(y_train)
+            w_train = np.concatenate(w_train)
 
-    def _train_XGBoost(
-        self,
-        train_dataloader: torch.utils.data.DataLoader,
-        eval_dataloader: torch.utils.data.DataLoader,
-    ) -> None:
-        X_train, y_train, w_train = [], [], []
-        for examples in tqdm(train_dataloader):
-            batch = self.data_collator(examples, output_label=True)
-            X_value, y_value, w_value = self._get_feature(
-                input=batch["input"], label=batch["label"]
+            self.Xy_train = xgb.QuantileDMatrix(
+                data=X_train,
+                label=y_train,
+                weight=w_train,
+                feature_types=["c"] * 22 + ["q"] * 11,
+                enable_categorical=True,
             )
-            X_train.append(X_value)
-            y_train.append(y_value)
-            w_train.append(w_value)
-        X_train = np.concatenate(X_train)
-        y_train = np.concatenate(y_train)
-        w_train = np.concatenate(w_train)
+            self.train_loss_num = w_train.sum().item()
 
-        X_eval, y_eval, w_eval = [], [], []
-        for examples in tqdm(eval_dataloader):
-            batch = self.data_collator(examples, output_label=True)
-            X_value, y_value, w_value = self._get_feature(
-                input=batch["input"], label=batch["label"]
-            )
-            X_eval.append(X_value)
-            y_eval.append(y_value)
-            w_eval.append(w_value)
-        X_eval = np.concatenate(X_eval)
-        y_eval = np.concatenate(y_eval)
-        w_eval = np.concatenate(w_eval)
-
-        Xy_train = xgb.QuantileDMatrix(
-            data=X_train,
-            label=y_train,
-            weight=w_train,
-            feature_types=["c"] * 22 + ["q"] * 11,
-            enable_categorical=True,
+        num_class = (self.ext1_up + self.ext1_down + 1) * (
+            self.ext2_up + self.ext2_down + 1
         )
-        # Use QuantileDMatrix for evaluation and test is not recommanded because it needs train data as ref, which defeats the purpose of saving memory. See https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.QuantileDMatrix and https://www.kaggle.com/code/cdeotte/xgboost-using-original-data-cv-0-976?scriptVersionId=257750413&cellId=24
-        Xy_eval = xgb.DMatrix(
-            data=X_eval,
-            label=y_eval,
-            weight=w_eval,
-            feature_types=["c"] * 22 + ["q"] * 11,
-            enable_categorical=True,
-        )
-
-        num_class = (self.config.ext1_up + self.config.ext1_down + 1) * (
-            self.config.ext2_up + self.config.ext2_down + 1
-        )
-        self.performance = {}
+        evals_result = {}
         self.booster = xgb.train(
             params={
-                "device": self.config.device,
-                "eta": self.config.eta,
-                "max_depth": self.config.max_depth,
-                "subsample": self.config.subsample,
-                "reg_lambda": self.config.reg_lambda,
+                "device": self.device,
+                "eta": self.eta,
+                "max_depth": self.max_depth,
+                "subsample": self.subsample,
+                "reg_lambda": self.reg_lambda,
                 "objective": "multi:softprob",
                 "num_class": num_class,
                 "seed": 63036,
             },
-            dtrain=Xy_train,
-            num_boost_round=self.config.num_boost_round,
+            dtrain=self.Xy_train,
+            num_boost_round=1,
             # put Xy_eval at the last in evals because early stopping use the last dataset in evals by default
-            evals=[
-                (Xy_train, "train"),
-                (Xy_eval, "eval"),
-            ],
-            early_stopping_rounds=self.early_stopping_rounds,
-            evals_result=self.performance,
-            callbacks=[XGBoostEvalCallBack(self, eval_dataloader)],
+            evals=[(self.Xy_train, "train")],
+            evals_result=evals_result,
+            xgb_model=self.booster,
         )
+
+        return (
+            evals_result["train"]["mlogloss"][0] * self.train_loss_num,
+            self.train_loss_num,
+            float("nan"),
+        )
+
+    def my_eval_epoch(self, my_train: MyTrain):
+        if not hasattr(self, "Xy_eval") or not hasattr(self, "eval_loss_num"):
+            X_eval, y_eval, w_eval = [], [], []
+            for examples in tqdm(my_train.eval_dataloader):
+                batch = self.data_collator(examples, output_label=True)
+                X_value, y_value, w_value = self._get_feature(
+                    input=batch["input"], label=batch["label"]
+                )
+                X_eval.append(X_value)
+                y_eval.append(y_value)
+                w_eval.append(w_value)
+            X_eval = np.concatenate(X_eval)
+            y_eval = np.concatenate(y_eval)
+            w_eval = np.concatenate(w_eval)
+
+            # Use QuantileDMatrix for evaluation and test is not recommanded because it needs train data as ref, which defeats the purpose of saving memory. See https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.QuantileDMatrix and https://www.kaggle.com/code/cdeotte/xgboost-using-original-data-cv-0-976?scriptVersionId=257750413&cellId=24
+            self.Xy_eval = xgb.DMatrix(
+                data=X_eval,
+                label=y_eval,
+                weight=w_eval,
+                feature_types=["c"] * 22 + ["q"] * 11,
+                enable_categorical=True,
+            )
+            self.eval_loss_num = w_eval.sum().item()
+
+        eval_loss = (
+            float(self.booster.eval(self.Xy_eval).split(":")[1]) * self.eval_loss_num
+        )
+        metric_loss_dict = {}
+        for examples in tqdm(my_train.eval_dataloader):
+            batch = self.data_collator(examples, output_label=True)
+            df = self.eval_output(examples, batch)
+            for metric_name, metric_fun in my_train.metrics.items():
+                metric_fun.step(
+                    df=df,
+                    examples=examples,
+                    batch=batch,
+                )
+
+        for metric_name, metric_fun in my_train.metrics.items():
+            metric_loss_dict[metric_name] = metric_fun.epoch()
+
+        return eval_loss, self.eval_loss_num, metric_loss_dict
 
     def _get_feature(
         self,
@@ -856,14 +791,8 @@ class XGBoostModel(PreTrainedModel):
                     torch.stack(
                         [
                             ob[
-                                c2
-                                - self.config.ext2_up : c2
-                                + self.config.ext2_down
-                                + 1,
-                                c1
-                                - self.config.ext1_up : c1
-                                + self.config.ext1_down
-                                + 1,
+                                c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                                c1 - self.ext1_up : c1 + self.ext1_down + 1,
                             ]
                             for ob, c1, c2 in zip(
                                 label["observation"], label["cut1"], label["cut2"]

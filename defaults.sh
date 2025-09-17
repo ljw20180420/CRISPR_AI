@@ -28,7 +28,7 @@ do
         # Train or Eval
         case ${model_type} in
             XGBoost)
-                ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.evaluation_only ${evaluation_only} --train.num_epochs ${num_boost_round} --dataset.name ${data_name} --model ${model_config}
+                ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs ${num_boost_round} --train.device cpu --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model ${model_config}
             ;;
             *)
                 ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model ${model_config}

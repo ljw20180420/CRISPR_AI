@@ -135,7 +135,7 @@ class GreatestCommonCrossEntropy(CrossEntropyBase):
         )
         FOREcasT_max_del_size = 30
         inDelphi_max_del_size = 59
-        Lindel_max_del_size = 29
+        Lindel_max_del_size = 59
         max_del_size = min(
             FOREcasT_max_del_size, inDelphi_max_del_size, Lindel_max_del_size
         )
