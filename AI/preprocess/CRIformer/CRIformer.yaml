@@ -1,4 +1,4 @@
-class_path: AI.preprocess.CRIformer.model.CRIformerConfig
+class_path: AI.preprocess.CRIformer.model.CRIformerModel
 init_args:
   ext1_up: 25
   ext1_down: 6

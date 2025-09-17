@@ -9,30 +9,10 @@ import jsonargparse
 import numpy as np
 import optuna
 import pandas as pd
-import torch
+from torch import nn
 import yaml
 from common_ai.test import MyTest
 from common_ai.train import MyTrain
-from optuna.pruners import (
-    HyperbandPruner,
-    MedianPruner,
-    NopPruner,
-    PatientPruner,
-    PercentilePruner,
-    SuccessiveHalvingPruner,
-    ThresholdPruner,
-    WilcoxonPruner,
-)
-from optuna.samplers import (
-    CmaEsSampler,
-    GPSampler,
-    GridSampler,
-    NSGAIISampler,
-    PartialFixedSampler,
-    QMCSampler,
-    RandomSampler,
-    TPESampler,
-)
 
 from AI.preprocess.config import get_config
 from AI.preprocess.dataset import get_dataset
@@ -93,13 +73,12 @@ class Objective:
                 dataset=dataset,
             )
         ):
-            if performance is not None:
-                trial.report(
-                    value=performance["eval"][self.target_metric],
-                    step=epoch,
-                )
-                if trial.should_prune():
-                    break
+            trial.report(
+                value=performance["eval"][self.target_metric],
+                step=epoch,
+            )
+            if trial.should_prune():
+                break
 
         # test
         test_cfg = test_parser.parse_path(model_path / "test.yaml")
@@ -108,8 +87,8 @@ class Objective:
         dataset = get_dataset(**best_train_cfg.dataset.as_dict())
         my_test(cfg=best_train_cfg, dataset=dataset)
 
-        df = pd.read_csv(model_path / "test_result.csv")
-        return df.loc[df["name"] == self.target_metric, "loss"].item()
+        df = pd.read_csv(model_path / f"{my_test.target}_test_result.csv")
+        return df.loc[df["name"] == my_test.target, "loss"].item()
 
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
@@ -139,11 +118,10 @@ class Objective:
             clip_value=1.0,
             accumulate_steps=1,
             device="cuda",
+            evaluation_only=False,
         )
         model_module = importlib.import_module(f"AI.preprocess.{self.preprocess}.model")
-        if not hasattr(
-            getattr(model_module, f"{self.model_type}Model"), "my_train_model"
-        ):
+        if issubclass(getattr(model_module, f"{self.model_type}Model"), nn.Module):
             cfg.initializer = jsonargparse.Namespace(
                 name=trial.suggest_categorical(
                     "initializer.name",
@@ -249,9 +227,7 @@ class Objective:
         trial: optuna.Trial,
     ) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
-        cfg.class_path = (
-            f"AI.preprocess.{self.preprocess}.model.{self.model_type}Config"
-        )
+        cfg.class_path = f"AI.preprocess.{self.preprocess}.model.{self.model_type}Model"
 
         if self.preprocess == "CRIformer":
             if self.model_type == "CRIformer":
@@ -574,8 +550,8 @@ def main(
                 (study_path / "optuna_journal_storage.log").as_posix()
             ),
         ),
-        sampler=eval(sampler)(),
-        pruner=eval(pruner)(),
+        sampler=getattr(importlib.import_module("optuna.samplers"), sampler)(),
+        pruner=getattr(importlib.import_module("optuna.pruners"), pruner)(),
         study_name=study_name,
         load_if_exists=load_if_exists,
     )

@@ -28,16 +28,16 @@ def get_config() -> tuple[jsonargparse.ArgumentParser]:
 
     train_parser.add_subclass_arguments(
         baseclass=(
-            CRIformer_M.CRIformerConfig,
-            CRIfuser_M.CRIfuserConfig,
-            DeepHF_M.DeepHFConfig,
-            DeepHF_M.MLPConfig,
-            DeepHF_M.CNNConfig,
-            DeepHF_M.XGBoostConfig,
-            DeepHF_M.RidgeConfig,
-            FOREcasT_M.FOREcasTConfig,
-            inDelphi_M.inDelphiConfig,
-            Lindel_M.LindelConfig,
+            CRIformer_M.CRIformerModel,
+            CRIfuser_M.CRIfuserModel,
+            DeepHF_M.DeepHFModel,
+            DeepHF_M.MLPModel,
+            DeepHF_M.CNNModel,
+            DeepHF_M.XGBoostModel,
+            DeepHF_M.RidgeModel,
+            FOREcasT_M.FOREcasTModel,
+            inDelphi_M.inDelphiModel,
+            Lindel_M.LindelModel,
         ),
         nested_key="model",
     )

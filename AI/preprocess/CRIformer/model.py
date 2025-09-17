@@ -18,7 +18,7 @@ from .data_collator import DataCollator
 from common_ai.utils import MyGenerator
 
 
-class CRIformerConfig(PretrainedConfig):
+class CRIformerModel(nn.Module):
     model_type = "CRIformer"
 
     def __init__(
@@ -33,8 +33,7 @@ class CRIformerConfig(PretrainedConfig):
         intermediate_size: int,
         hidden_dropout_prob: float,
         attention_probs_dropout_prob: float,
-        **kwargs,
-    ):
+    ) -> None:
         """CRIformer parameters.
 
         Args:
@@ -49,6 +48,7 @@ class CRIformerConfig(PretrainedConfig):
             hidden_dropout_prob: the dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
             attention_probs_dropout_prob: the dropout ratio for the attention probabilities.
         """
+        super().__init__()
         if hidden_size % num_attention_heads != 0:
             raise ValueError(
                 f"The hidden size ({hidden_size}) is not a multiple of the number of attention "
@@ -64,37 +64,30 @@ class CRIformerConfig(PretrainedConfig):
         self.intermediate_size = intermediate_size
         self.hidden_dropout_prob = hidden_dropout_prob
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
-        super().__init__(**kwargs)
 
-
-class CRIformerModel(PreTrainedModel):
-    config_class = CRIformerConfig
-
-    def __init__(self, config: CRIformerConfig) -> None:
-        super().__init__(config)
         self.data_collator = DataCollator(
-            ext1_up=config.ext1_up,
-            ext1_down=config.ext1_down,
-            ext2_up=config.ext2_up,
-            ext2_down=config.ext2_down,
+            ext1_up=self.ext1_up,
+            ext1_down=self.ext1_down,
+            ext2_up=self.ext2_up,
+            ext2_down=self.ext2_down,
         )
         self.model = RoFormerModel(
             RoFormerConfig(
                 vocab_size=4,  # ACGT
-                hidden_size=config.hidden_size,
-                num_hidden_layers=config.num_hidden_layers,
-                num_attention_heads=config.num_attention_heads,
-                intermediate_size=config.intermediate_size,
-                hidden_dropout_prob=config.hidden_dropout_prob,
-                attention_probs_dropout_prob=config.attention_probs_dropout_prob,
+                hidden_size=self.hidden_size,
+                num_hidden_layers=self.num_hidden_layers,
+                num_attention_heads=self.num_attention_heads,
+                intermediate_size=self.intermediate_size,
+                hidden_dropout_prob=self.hidden_dropout_prob,
+                attention_probs_dropout_prob=self.attention_probs_dropout_prob,
                 max_position_embeddings=2
                 ** int(
                     np.ceil(
                         np.log2(
-                            config.ext1_up
-                            + config.ext1_down
-                            + config.ext2_up
-                            + config.ext2_down
+                            self.ext1_up
+                            + self.ext1_down
+                            + self.ext2_up
+                            + self.ext2_down
                             + 2
                         )
                     )
@@ -102,9 +95,9 @@ class CRIformerModel(PreTrainedModel):
             )
         )
         self.mlp = nn.Linear(
-            in_features=config.hidden_size,
-            out_features=(config.ext1_up + config.ext1_down + 1)
-            * (config.ext2_up + config.ext2_down + 1),
+            in_features=self.hidden_size,
+            out_features=(self.ext1_up + self.ext1_down + 1)
+            * (self.ext2_up + self.ext2_down + 1),
         )
 
     def forward(
@@ -119,12 +112,9 @@ class CRIformerModel(PreTrainedModel):
                 input_ids=input["refcode"].to(self.device),
                 attention_mask=torch.ones(
                     batch_size,
-                    self.config.ext1_up
-                    + self.config.ext1_down
-                    + self.config.ext2_up
-                    + self.config.ext2_down,
+                    self.ext1_up + self.ext1_down + self.ext2_up + self.ext2_down,
                     dtype=torch.int64,
-                    device=self.model.device,
+                    device=self.device,
                 ),
             ).last_hidden_state[:, -1, :]
         )
@@ -132,8 +122,8 @@ class CRIformerModel(PreTrainedModel):
             observation = torch.stack(
                 [
                     ob[
-                        c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
-                        c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                        c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                        c1 - self.ext1_up : c1 + self.ext1_down + 1,
                     ]
                     for ob, c1, c2 in zip(
                         label["observation"], label["cut1"], label["cut2"]
@@ -165,8 +155,8 @@ class CRIformerModel(PreTrainedModel):
         result = self(input=batch["input"], label=None, my_generator=None)
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]
-        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
-        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        ref1_dim = self.ext1_up + self.ext1_down + 1
+        ref2_dim = self.ext2_up + self.ext2_down + 1
         df = pd.DataFrame(
             {
                 "sample_idx": repeat(
@@ -177,13 +167,13 @@ class CRIformerModel(PreTrainedModel):
                 ),
                 "proba": probas.flatten(),
                 "rpos1": repeat(
-                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    np.arange(-self.ext1_up, self.ext1_down + 1),
                     "r1 -> (b r2 r1)",
                     b=batch_size,
                     r2=ref2_dim,
                 ),
                 "rpos2": repeat(
-                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    np.arange(-self.ext2_up, self.ext2_down + 1),
                     "r2 -> (b r2 r1)",
                     b=batch_size,
                     r1=ref1_dim,

@@ -678,15 +678,17 @@ class XGBoostEvalCallBack(xgb.callback.TrainingCallback):
     def __init__(
         self,
         parent: PreTrainedModel,
+        eval_dataloader: torch.utils.data.DataLoader,
     ):
         self.parent = parent
+        self.eval_dataloader = eval_dataloader
 
     def after_iteration(
         self, booster: xgb.Booster, epoch: int, performance: dict[str, dict]
     ) -> False:
         # parent.eval_output needs parent.booster
         self.parent.booster = booster
-        for examples in tqdm(self.parent.eval_dataloader):
+        for examples in tqdm(self.eval_dataloader):
             batch = self.parent.data_collator(examples, output_label=True)
             df = self.parent.eval_output(examples, batch)
             for metric_name, metric_fun in self.parent.metrics.items():
@@ -880,7 +882,7 @@ class XGBoostModel(PreTrainedModel):
             ],
             early_stopping_rounds=self.early_stopping_rounds,
             evals_result=self.performance,
-            callbacks=[XGBoostEvalCallBack(self)],
+            callbacks=[XGBoostEvalCallBack(self, eval_dataloader)],
         )
 
     def _get_feature(
