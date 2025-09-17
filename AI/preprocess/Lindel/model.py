@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Optional, Literal
-from transformers import PreTrainedModel, PretrainedConfig
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -13,7 +12,7 @@ from .data_collator import DataCollator
 from common_ai.utils import MyGenerator
 
 
-class LindelConfig(PretrainedConfig):
+class LindelModel(nn.Module):
     model_type = "Lindel"
 
     def __init__(
@@ -22,8 +21,7 @@ class LindelConfig(PretrainedConfig):
         mh_len: int,
         reg_mode: Literal["l2", "l1"],
         reg_const: float,
-        **kwargs,
-    ):
+    ) -> None:
         """Lindel parameters
 
         Args:
@@ -32,29 +30,19 @@ class LindelConfig(PretrainedConfig):
             reg_model: regularization method, should be l2 or l1.
             reg_const: regularization coefficient.
         """
-        self.dlen = dlen
-        self.mh_len = mh_len
+        super().__init__()
         self.reg_mode = reg_mode
         self.reg_const = reg_const
-        super().__init__(**kwargs)
 
-
-class LindelModel(PreTrainedModel):
-    config_class = LindelConfig
-
-    def __init__(self, config: LindelConfig) -> None:
-        super().__init__(config)
-        self.data_collator = DataCollator(dlen=config.dlen, mh_len=config.mh_len)
-        self.reg_mode = config.reg_mode
-        self.reg_const = config.reg_const
+        self.data_collator = DataCollator(dlen=dlen, mh_len=mh_len)
         # onehotencoder(ref[cut-17:cut+3])
         self.model_indel = nn.Linear(in_features=20 * 4 + 19 * 16, out_features=2)
         # onehotencoder(ref[cut-3:cut+3])
         self.model_ins = nn.Linear(in_features=6 * 4 + 5 * 16, out_features=21)
         # concatenate get_feature and onehotencoder(ref[cut-17:cut+3])
-        class_dim = (5 + 1 + 5 + config.dlen - 1) * (config.dlen - 1) // 2
+        class_dim = (5 + 1 + 5 + dlen - 1) * (dlen - 1) // 2
         self.model_del = nn.Linear(
-            in_features=class_dim * (config.mh_len + 1) + 20 * 4 + 19 * 16,
+            in_features=class_dim * (mh_len + 1) + 20 * 4 + 19 * 16,
             out_features=class_dim,
         )
 

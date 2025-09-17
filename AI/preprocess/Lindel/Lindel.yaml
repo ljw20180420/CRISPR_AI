@@ -1,4 +1,4 @@
-class_path: AI.preprocess.Lindel.model.LindelConfig
+class_path: AI.preprocess.Lindel.model.LindelModel
 init_args:
   dlen: 30
   mh_len: 4
