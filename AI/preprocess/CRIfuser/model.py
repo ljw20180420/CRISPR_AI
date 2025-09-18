@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
-from transformers import PreTrainedModel, PretrainedConfig
 from typing import Optional, Literal
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -18,7 +17,7 @@ from .data_collator import DataCollator
 from common_ai.utils import MyGenerator
 
 
-class CRIfuserConfig(PretrainedConfig):
+class CRIfuserModel(nn.Module):
     model_type = "CRIfuser"
 
     def __init__(
@@ -46,8 +45,7 @@ class CRIfuserConfig(PretrainedConfig):
         exp_scale: float,
         exp_base: float,
         uniform_scale: float,
-        **kwargs,
-    ):
+    ) -> None:
         """CRIfuser arguments.
 
         Args:
@@ -65,11 +63,11 @@ class CRIfuserConfig(PretrainedConfig):
             exp_base: base parameter of exponential noise scheduler.
             uniform_scale: scale parameter for uniform scheduler.
         """
+        super().__init__()
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.max_micro_homology = max_micro_homology
         self.loss_weights = loss_weights
         self.unet_channels = unet_channels
         self.noise_scheduler = noise_scheduler
@@ -78,37 +76,26 @@ class CRIfuserConfig(PretrainedConfig):
         self.exp_scale = exp_scale
         self.exp_base = exp_base
         self.uniform_scale = uniform_scale
-        super().__init__(**kwargs)
 
-
-class CRIfuserModel(PreTrainedModel):
-    config_class = CRIfuserConfig
-
-    def __init__(self, config: CRIfuserConfig) -> None:
-        super().__init__(config)
         self.data_collator = DataCollator(
-            ext1_up=config.ext1_up,
-            ext1_down=config.ext1_down,
-            ext2_up=config.ext2_up,
-            ext2_down=config.ext2_down,
-            max_micro_homology=config.max_micro_homology,
+            ext1_up=ext1_up,
+            ext1_down=ext1_down,
+            ext2_up=ext2_up,
+            ext2_down=ext2_down,
+            max_micro_homology=max_micro_homology,
         )
-        self.stationary_sampler1 = Categorical(
-            torch.ones(config.ext1_up + config.ext1_down + 1)
-        )
-        self.stationary_sampler2 = Categorical(
-            torch.ones(config.ext2_up + config.ext2_down + 1)
-        )
+        self.stationary_sampler1 = Categorical(torch.ones(ext1_up + ext1_down + 1))
+        self.stationary_sampler2 = Categorical(torch.ones(ext2_up + ext2_down + 1))
         # time
         self.time_emb = nn.Sequential(
             nn.Linear(
-                in_features=config.unet_channels[0],
-                out_features=4 * config.unet_channels[0],
+                in_features=unet_channels[0],
+                out_features=4 * unet_channels[0],
             ),
             nn.SiLU(),
             nn.Linear(
-                in_features=4 * config.unet_channels[0],
-                out_features=4 * config.unet_channels[0],
+                in_features=4 * unet_channels[0],
+                out_features=4 * unet_channels[0],
             ),
         )
         # down blocks
@@ -116,36 +103,36 @@ class CRIfuserModel(PreTrainedModel):
         self.down_first_convs = nn.ModuleList([])
         self.down_second_convs = nn.ModuleList([])
         self.down_samples = nn.ModuleList([])
-        for i in range(len(config.unet_channels) // 2):
+        for i in range(len(unet_channels) // 2):
             self.down_first_convs.append(
                 nn.Sequential(
                     nn.Conv2d(
-                        in_channels=11 if i == 0 else config.unet_channels[i - 1],
-                        out_channels=config.unet_channels[i],
+                        in_channels=11 if i == 0 else unet_channels[i - 1],
+                        out_channels=unet_channels[i],
                         kernel_size=3,
                         padding=1,
                     ),
-                    nn.BatchNorm2d(num_features=config.unet_channels[i]),
+                    nn.BatchNorm2d(num_features=unet_channels[i]),
                     nn.SiLU(inplace=True),
                 )
             )
             self.down_second_convs.append(
                 nn.Sequential(
                     nn.Conv2d(
-                        in_channels=config.unet_channels[i],
-                        out_channels=config.unet_channels[i],
+                        in_channels=unet_channels[i],
+                        out_channels=unet_channels[i],
                         kernel_size=3,
                         padding=1,
                     ),
-                    nn.BatchNorm2d(num_features=config.unet_channels[i]),
+                    nn.BatchNorm2d(num_features=unet_channels[i]),
                     nn.SiLU(inplace=True),
                 )
             )
             self.down_time_embs.append(
                 nn.Sequential(
                     nn.Linear(
-                        in_features=4 * config.unet_channels[0],
-                        out_features=config.unet_channels[i],
+                        in_features=4 * unet_channels[0],
+                        out_features=unet_channels[i],
                     ),
                     nn.SiLU(),
                 )
@@ -153,34 +140,34 @@ class CRIfuserModel(PreTrainedModel):
             self.down_samples.append(
                 nn.MaxPool2d(
                     kernel_size=2
-                )  # nn.AvgPool2d(kernel_size=2), nn.Conv2d(config.unet_channels[i], config.unet_channels[i], kernel_size=2, stride=2)
+                )  # nn.AvgPool2d(kernel_size=2), nn.Conv2d(unet_channels[i], unet_channels[i], kernel_size=2, stride=2)
             )
         # mid block
-        i = len(config.unet_channels) // 2
+        i = len(unet_channels) // 2
         self.mid_first_conv = nn.Sequential(
             nn.Conv2d(
-                in_channels=config.unet_channels[i - 1],
-                out_channels=config.unet_channels[i],
+                in_channels=unet_channels[i - 1],
+                out_channels=unet_channels[i],
                 kernel_size=3,
                 padding=1,
             ),
-            nn.BatchNorm2d(num_features=config.unet_channels[i]),
+            nn.BatchNorm2d(num_features=unet_channels[i]),
             nn.SiLU(inplace=True),
         )
         self.mid_second_conv = nn.Sequential(
             nn.Conv2d(
-                in_channels=config.unet_channels[i],
-                out_channels=config.unet_channels[i],
+                in_channels=unet_channels[i],
+                out_channels=unet_channels[i],
                 kernel_size=3,
                 padding=1,
             ),
-            nn.BatchNorm2d(num_features=config.unet_channels[i]),
+            nn.BatchNorm2d(num_features=unet_channels[i]),
             nn.SiLU(inplace=True),
         )
         self.mid_time_emb = nn.Sequential(
             nn.Linear(
-                in_features=4 * config.unet_channels[0],
-                out_features=config.unet_channels[i],
+                in_features=4 * unet_channels[0],
+                out_features=unet_channels[i],
             ),
             nn.SiLU(),
         )
@@ -189,11 +176,11 @@ class CRIfuserModel(PreTrainedModel):
         self.up_time_embs = nn.ModuleList([])
         self.up_first_convs = nn.ModuleList([])
         self.up_second_convs = nn.ModuleList([])
-        for i in range(len(config.unet_channels) // 2, len(config.unet_channels) - 1):
+        for i in range(len(unet_channels) // 2, len(unet_channels) - 1):
             self.up_samples.append(
                 nn.ConvTranspose2d(
-                    in_channels=config.unet_channels[i],
-                    out_channels=config.unet_channels[i + 1],
+                    in_channels=unet_channels[i],
+                    out_channels=unet_channels[i + 1],
                     kernel_size=2,
                     stride=2,
                 )
@@ -201,8 +188,8 @@ class CRIfuserModel(PreTrainedModel):
             self.up_time_embs.append(
                 nn.Sequential(
                     nn.Linear(
-                        in_features=4 * config.unet_channels[0],
-                        out_features=config.unet_channels[i + 1],
+                        in_features=4 * unet_channels[0],
+                        out_features=unet_channels[i + 1],
                     ),
                     nn.SiLU(),
                 )
@@ -210,30 +197,30 @@ class CRIfuserModel(PreTrainedModel):
             self.up_first_convs.append(
                 nn.Sequential(
                     nn.Conv2d(
-                        in_channels=config.unet_channels[i + 1]
-                        + config.unet_channels[len(config.unet_channels) - i - 2],
-                        out_channels=config.unet_channels[i + 1],
+                        in_channels=unet_channels[i + 1]
+                        + unet_channels[len(unet_channels) - i - 2],
+                        out_channels=unet_channels[i + 1],
                         kernel_size=3,
                         padding=1,
                     ),
-                    nn.BatchNorm2d(num_features=config.unet_channels[i + 1]),
+                    nn.BatchNorm2d(num_features=unet_channels[i + 1]),
                     nn.SiLU(inplace=True),
                 )
             )
             self.up_second_convs.append(
                 nn.Sequential(
                     nn.Conv2d(
-                        in_channels=config.unet_channels[i + 1],
-                        out_channels=config.unet_channels[i + 1],
+                        in_channels=unet_channels[i + 1],
+                        out_channels=unet_channels[i + 1],
                         kernel_size=3,
                         padding=1,
                     ),
-                    nn.BatchNorm2d(num_features=config.unet_channels[i + 1]),
+                    nn.BatchNorm2d(num_features=unet_channels[i + 1]),
                     nn.SiLU(inplace=True),
                 )
             )
         self.out_cov = nn.Conv2d(
-            in_channels=config.unet_channels[-1],
+            in_channels=unet_channels[-1],
             out_channels=1,
             kernel_size=1,
         )
@@ -263,7 +250,7 @@ class CRIfuserModel(PreTrainedModel):
         t_emb = self.time_emb(
             get_timestep_embedding(
                 t.to(self.device),
-                embedding_dim=self.config.unet_channels[0],
+                embedding_dim=self.unet_channels[0],
                 flip_sin_to_cos=True,
                 downscale_freq_shift=0,
             )
@@ -299,8 +286,8 @@ class CRIfuserModel(PreTrainedModel):
         observation = torch.stack(
             [
                 ob[
-                    c2 - self.config.ext2_up : c2 + self.config.ext2_down + 1,
-                    c1 - self.config.ext1_up : c1 + self.config.ext1_down + 1,
+                    c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                    c1 - self.ext1_up : c1 + self.ext1_down + 1,
                 ]
                 for ob, c1, c2 in zip(
                     label["observation"], label["cut1"], label["cut2"]
@@ -309,7 +296,7 @@ class CRIfuserModel(PreTrainedModel):
         ).to(self.device)
         t = torch.randint(
             1,
-            self.config.noise_timesteps,
+            self.noise_timesteps,
             (batch_size,),
             generator=generator,
             device=self.device,
@@ -359,12 +346,12 @@ class CRIfuserModel(PreTrainedModel):
         observation: torch.Tensor,
     ) -> float:
         loss = 0
-        if "double_sample_negative_ELBO" in self.config.loss_weights:
+        if "double_sample_negative_ELBO" in self.loss_weights:
             loss += (
                 self._double_sample_negative_ELBO(condition, x1t, x2t, t)
-                * self.config.loss_weights["double_sample_negative_ELBO"]
+                * self.loss_weights["double_sample_negative_ELBO"]
             )
-        if "importance_sample_negative_ELBO" in self.config.loss_weights:
+        if "importance_sample_negative_ELBO" in self.loss_weights:
             loss += (
                 self._importance_sample_negative_ELBO(
                     x10,
@@ -374,28 +361,28 @@ class CRIfuserModel(PreTrainedModel):
                     t,
                     p_theta_0_on_t_logit,
                 )
-            ) * self.config.loss_weights["importance_sample_negative_ELBO"]
-        if "forward_negative_ELBO" in self.config.loss_weights:
+            ) * self.loss_weights["importance_sample_negative_ELBO"]
+        if "forward_negative_ELBO" in self.loss_weights:
             loss += (
                 self._forward_negative_ELBO(x1t, x2t, t, p_theta_0_on_t_logit)
-                * self.config.loss_weights["forward_negative_ELBO"]
+                * self.loss_weights["forward_negative_ELBO"]
             )
-        if "reverse_negative_ELBO" in self.config.loss_weights:
+        if "reverse_negative_ELBO" in self.loss_weights:
             loss += (
                 self._reverse_negative_ELBO(
                     x1t, x2t, t, p_theta_0_on_t_logit, observation
                 )
-                * self.config.loss_weights["reverse_negative_ELBO"]
+                * self.loss_weights["reverse_negative_ELBO"]
             )
-        if "sample_CE" in self.config.loss_weights:
+        if "sample_CE" in self.loss_weights:
             loss += (
                 self._sample_CE(x10, x20, p_theta_0_on_t_logit)
-                * self.config.loss_weights["sample_CE"]
+                * self.loss_weights["sample_CE"]
             )
-        if "non_sample_CE" in self.config.loss_weights:
+        if "non_sample_CE" in self.loss_weights:
             loss += (
                 self._non_sample_CE(x1t, x2t, t, p_theta_0_on_t_logit, observation)
-                * self.config.loss_weights["non_sample_CE"]
+                * self.loss_weights["non_sample_CE"]
             )
         loss_num = observation.sum(dim=[1, 2]) * self._beta(t)
         loss = (loss * loss_num).sum()
@@ -409,7 +396,7 @@ class CRIfuserModel(PreTrainedModel):
             proba = torch.ones(ref2_dim, ref1_dim, device=self.device) / (
                 ref2_dim * ref1_dim
             )
-            for step in range(self.config.noise_timesteps - 1, 0, -1):
+            for step in range(self.noise_timesteps - 1, 0, -1):
                 p_theta_0_on_t_logit = self.single_pass(
                     condition=repeat(
                         batch["input"]["condition"][i],
@@ -495,13 +482,13 @@ class CRIfuserModel(PreTrainedModel):
                 ),
                 "proba": probas.flatten(),
                 "rpos1": repeat(
-                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    np.arange(-self.ext1_up, self.ext1_down + 1),
                     "r1 -> (b r2 r1)",
                     b=batch_size,
                     r2=ref2_dim,
                 ),
                 "rpos2": repeat(
-                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    np.arange(-self.ext2_up, self.ext2_down + 1),
                     "r2 -> (b r2 r1)",
                     b=batch_size,
                     r1=ref1_dim,
@@ -598,16 +585,16 @@ class CRIfuserModel(PreTrainedModel):
     def _alpha(self, t: torch.Tensor, s: Optional[torch.Tensor] = None) -> torch.Tensor:
         if s is None:
             s = torch.zeros(t.shape, device=self.device)
-        if self.config.noise_scheduler == "linear":
-            return (self.config.noise_timesteps - t) / (
-                self.config.noise_timesteps - s
-            ).maximum(torch.tensor(torch.finfo(torch.float32).tiny))
-        if self.config.noise_scheduler == "cosine":
+        if self.noise_scheduler == "linear":
+            return (self.noise_timesteps - t) / (self.noise_timesteps - s).maximum(
+                torch.tensor(torch.finfo(torch.float32).tiny)
+            )
+        if self.noise_scheduler == "cosine":
 
             def cosine_frac(t: torch.Tensor) -> torch.Tensor:
                 return torch.cos(
-                    (t / self.config.noise_timesteps + self.config.cosine_factor)
-                    / (1 + self.config.cosine_factor)
+                    (t / self.noise_timesteps + self.cosine_factor)
+                    / (1 + self.cosine_factor)
                     * torch.pi
                     / 2
                 )
@@ -615,46 +602,46 @@ class CRIfuserModel(PreTrainedModel):
             return cosine_frac(t) / cosine_frac(s).maximum(
                 torch.tensor(torch.finfo(torch.float32).tiny)
             )
-        if self.config.noise_scheduler == "exp":
+        if self.noise_scheduler == "exp":
             return torch.exp(
-                self.config.noise_timesteps
-                * self.config.exp_scale
+                self.noise_timesteps
+                * self.exp_scale
                 * (
-                    self.config.exp_base ** (s / self.config.noise_timesteps)
-                    - self.config.exp_base ** (t / self.config.noise_timesteps)
+                    self.exp_base ** (s / self.noise_timesteps)
+                    - self.exp_base ** (t / self.noise_timesteps)
                 )
             )
         assert (
-            self.config.noise_scheduler == "uniform"
+            self.noise_scheduler == "uniform"
         ), "supported noise schedulers are linear, cosine, exp, uniform"
-        return torch.exp(self.config.uniform_scale * (s - t))
+        return torch.exp(self.uniform_scale * (s - t))
 
     def _beta(self, t: torch.Tensor) -> torch.Tensor:
-        if self.config.noise_scheduler == "linear":
-            return 1 / (self.config.noise_timesteps - t).maximum(
+        if self.noise_scheduler == "linear":
+            return 1 / (self.noise_timesteps - t).maximum(
                 torch.tensor(torch.finfo(torch.float32).tiny)
             )
-        if self.config.noise_scheduler == "cosine":
+        if self.noise_scheduler == "cosine":
             return (
                 torch.pi
                 * torch.tan(
-                    (t / self.config.noise_timesteps + self.config.cosine_factor)
-                    / (1 + self.config.cosine_factor)
+                    (t / self.noise_timesteps + self.cosine_factor)
+                    / (1 + self.cosine_factor)
                     * torch.pi
                     / 2
                 )
-                / (2 * self.config.noise_timesteps * (1 + self.config.cosine_factor))
+                / (2 * self.noise_timesteps * (1 + self.cosine_factor))
             )
-        if self.config.noise_scheduler == "exp":
+        if self.noise_scheduler == "exp":
             return (
-                self.config.exp_scale
-                * self.config.exp_base ** (t / self.config.noise_timesteps)
-                * torch.log(torch.tensor(self.config.exp_base))
+                self.exp_scale
+                * self.exp_base ** (t / self.noise_timesteps)
+                * torch.log(torch.tensor(self.exp_base))
             )
         assert (
-            self.config.noise_scheduler == "uniform"
+            self.noise_scheduler == "uniform"
         ), "supported noise schedulers are linear, cosine, exp, uniform"
-        return torch.full(t.shape, self.config.uniform_scale, device=self.device)
+        return torch.full(t.shape, self.uniform_scale, device=self.device)
 
     def _q_rkm_d(
         self,
@@ -957,9 +944,9 @@ class CRIfuserModel(PreTrainedModel):
             )
         x1t = self.stationary_sampler1.sample(sample_num)
         x2t = self.stationary_sampler2.sample(sample_num)
-        t = torch.full((sample_num,), self.config.noise_timesteps - 1)
+        t = torch.full((sample_num,), self.noise_timesteps - 1)
         path = [(x1t.cpu().numpy(), x2t.cpu().numpy())]
-        for step in range(self.config.noise_timesteps - 1, 0, -1):
+        for step in range(self.noise_timesteps - 1, 0, -1):
             if perfect_ob is None:
                 p_theta_0_on_t_logit = self.single_pass(
                     condition,
@@ -994,14 +981,14 @@ class CRIfuserModel(PreTrainedModel):
         fig, ax = plt.subplots()
         x1t, x2t = path[-1]
         scat = ax.scatter(
-            x1t - self.config.ext1_up,
-            x2t - self.config.ext2_up,
+            x1t - self.ext1_up,
+            x2t - self.ext2_up,
             c="b",
             s=5,
         )
         ax.set(
-            xlim=[-self.config.ext1_up, self.config.ext1_down],
-            ylim=[-self.config.ext2_up, self.config.ext2_down],
+            xlim=[-self.ext1_up, self.ext1_down],
+            ylim=[-self.ext2_up, self.ext2_down],
             xlabel="ref1",
             ylabel="ref2",
         )

@@ -9,7 +9,7 @@ test_config=AI/preprocess/test.yaml
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
-    for pre_model in DeepHF:SGDClassifier
+    for pre_model in CRIfuser:CRIfuser
     # for pre_model in \
     #     CRIformer:CRIformer \
     #     inDelphi:inDelphi \
