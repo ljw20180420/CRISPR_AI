@@ -60,9 +60,6 @@ Summarize benchmarks results by
 # TODO
 
 - Migrate from PreTrainedModel to nn.Module.
-- Incremental train for XGBoost.
-- Clarify early stopping, metric, pruner.
-- Modify hpo.py accordingly.
 - git pull from both common_ai and CRISPR_AI. Tune `reg_lambda` for XGBoost.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
@@ -77,7 +74,7 @@ Summarize benchmarks results by
 - model interpret.
 - tensorboard.
 - early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
-- LightGBM, XGBoost, hmmlearn
+- LightGBM, XGBoost, hmmlearn, seqlearn, pystruct
 - Use model.eval() in test and inference
 - Use os.PathLike
 - do pre-computation when initialize data collator and model so that subsequent computations are faster

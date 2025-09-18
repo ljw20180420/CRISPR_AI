@@ -34,7 +34,7 @@ def get_config() -> tuple[jsonargparse.ArgumentParser]:
             DeepHF_M.MLPModel,
             DeepHF_M.CNNModel,
             DeepHF_M.XGBoostModel,
-            DeepHF_M.RidgeModel,
+            DeepHF_M.SGDClassifierModel,
             FOREcasT_M.FOREcasTModel,
             inDelphi_M.inDelphiModel,
             Lindel_M.LindelModel,

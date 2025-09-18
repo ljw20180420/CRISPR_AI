@@ -18,7 +18,7 @@ do
         DeepHF:CNN \
         DeepHF:MLP \
         DeepHF:XGBoost \
-        DeepHF:Ridge \
+        DeepHF:SGDClassifier \
         CRIfuser:CRIfuser \
         FOREcasT:FOREcasT
     do

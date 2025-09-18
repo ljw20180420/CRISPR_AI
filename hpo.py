@@ -323,20 +323,20 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    em_drop=trial.suggest_float("CNN.CNN.em_drop", 0.0, 0.2),
-                    fc_drop=trial.suggest_float("CNN.CNN.fc_drop", 0.0, 0.2),
-                    em_dim=trial.suggest_int("CNN.CNN.em_dim", 26, 46),
+                    em_drop=trial.suggest_float("DeepHF.CNN.em_drop", 0.0, 0.2),
+                    fc_drop=trial.suggest_float("DeepHF.CNN.fc_drop", 0.0, 0.2),
+                    em_dim=trial.suggest_int("DeepHF.CNN.em_dim", 26, 46),
                     fc_num_hidden_layers=trial.suggest_int(
-                        "CNN.CNN.fc_num_hidden_layers", 2, 4
+                        "DeepHF.CNN.fc_num_hidden_layers", 2, 4
                     ),
-                    fc_num_units=trial.suggest_int("CNN.CNN.fc_num_units", 300, 500),
+                    fc_num_units=trial.suggest_int("DeepHF.CNN.fc_num_units", 300, 500),
                     fc_activation=trial.suggest_categorical(
-                        "CNN.CNN.fc_activation",
+                        "DeepHF.CNN.fc_activation",
                         choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
                     ),
                     kernel_sizes=[1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13],
                     feature_maps=trial.suggest_categorical(
-                        "CNN.CNN.feature_maps",
+                        "DeepHF.CNN.feature_maps",
                         choices=[
                             [
                                 20,
@@ -411,13 +411,13 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    fc_drop=trial.suggest_float("MLP.MLP.fc_drop", 0.0, 0.2),
+                    fc_drop=trial.suggest_float("DeepHF.MLP.fc_drop", 0.0, 0.2),
                     fc_num_hidden_layers=trial.suggest_int(
-                        "MLP.MLP.fc_num_hidden_layers", 3, 5
+                        "DeepHF.MLP.fc_num_hidden_layers", 3, 5
                     ),
-                    fc_num_units=trial.suggest_int("MLP.MLP.fc_num_units", 300, 500),
+                    fc_num_units=trial.suggest_int("DeepHF.MLP.fc_num_units", 300, 500),
                     fc_activation=trial.suggest_categorical(
-                        "MLP.MLP.fc_activation",
+                        "DeepHF.MLP.fc_activation",
                         choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
                     ),
                 )
@@ -427,25 +427,32 @@ class Objective:
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    eta=trial.suggest_float("XGBoost.XGBoost.eta", 0.05, 0.2),
-                    max_depth=trial.suggest_int("XGBoost.XGBoost.max_depath", 4, 6),
-                    subsample=trial.suggest_float(
-                        "XGBoost.XGBoost.subsample", 0.8, 1.0
-                    ),
+                    eta=trial.suggest_float("DeepHF.XGBoost.eta", 0.05, 0.2),
+                    max_depth=trial.suggest_int("DeepHF.XGBoost.max_depath", 4, 6),
+                    subsample=trial.suggest_float("DeepHF.XGBoost.subsample", 0.8, 1.0),
                     reg_lambda=trial.suggest_float(
-                        "XGBoost.XGBoost.reg_lambda", 400.0, 1000.0
+                        "DeepHF.XGBoost.reg_lambda", 400.0, 1000.0
                     ),
                     num_boost_round=trial.suggest_int(
-                        "XGBoost.XGBoost.num_boost_round", 10, 20
+                        "DeepHF.XGBoost.num_boost_round", 10, 20
                     ),
                 )
-            elif self.model_type == "Ridge":
+            elif self.model_type == "SGDClassifier":
                 cfg.init_args = jsonargparse.Namespace(
                     ext1_up=25,
                     ext1_down=6,
                     ext2_up=6,
                     ext2_down=25,
-                    alpha=trial.suggest_float("Ridge.Ridge.alpha", 50.0, 200.0),
+                    penalty=trial.suggest_categorical(
+                        "DeepHF.SGDClassifier.penalty",
+                        choices=["l2", "l1", "elasticnet", None],
+                    ),
+                    alpha=trial.suggest_float(
+                        "DeepHF.SGDClassifier.alpha", 0.00005, 0.0002
+                    ),
+                    l1_ratio=trial.suggest_float(
+                        "DeepHF.SGDClassifier.l1_ratio", 0.075, 0.3
+                    ),
                 )
         elif self.preprocess == "FOREcasT":
             if self.model_type == "FOREcasT":

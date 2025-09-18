@@ -1,30 +1,21 @@
-import importlib
 import itertools
-import json
-import logging
-import os
-import pathlib
-import pickle
-from typing import Literal, Optional, Callable
+from typing import Literal, Optional
 
-import datasets
-import jsonargparse
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import xgboost as xgb
-from einops import einsum, rearrange, repeat
-from einops.layers.torch import Rearrange
-from scipy.special import softmax
-from sklearn import linear_model
+from scipy import special
+from sklearn import linear_model, preprocessing
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from tqdm import tqdm
-from transformers import PretrainedConfig, PreTrainedModel
+from einops import einsum, rearrange, repeat
+from einops.layers.torch import Rearrange
 
+from tqdm import tqdm
 from .data_collator import DataCollator
 from common_ai.utils import MyGenerator
 from common_ai.train import MyTrain
@@ -759,7 +750,6 @@ class XGBoostModel:
         eval_loss = (
             float(self.booster.eval(self.Xy_eval).split(":")[1]) * self.eval_loss_num
         )
-        metric_loss_dict = {}
         for examples in tqdm(my_train.eval_dataloader):
             batch = self.data_collator(examples, output_label=True)
             df = self.eval_output(examples, batch)
@@ -770,6 +760,7 @@ class XGBoostModel:
                     batch=batch,
                 )
 
+        metric_loss_dict = {}
         for metric_name, metric_fun in my_train.metrics.items():
             metric_loss_dict[metric_name] = metric_fun.epoch()
 
@@ -815,8 +806,8 @@ class XGBoostModel:
         return X_value
 
 
-class RidgeConfig(PretrainedConfig):
-    model_type = "Ridge"
+class SGDClassifierModel:
+    model_type = "SGDClassifier"
 
     def __init__(
         self,
@@ -824,52 +815,65 @@ class RidgeConfig(PretrainedConfig):
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
+        penalty: Optional[Literal["l2", "l1", "elasticnet"]],
         alpha: float,
-        **kwargs,
+        l1_ratio: float,
     ) -> None:
-        """Ridge arguments.
+        """SGDClassifier arguments.
 
         Args:
             ext1_up: upstream limit of the resection of the upstream end.
             ext1_down: downstream limit of the templated insertion of the upstream end.
             ext2_up: upstream limit of the templated insertion of the downstream end.
             ext2_down: downstream limit of the resection of the downstream end.
-            alpha: constant that multiplies the L2 term, controlling regularization strength.
+            penalty: regularization type among l2, l1, l2/l1 (elasticnet), None.
+            alpha: constant that multiplies the penalty term, controlling regularization strength.
+            l1_ratio: ratio of l1 regularization, only relevant for elasticnet.
         """
+        super().__init__()
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
         self.ext2_up = ext2_up
         self.ext2_down = ext2_down
-        self.alpha = alpha
-        super().__init__(**kwargs)
 
-
-class RidgeModel(PreTrainedModel):
-    config_class = RidgeConfig
-
-    def __init__(self, config: RidgeConfig) -> None:
-        super().__init__(config)
         self.data_collator = DataCollator(
-            ext1_up=config.ext1_up,
-            ext1_down=config.ext1_down,
-            ext2_up=config.ext2_up,
-            ext2_down=config.ext2_down,
+            ext1_up=ext1_up,
+            ext1_down=ext1_down,
+            ext2_up=ext2_up,
+            ext2_down=ext2_down,
         )
+        self.sgd_classifier = linear_model.SGDClassifier(
+            loss="log_loss",
+            penalty=penalty,
+            alpha=alpha,
+            l1_ratio=l1_ratio,
+            n_jobs=-1,
+        )
+        self.classes = np.arange((ext1_up + ext1_down + 1) * (ext2_up + ext2_down + 1))
 
     def eval_output(
         self,
         examples: list[dict],
         batch: dict,
     ) -> pd.DataFrame:
-        X_value = self._get_feature(
-            input=batch["input"],
-            label=None,
+        probas = preprocessing.normalize(
+            np.maximum(
+                special.expit(
+                    self.sgd_classifier.decision_function(
+                        X=self._get_feature(
+                            input=batch["input"],
+                            label=None,
+                        )
+                    ),
+                ),
+                1e-10,
+            ),
+            norm="l1",
+            axis=1,
         )
-        logits = self.ridge.decision_function(X_value)
-        probas = softmax(logits, axis=1)
         batch_size = probas.shape[0]
-        ref1_dim = self.config.ext1_up + self.config.ext1_down + 1
-        ref2_dim = self.config.ext2_up + self.config.ext2_down + 1
+        ref1_dim = self.ext1_up + self.ext1_down + 1
+        ref2_dim = self.ext2_up + self.ext2_down + 1
         df = pd.DataFrame(
             {
                 "sample_idx": repeat(
@@ -880,13 +884,13 @@ class RidgeModel(PreTrainedModel):
                 ),
                 "proba": probas.flatten(),
                 "rpos1": repeat(
-                    np.arange(-self.config.ext1_up, self.config.ext1_down + 1),
+                    np.arange(-self.ext1_up, self.ext1_down + 1),
                     "r1 -> (b r2 r1)",
                     b=batch_size,
                     r2=ref2_dim,
                 ),
                 "rpos2": repeat(
-                    np.arange(-self.config.ext2_up, self.config.ext2_down + 1),
+                    np.arange(-self.ext2_up, self.ext2_down + 1),
                     "r2 -> (b r2 r1)",
                     b=batch_size,
                     r1=ref1_dim,
@@ -895,78 +899,91 @@ class RidgeModel(PreTrainedModel):
         )
         return df
 
-    def my_train_model(
+    def state_dict(self) -> dict:
+        return {"sgd_classifier": self.sgd_classifier}
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        self.sgd_classifier = state_dict["sgd_classifier"]
+
+    def my_train_epoch(
         self,
-        dataset: datasets.Dataset,
-        batch_size: int,
-        train_parser: jsonargparse.ArgumentParser,
-        cfg: jsonargparse.Namespace,
-        model_path: os.PathLike,
-        logger: logging.Logger,
+        my_train: MyTrain,
     ) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        logger.info("train Ridge")
-        self._train_Ridge(
-            train_dataloader=torch.utils.data.DataLoader(
-                dataset=dataset["train"],
-                batch_size=batch_size,
-                collate_fn=lambda examples: examples,
-            ),
-            eval_dataloader=torch.utils.data.DataLoader(
-                dataset=dataset["validation"],
-                batch_size=batch_size,
-                collate_fn=lambda examples: examples,
-            ),
-        )
-        logger.info("save Ridge")
-        self._save_Ridge(model_path)
-        train_parser.save(
-            cfg=cfg,
-            path=model_path / "train.yaml",
-            overwrite=True,
-        )
-
-    def my_load_model(self, model_path: os.PathLike, target: str) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        with open(model_path / "ridge.pkl", "rb") as fd:
-            self.ridge = pickle.load(fd)
-
-    def _save_Ridge(self, model_path: os.PathLike) -> None:
-        model_path = pathlib.Path(os.fspath(model_path))
-        os.makedirs(model_path, exist_ok=True)
-        with open(model_path / "ridge.pkl", "wb") as fd:
-            pickle.dump(self.ridge, fd)
-
-    def _train_Ridge(
-        self,
-        train_dataloader: torch.utils.data.DataLoader,
-        eval_dataloader: torch.utils.data.DataLoader,
-    ) -> None:
-        X_train, y_train, w_train = [], [], []
-        for examples in tqdm(itertools.chain(train_dataloader, eval_dataloader)):
+        train_loss, train_loss_num = 0.0, 0.0
+        for examples in tqdm(my_train.train_dataloader):
             batch = self.data_collator(examples, output_label=True)
             X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
-            X_train.append(X_value)
-            y_train.append(y_value)
-            w_train.append(w_value)
-        # Append all 1024 classes with zero weights to force ridge's internal classes_ equals 1024.
-        X_train.append(X_train[-1][[-1] * 1024, :])
-        y_train.append(np.arange(1024))
-        w_train.append(np.zeros(1024))
-        X_train = np.concatenate(X_train)
-        y_train = np.concatenate(y_train)
-        w_train = np.concatenate(w_train)
+            self.sgd_classifier.partial_fit(
+                X=X_value,
+                y=y_value,
+                classes=self.classes,
+                sample_weight=w_value,
+            )
+            train_loss += (
+                (
+                    np.ma.log(
+                        preprocessing.normalize(
+                            np.maximum(
+                                special.expit(
+                                    self.sgd_classifier.decision_function(X=X_value)
+                                ),
+                                1e-10,
+                            ),
+                            norm="l1",
+                            axis=1,
+                        )
+                    ).filled(-1000)[np.arange(y_value.shape[0]), y_value]
+                    * w_value
+                )
+                .sum()
+                .item()
+            )
+            train_loss_num += w_value.sum().item()
 
-        self.ridge = linear_model.RidgeClassifier(
-            alpha=self.config.alpha,
-            fit_intercept=True,
-            copy_X=True,
-            max_iter=None,
-            solver="auto",
-        )
-        self.ridge.fit(X=X_train, y=y_train, sample_weight=w_train)
+        return train_loss, train_loss_num, float("nan")
+
+    def my_eval_epoch(self, my_train: MyTrain):
+        eval_loss, eval_loss_num = 0.0, 0.0
+        for examples in tqdm(my_train.eval_dataloader):
+            batch = self.data_collator(examples, output_label=True)
+            X_value, y_value, w_value = self._get_feature(
+                input=batch["input"], label=batch["label"]
+            )
+            eval_loss += (
+                (
+                    np.ma.log(
+                        preprocessing.normalize(
+                            np.maximum(
+                                special.expit(
+                                    self.sgd_classifier.decision_function(X=X_value)
+                                ),
+                                1e-10,
+                            ),
+                            norm="l1",
+                            axis=1,
+                        )
+                    ).filled(-1000)[np.arange(y_value.shape[0]), y_value]
+                    * w_value
+                )
+                .sum()
+                .item()
+            )
+            eval_loss_num += w_value.sum().item()
+            df = self.eval_output(examples, batch)
+            for metric_name, metric_fun in my_train.metrics.items():
+                metric_fun.step(
+                    df=df,
+                    examples=examples,
+                    batch=batch,
+                )
+
+        metric_loss_dict = {}
+        for metric_name, metric_fun in my_train.metrics.items():
+            metric_loss_dict[metric_name] = metric_fun.epoch()
+
+        return eval_loss, eval_loss_num, metric_loss_dict
 
     def _get_feature(
         self,
@@ -992,14 +1009,8 @@ class RidgeModel(PreTrainedModel):
                     torch.stack(
                         [
                             ob[
-                                c2
-                                - self.config.ext2_up : c2
-                                + self.config.ext2_down
-                                + 1,
-                                c1
-                                - self.config.ext1_up : c1
-                                + self.config.ext1_down
-                                + 1,
+                                c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                                c1 - self.ext1_up : c1 + self.ext1_down + 1,
                             ]
                             for ob, c1, c2 in zip(
                                 label["observation"], label["cut1"], label["cut2"]
