@@ -8,12 +8,11 @@ from typing import Optional
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import rearrange, einsum, repeat
-from transformers import PreTrainedModel, PretrainedConfig
 from .data_collator import DataCollator
 from common_ai.utils import MyGenerator
 
 
-class FOREcasTConfig(PretrainedConfig):
+class FOREcasTModel(nn.Module):
     model_type = "FOREcasT"
 
     def __init__(
@@ -21,7 +20,6 @@ class FOREcasTConfig(PretrainedConfig):
         max_del_size: int,
         reg_const: float,
         i1_reg_const: float,
-        **kwargs,
     ) -> None:
         """FOREcasT arguments.
 
@@ -30,24 +28,15 @@ class FOREcasTConfig(PretrainedConfig):
             reg_const: regularization coefficient for insertion.
             i1_reg_const: regularization coefficient for deletion.
         """
-        self.max_del_size = max_del_size
-        self.reg_const = reg_const
-        self.i1_reg_const = i1_reg_const
-        super().__init__(**kwargs)
+        super().__init__()
 
-
-class FOREcasTModel(PreTrainedModel):
-    config_class = FOREcasTConfig
-
-    def __init__(self, config: FOREcasTConfig) -> None:
-        super().__init__(config)
-        self.data_collator = DataCollator(max_del_size=config.max_del_size)
+        self.data_collator = DataCollator(max_del_size=max_del_size)
         is_delete = torch.tensor(
             ["I" not in label for label in self._get_feature_label()]
         )
         self.register_buffer(
             "reg_coff",
-            (is_delete * config.reg_const + ~is_delete * config.i1_reg_const),
+            (is_delete * reg_const + ~is_delete * i1_reg_const),
         )
         self.linear = nn.Linear(
             in_features=len(self.reg_coff), out_features=1, bias=False

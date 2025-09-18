@@ -1,4 +1,4 @@
-class_path: AI.preprocess.FOREcasT.model.FOREcasTConfig
+class_path: AI.preprocess.FOREcasT.model.FOREcasTModel
 init_args:
   max_del_size: 30
   reg_const: 0.01
