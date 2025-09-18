@@ -8,3 +8,4 @@ init_args:
   max_depth: 10
   subsample: 0.8
   reg_lambda: 10.0
+  num_boost_round: 15

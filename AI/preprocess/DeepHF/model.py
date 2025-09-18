@@ -593,6 +593,7 @@ class XGBoostModel:
         max_depth: int,
         subsample: float,
         reg_lambda: float,
+        num_boost_round: int,
     ) -> None:
         """XGBoost arguments.
 
@@ -605,6 +606,7 @@ class XGBoostModel:
             max_depth: maximum depth of a tree.
             subsample: subsample ratio of the training instances.
             reg_lambda: L2 regularization term on weights.
+            num_boost_round: Number of trees generated in single epochs.
         """
         super().__init__()
         self.ext1_up = ext1_up
@@ -615,6 +617,7 @@ class XGBoostModel:
         self.max_depth = max_depth
         self.subsample = subsample
         self.reg_lambda = reg_lambda
+        self.num_boost_round = num_boost_round
 
         self.data_collator = DataCollator(
             ext1_up=ext1_up,
@@ -715,7 +718,7 @@ class XGBoostModel:
                 "seed": 63036,
             },
             dtrain=self.Xy_train,
-            num_boost_round=1,
+            num_boost_round=self.num_boost_round,
             # put Xy_eval at the last in evals because early stopping use the last dataset in evals by default
             evals=[(self.Xy_train, "train")],
             evals_result=evals_result,

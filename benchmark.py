@@ -13,7 +13,7 @@ preprocess_model_type_pairs = [
     ("DeepHF", "MLP"),
     ("DeepHF", "CNN"),
     ("DeepHF", "XGBoost"),
-    # ("DeepHF", "Ridge"),
+    ("DeepHF", "Ridge"),
     ("FOREcasT", "FOREcasT"),
     ("inDelphi", "inDelphi"),
     ("Lindel", "Lindel"),

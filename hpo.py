@@ -435,6 +435,9 @@ class Objective:
                     reg_lambda=trial.suggest_float(
                         "XGBoost.XGBoost.reg_lambda", 400.0, 1000.0
                     ),
+                    num_boost_round=trial.suggest_int(
+                        "XGBoost.XGBoost.num_boost_round", 10, 20
+                    ),
                 )
             elif self.model_type == "Ridge":
                 cfg.init_args = jsonargparse.Namespace(

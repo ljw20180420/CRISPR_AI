@@ -7,7 +7,6 @@ train_config=AI/preprocess/train.yaml
 output_dir=${OUTPUT_DIR:-$HOME}
 test_config=AI/preprocess/test.yaml
 evaluation_only=${evaluation_only:-true}
-num_boost_round=500
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
@@ -19,6 +18,7 @@ do
         DeepHF:CNN \
         DeepHF:MLP \
         DeepHF:XGBoost \
+        DeepHF:Ridge \
         CRIfuser:CRIfuser \
         FOREcasT:FOREcasT
     do
@@ -28,7 +28,7 @@ do
         # Train or Eval
         case ${model_type} in
             XGBoost)
-                ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs ${num_boost_round} --train.device cpu --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model ${model_config}
+                ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.device cpu --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model ${model_config}
             ;;
             *)
                 ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model ${model_config}
