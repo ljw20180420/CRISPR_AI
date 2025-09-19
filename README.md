@@ -72,20 +72,14 @@ Summarize benchmarks results by
   - plot_tree
 - model interpret.
 - tensorboard.
-- LightGBM, XGBoost, hmmlearn, seqlearn, pystruct
+- LightGBM, XGBoost, CatBoost, hmmlearn, seqlearn, pystruct
 - Use model.eval() in test and inference
-- Use os.PathLike
-- do pre-computation when initialize data collator and model so that subsequent computations are faster
 - Add api documentation after finish the project
 - train use float32
-- add type hint
-
-- parallel data_collator, especially for FOREcasT
 
 - noise2noise explanation of prediction results
 - put more weights on small steps of diffusion
 - increase model parameters
-- decrease model window size (128 -> 64 -> 32)
 - use latent diffuser
 - use mamba
 - use KAN
