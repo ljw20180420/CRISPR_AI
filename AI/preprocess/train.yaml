@@ -9,7 +9,6 @@ train:
   device: cuda # cuda, cpu
   evaluation_only: false
 
-# train components
 initializer:
   name: kaiming_uniform_ # uniform_, normal_, xavier_uniform_, xavier_normal_, kaiming_uniform_, kaiming_normal_, trunc_normal_
 
@@ -32,12 +31,15 @@ dataset:
   insert_uplimit: 2
   seed: 63036
 
-# utils
 generator:
   seed: 63036
 
 logger:
   log_level: WARNING # CRITICAL, FATAL, ERROR, WARNING, INFO, DEBUG, NOTSET
+
+early_stopping:
+  patience: null
+  delta: 0.0
 
 metric:
   - class_path: AI.preprocess.metric.CrossEntropy
