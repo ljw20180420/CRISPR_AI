@@ -1,4 +1,4 @@
 class_path: AI.preprocess.inDelphi.model.inDelphiModel
 init_args:
-  DELLEN_LIMIT: 60
+  DELLEN_LIMIT: 45
   mid_dim: 16

@@ -457,7 +457,7 @@ class Objective:
         elif self.preprocess == "FOREcasT":
             if self.model_type == "FOREcasT":
                 cfg.init_args = jsonargparse.Namespace(
-                    max_del_size=30,
+                    max_del_size=44,
                     reg_const=trial.suggest_float(
                         "FOREcasT.FOREcasT.reg_const", 0.0, 0.02
                     ),
@@ -468,13 +468,13 @@ class Objective:
         elif self.preprocess == "inDelphi":
             if self.model_type == "inDelphi":
                 cfg.init_args = jsonargparse.Namespace(
-                    DELLEN_LIMIT=60,
+                    DELLEN_LIMIT=45,
                     mid_dim=trial.suggest_int("inDelphi.inDelphi.mid_dim", 16, 64),
                 )
         elif self.preprocess == "Lindel":
             if self.model_type == "Lindel":
                 cfg.init_args = jsonargparse.Namespace(
-                    dlen=30,
+                    dlen=45,
                     mh_len=trial.suggest_int("Lindel.Lindel.mh_len", 3, 5),
                     reg_mode=trial.suggest_categorical(
                         "Lindel.Lindel.reg_mode", choices=["l2", "l1"]
