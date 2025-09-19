@@ -59,7 +59,6 @@ Summarize benchmarks results by
 
 # TODO
 
-- git pull from both common_ai and CRISPR_AI. Tune `reg_lambda` for XGBoost.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.

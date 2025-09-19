@@ -1,4 +1,4 @@
-import itertools
+import io
 from typing import Literal, Optional
 
 import numpy as np
@@ -664,10 +664,12 @@ class XGBoostModel:
         return df
 
     def state_dict(self) -> dict:
-        return {"booster": self.booster.save_raw()}
+        return {"booster": torch.frombuffer(self.booster.save_raw(), dtype=torch.uint8)}
 
     def load_state_dict(self, state_dict: dict) -> None:
-        self.booster = xgb.Booster(model_file=state_dict["booster"])
+        self.booster = xgb.Booster(
+            model_file=bytearray(state_dict["booster"].numpy().tobytes())
+        )
 
     def my_train_epoch(self, my_train: MyTrain):
         if not hasattr(self, "Xy_train") or not hasattr(self, "train_loss_num"):
