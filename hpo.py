@@ -201,6 +201,10 @@ class Objective:
         cfg.logger = jsonargparse.Namespace(
             log_level="WARNING",
         )
+        cfg.early_stopping = jsonargparse.Namespace(
+            patience=None,
+            delta=0.0,
+        )
         cfg.metric = [
             jsonargparse.Namespace(
                 class_path=class_path,
