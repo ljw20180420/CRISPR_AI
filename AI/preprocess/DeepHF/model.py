@@ -17,7 +17,7 @@ from einops.layers.torch import Rearrange
 
 from tqdm import tqdm
 from .data_collator import DataCollator
-from common_ai.utils import MyGenerator
+from common_ai.generator import MyGenerator
 from common_ai.train import MyTrain
 
 

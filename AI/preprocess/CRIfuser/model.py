@@ -13,8 +13,9 @@ from tqdm import tqdm
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
 from einops import einsum, rearrange, repeat
+
 from .data_collator import DataCollator
-from common_ai.utils import MyGenerator
+from common_ai.generator import MyGenerator
 
 
 class CRIfuserModel(nn.Module):
