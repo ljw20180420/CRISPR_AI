@@ -708,7 +708,7 @@ class XGBoostModel:
                 "reg_lambda": self.reg_lambda,
                 "objective": "multi:softprob",
                 "num_class": num_class,
-                "seed": 63036,
+                "seed": my_train.my_generator.seed,
             },
             dtrain=self.Xy_train,
             num_boost_round=self.num_boost_round,
