@@ -1,4 +1,4 @@
-import io
+import pickle
 from typing import Literal, Optional
 
 import numpy as np
@@ -902,10 +902,16 @@ class SGDClassifierModel:
         return df
 
     def state_dict(self) -> dict:
-        return {"sgd_classifier": self.sgd_classifier}
+        return {
+            "sgd_classifier": torch.frombuffer(
+                bytearray(pickle.dumps(self.sgd_classifier)), dtype=torch.uint8
+            )
+        }
 
     def load_state_dict(self, state_dict: dict) -> None:
-        self.sgd_classifier = state_dict["sgd_classifier"]
+        self.sgd_classifier = pickle.loads(
+            state_dict["sgd_classifier"].numpy().tobytes()
+        )
 
     def my_train_epoch(
         self,
