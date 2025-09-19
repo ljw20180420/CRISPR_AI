@@ -72,7 +72,6 @@ Summarize benchmarks results by
   - plot_tree
 - model interpret.
 - tensorboard.
-- early stopping (https://github.com/Bjarten/early-stopping-pytorch). This is inspired by the ignite EarlyStopping class.
 - LightGBM, XGBoost, hmmlearn, seqlearn, pystruct
 - Use model.eval() in test and inference
 - Use os.PathLike

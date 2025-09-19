@@ -15,6 +15,7 @@ from einops import einsum, repeat
 
 from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
+from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
 
 
@@ -302,11 +303,20 @@ class inDelphiModel(nn.Module):
         ]:
             setattr(self, component, state_dict["scikit_learn_state_dict"][component])
 
-    def my_train_epoch(self, my_train: MyTrain) -> tuple[float]:
-        train_loss, train_loss_num, grad_norm = my_train.my_train_epoch()
+    def my_train_epoch(
+        self,
+        my_train: MyTrain,
+        train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
+        my_generator: MyGenerator,
+        my_optimizer: MyOptimizer,
+    ) -> tuple[float]:
+        train_loss, train_loss_num, grad_norm = my_train.my_train_epoch(
+            self, train_dataloader, my_generator, my_optimizer
+        )
         self.train_knn(
-            train_dataloader=my_train.train_dataloader,
-            eval_dataloader=my_train.eval_dataloader,
+            train_dataloader=train_dataloader,
+            eval_dataloader=eval_dataloader,
         )
         return train_loss, train_loss_num, grad_norm
 

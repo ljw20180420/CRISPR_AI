@@ -18,6 +18,7 @@ from einops.layers.torch import Rearrange
 from tqdm import tqdm
 from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
+from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
 
 
@@ -671,10 +672,17 @@ class XGBoostModel:
             model_file=bytearray(state_dict["booster"].numpy().tobytes())
         )
 
-    def my_train_epoch(self, my_train: MyTrain):
+    def my_train_epoch(
+        self,
+        my_train: MyTrain,
+        train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
+        my_generator: MyGenerator,
+        my_optimizer: MyOptimizer,
+    ):
         if not hasattr(self, "Xy_train") or not hasattr(self, "train_loss_num"):
             X_train, y_train, w_train = [], [], []
-            for examples in tqdm(my_train.train_dataloader):
+            for examples in tqdm(train_dataloader):
                 batch = self.data_collator(examples, output_label=True)
                 X_value, y_value, w_value = self._get_feature(
                     input=batch["input"], label=batch["label"]
@@ -708,7 +716,7 @@ class XGBoostModel:
                 "reg_lambda": self.reg_lambda,
                 "objective": "multi:softprob",
                 "num_class": num_class,
-                "seed": my_train.my_generator.seed,
+                "seed": my_generator.seed,
             },
             dtrain=self.Xy_train,
             num_boost_round=self.num_boost_round,
@@ -724,10 +732,16 @@ class XGBoostModel:
             float("nan"),
         )
 
-    def my_eval_epoch(self, my_train: MyTrain):
+    def my_eval_epoch(
+        self,
+        my_train: MyTrain,
+        eval_dataloader: torch.utils.data.DataLoader,
+        my_generator: MyGenerator,
+        metrics: dict,
+    ):
         if not hasattr(self, "Xy_eval") or not hasattr(self, "eval_loss_num"):
             X_eval, y_eval, w_eval = [], [], []
-            for examples in tqdm(my_train.eval_dataloader):
+            for examples in tqdm(eval_dataloader):
                 batch = self.data_collator(examples, output_label=True)
                 X_value, y_value, w_value = self._get_feature(
                     input=batch["input"], label=batch["label"]
@@ -752,10 +766,10 @@ class XGBoostModel:
         eval_loss = (
             float(self.booster.eval(self.Xy_eval).split(":")[1]) * self.eval_loss_num
         )
-        for examples in tqdm(my_train.eval_dataloader):
+        for examples in tqdm(eval_dataloader):
             batch = self.data_collator(examples, output_label=True)
             df = self.eval_output(examples, batch)
-            for metric_name, metric_fun in my_train.metrics.items():
+            for metric_name, metric_fun in metrics.items():
                 metric_fun.step(
                     df=df,
                     examples=examples,
@@ -763,7 +777,7 @@ class XGBoostModel:
                 )
 
         metric_loss_dict = {}
-        for metric_name, metric_fun in my_train.metrics.items():
+        for metric_name, metric_fun in metrics.items():
             metric_loss_dict[metric_name] = metric_fun.epoch()
 
         return eval_loss, self.eval_loss_num, metric_loss_dict
@@ -916,9 +930,13 @@ class SGDClassifierModel:
     def my_train_epoch(
         self,
         my_train: MyTrain,
+        train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
+        my_generator: MyGenerator,
+        my_optimizer: MyOptimizer,
     ) -> None:
         train_loss, train_loss_num = 0.0, 0.0
-        for examples in tqdm(my_train.train_dataloader):
+        for examples in tqdm(train_dataloader):
             batch = self.data_collator(examples, output_label=True)
             X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
@@ -952,9 +970,15 @@ class SGDClassifierModel:
 
         return train_loss, train_loss_num, float("nan")
 
-    def my_eval_epoch(self, my_train: MyTrain):
+    def my_eval_epoch(
+        self,
+        my_train: MyTrain,
+        eval_dataloader: torch.utils.data.DataLoader,
+        my_generator: MyGenerator,
+        metrics: dict,
+    ):
         eval_loss, eval_loss_num = 0.0, 0.0
-        for examples in tqdm(my_train.eval_dataloader):
+        for examples in tqdm(eval_dataloader):
             batch = self.data_collator(examples, output_label=True)
             X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
@@ -980,7 +1004,7 @@ class SGDClassifierModel:
             )
             eval_loss_num += w_value.sum().item()
             df = self.eval_output(examples, batch)
-            for metric_name, metric_fun in my_train.metrics.items():
+            for metric_name, metric_fun in metrics.items():
                 metric_fun.step(
                     df=df,
                     examples=examples,
@@ -988,7 +1012,7 @@ class SGDClassifierModel:
                 )
 
         metric_loss_dict = {}
-        for metric_name, metric_fun in my_train.metrics.items():
+        for metric_name, metric_fun in metrics.items():
             metric_loss_dict[metric_name] = metric_fun.epoch()
 
         return eval_loss, eval_loss_num, metric_loss_dict
