@@ -37,10 +37,14 @@ do
 
         # Test
         model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/default
-        ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target CrossEntropy
-        ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonZeroCrossEntropy
-        ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonWildTypeCrossEntropy
-        ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target NonZeroNonWildTypeCrossEntropy
-        ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target GreatestCommonCrossEntropy
+        for target in \
+            CrossEntropy \
+            NonZeroCrossEntropy \
+            NonWildTypeCrossEntropy \
+            NonZeroNonWildTypeCrossEntropy \
+            GreatestCommonCrossEntropy
+        do
+            ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target ${target}
+        done
     done
 done
