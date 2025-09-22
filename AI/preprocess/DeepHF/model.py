@@ -18,6 +18,7 @@ from einops.layers.torch import Rearrange
 from tqdm import tqdm
 from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
+from common_ai.initializer import MyInitializer
 from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
 
@@ -625,6 +626,11 @@ class XGBoostModel:
         )
         self.booster = None
 
+    def my_initialize_model(
+        self, my_initializer: MyInitializer, my_generator: MyGenerator
+    ):
+        pass
+
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
@@ -876,6 +882,11 @@ class SGDClassifierModel:
             n_jobs=-1,
         )
         self.classes = np.arange((ext1_up + ext1_down + 1) * (ext2_up + ext2_down + 1))
+
+    def my_initialize_model(
+        self, my_initializer: MyInitializer, my_generator: MyGenerator
+    ):
+        pass
 
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
