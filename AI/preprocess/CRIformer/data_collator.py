@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from ..utils import MicroHomologyTool
 from common_ai.utils import SeqTokenizer
+from common_ai.generator import MyGenerator
 
 
 class DataCollator:
@@ -21,7 +22,9 @@ class DataCollator:
         self.seq_tokenizer = SeqTokenizer("ACGT")
         self.micro_homology_tool = MicroHomologyTool()
 
-    def __call__(self, examples: list[dict], output_label: bool) -> dict:
+    def __call__(
+        self, examples: list[dict], output_label: bool, my_generator: MyGenerator
+    ) -> dict:
         refcodes = []
         if output_label:
             cut1s, cut2s, observation_list = [], [], []

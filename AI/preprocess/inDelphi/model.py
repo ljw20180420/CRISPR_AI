@@ -149,9 +149,7 @@ class inDelphiModel(nn.Module):
         return loss, loss_num
 
     def eval_output(
-        self,
-        examples: list[dict],
-        batch: dict,
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
         result = self(input=batch["input"], label=None, my_generator=None)
         knn_feature = self._get_knn_feature(
@@ -314,10 +312,7 @@ class inDelphiModel(nn.Module):
         train_loss, train_loss_num, grad_norm = my_train.my_train_epoch(
             self, train_dataloader, my_generator, my_optimizer
         )
-        self.train_knn(
-            train_dataloader=train_dataloader,
-            eval_dataloader=eval_dataloader,
-        )
+        self.train_knn(train_dataloader, eval_dataloader, my_generator)
         return train_loss, train_loss_num, grad_norm
 
     @torch.no_grad()
@@ -325,13 +320,16 @@ class inDelphiModel(nn.Module):
         self,
         train_dataloader: torch.utils.data.DataLoader,
         eval_dataloader: torch.utils.data.DataLoader,
+        my_generator: MyGenerator,
     ) -> None:
         self.eval()
         knn_features = []
         insert_probabilities = []
         m654s = np.zeros((4**3, 4), dtype=int)
         for examples in tqdm(itertools.chain(train_dataloader, eval_dataloader)):
-            batch = self.data_collator(examples, output_label=True)
+            batch = self.data_collator(
+                examples, output_label=True, my_generator=my_generator
+            )
             result = self(input=batch["input"], label=None, my_generator=None)
             knn_features.append(
                 self._get_knn_feature(

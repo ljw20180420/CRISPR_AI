@@ -207,7 +207,9 @@ class FOREcasTModel(nn.Module):
         loss_num = batch_size
         return loss, loss_num
 
-    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+    def eval_output(
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
+    ) -> pd.DataFrame:
         result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()

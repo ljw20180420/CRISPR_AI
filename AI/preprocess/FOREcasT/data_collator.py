@@ -2,6 +2,7 @@ import torch.nn.functional as F
 import numpy as np
 import torch
 from ..utils import MicroHomologyTool
+from common_ai.generator import MyGenerator
 
 
 class DataCollator:
@@ -162,7 +163,9 @@ class DataCollator:
         return (features1.unsqueeze(-1) * features2.unsqueeze(-2)).flatten(start_dim=-2)
 
     @torch.no_grad()
-    def __call__(self, examples: list[dict], output_label: bool) -> dict:
+    def __call__(
+        self, examples: list[dict], output_label: bool, my_generator: MyGenerator
+    ) -> dict:
         features = []
         if output_label:
             counts, observation_list = [], []

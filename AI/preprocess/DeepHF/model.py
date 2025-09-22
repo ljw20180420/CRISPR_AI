@@ -179,7 +179,9 @@ class DeepHFModel(nn.Module):
         loss_num = einsum(observation, "b r2 r1 ->")
         return loss, loss_num
 
-    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+    def eval_output(
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
+    ) -> pd.DataFrame:
         result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
@@ -341,7 +343,9 @@ class MLPModel(nn.Module):
         loss_num = einsum(observation, "b r2 r1 ->")
         return loss, loss_num
 
-    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+    def eval_output(
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
+    ) -> pd.DataFrame:
         result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
@@ -539,7 +543,9 @@ class CNNModel(nn.Module):
         loss_num = einsum(observation, "b r2 r1 ->")
         return loss, loss_num
 
-    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+    def eval_output(
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
+    ) -> pd.DataFrame:
         result = self(input=batch["input"], label=None, my_generator=None)
 
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
@@ -620,9 +626,7 @@ class XGBoostModel:
         self.booster = None
 
     def eval_output(
-        self,
-        examples: list[dict],
-        batch: dict,
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
         X_value = self._get_feature(
             input=batch["input"],
@@ -683,7 +687,9 @@ class XGBoostModel:
         if not hasattr(self, "Xy_train") or not hasattr(self, "train_loss_num"):
             X_train, y_train, w_train = [], [], []
             for examples in tqdm(train_dataloader):
-                batch = self.data_collator(examples, output_label=True)
+                batch = self.data_collator(
+                    examples, output_label=True, my_generator=my_generator
+                )
                 X_value, y_value, w_value = self._get_feature(
                     input=batch["input"], label=batch["label"]
                 )
@@ -742,7 +748,9 @@ class XGBoostModel:
         if not hasattr(self, "Xy_eval") or not hasattr(self, "eval_loss_num"):
             X_eval, y_eval, w_eval = [], [], []
             for examples in tqdm(eval_dataloader):
-                batch = self.data_collator(examples, output_label=True)
+                batch = self.data_collator(
+                    examples, output_label=True, my_generator=my_generator
+                )
                 X_value, y_value, w_value = self._get_feature(
                     input=batch["input"], label=batch["label"]
                 )
@@ -767,8 +775,10 @@ class XGBoostModel:
             float(self.booster.eval(self.Xy_eval).split(":")[1]) * self.eval_loss_num
         )
         for examples in tqdm(eval_dataloader):
-            batch = self.data_collator(examples, output_label=True)
-            df = self.eval_output(examples, batch)
+            batch = self.data_collator(
+                examples, output_label=True, my_generator=my_generator
+            )
+            df = self.eval_output(examples, batch, my_generator)
             for metric_name, metric_fun in metrics.items():
                 metric_fun.step(
                     df=df,
@@ -868,9 +878,7 @@ class SGDClassifierModel:
         self.classes = np.arange((ext1_up + ext1_down + 1) * (ext2_up + ext2_down + 1))
 
     def eval_output(
-        self,
-        examples: list[dict],
-        batch: dict,
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
         probas = preprocessing.normalize(
             np.maximum(
@@ -937,7 +945,9 @@ class SGDClassifierModel:
     ) -> None:
         train_loss, train_loss_num = 0.0, 0.0
         for examples in tqdm(train_dataloader):
-            batch = self.data_collator(examples, output_label=True)
+            batch = self.data_collator(
+                examples, output_label=True, my_generator=my_generator
+            )
             X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
@@ -979,7 +989,9 @@ class SGDClassifierModel:
     ):
         eval_loss, eval_loss_num = 0.0, 0.0
         for examples in tqdm(eval_dataloader):
-            batch = self.data_collator(examples, output_label=True)
+            batch = self.data_collator(
+                examples, output_label=True, my_generator=my_generator
+            )
             X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
@@ -1003,7 +1015,7 @@ class SGDClassifierModel:
                 .item()
             )
             eval_loss_num += w_value.sum().item()
-            df = self.eval_output(examples, batch)
+            df = self.eval_output(examples, batch, my_generator)
             for metric_name, metric_fun in metrics.items():
                 metric_fun.step(
                     df=df,

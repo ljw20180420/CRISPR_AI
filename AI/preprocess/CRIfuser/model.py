@@ -390,7 +390,9 @@ class CRIfuserModel(nn.Module):
         loss_num = loss_num.sum()
         return loss, loss_num
 
-    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+    def eval_output(
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
+    ) -> pd.DataFrame:
         batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape
         probas = []
         for i in tqdm(range(batch_size)):

@@ -133,7 +133,9 @@ class CRIformerModel(nn.Module):
         loss_num = einsum(observation, "b r2 r1 ->")
         return loss, loss_num
 
-    def eval_output(self, examples: list[dict], batch: dict) -> pd.DataFrame:
+    def eval_output(
+        self, examples: list[dict], batch: dict, my_generator: MyGenerator
+    ) -> pd.DataFrame:
         result = self(input=batch["input"], label=None, my_generator=None)
         probas = F.softmax(result["logit"], dim=1).cpu().numpy()
         batch_size = probas.shape[0]

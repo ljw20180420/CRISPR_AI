@@ -6,6 +6,7 @@ from torch.backends import opt_einsum
 from einops import repeat, rearrange
 from ..utils import MicroHomologyTool
 from common_ai.utils import SeqTokenizer
+from common_ai.generator import MyGenerator
 
 
 class DataCollator:
@@ -28,7 +29,9 @@ class DataCollator:
         self.micro_homology_tool = MicroHomologyTool()
 
     @torch.no_grad()
-    def __call__(self, examples: list[dict], output_label: bool) -> dict:
+    def __call__(
+        self, examples: list[dict], output_label: bool, my_generator: MyGenerator
+    ) -> dict:
         conditions = []
         if output_label:
             cut1s, cut2s, observation_list = [], [], []
