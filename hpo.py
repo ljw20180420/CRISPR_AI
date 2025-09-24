@@ -11,8 +11,10 @@ import optuna
 import pandas as pd
 from torch import nn
 import yaml
+from tbparse import SummaryReader
 from common_ai.test import MyTest
 from common_ai.train import MyTrain
+from common_ai.utils import get_latest_event_file
 
 from AI.preprocess.config import get_config
 from AI.preprocess.dataset import get_dataset
@@ -66,15 +68,15 @@ class Objective:
         # train
         train_cfg = train_parser.parse_path(model_path / "train.yaml")
         dataset = get_dataset(**train_cfg.dataset.as_dict())
-        for epoch, performance in enumerate(
-            MyTrain(**train_cfg.train.as_dict())(
-                train_parser=train_parser,
-                cfg=train_cfg,
-                dataset=dataset,
-            )
+        for epoch, logdir in MyTrain(**train_cfg.train.as_dict())(
+            train_parser=train_parser,
+            cfg=train_cfg,
+            dataset=dataset,
         ):
+            latest_event_file, _ = get_latest_event_file(logdir)
+            df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
             trial.report(
-                value=performance["eval"][self.target_metric],
+                value=df.loc[df["step"] == epoch, f"eval/{self.target_metric}"].item(),
                 step=epoch,
             )
             if trial.should_prune():
@@ -85,10 +87,11 @@ class Objective:
         my_test = MyTest(**test_cfg.test.as_dict())
         best_train_cfg = my_test.get_best_cfg(train_parser)
         dataset = get_dataset(**best_train_cfg.dataset.as_dict())
-        my_test(cfg=best_train_cfg, dataset=dataset)
+        epoch, logdir = my_test(cfg=best_train_cfg, dataset=dataset)
+        latest_event_file, _ = get_latest_event_file(logdir)
+        df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
 
-        df = pd.read_csv(model_path / f"{my_test.target}_test_result.csv")
-        return df.loc[df["name"] == my_test.target, "loss"].item()
+        return df.loc[df["step"] == epoch, f"test/{my_test.target}"].item()
 
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()

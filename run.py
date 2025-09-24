@@ -16,7 +16,7 @@ cfg = parser.parse_args()
 
 if cfg.subcommand == "train":
     dataset = get_dataset(**cfg.train.dataset.as_dict())
-    for performance in MyTrain(**cfg.train.train.as_dict())(
+    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(
         train_parser=train_parser, cfg=cfg.train, dataset=dataset
     ):
         pass
@@ -25,7 +25,7 @@ elif cfg.subcommand == "test":
     my_test = MyTest(**cfg.test.test.as_dict())
     best_train_cfg = my_test.get_best_cfg(train_parser)
     dataset = get_dataset(**best_train_cfg.dataset.as_dict())
-    my_test(cfg=best_train_cfg, dataset=dataset)
+    epoch, logdir = my_test(cfg=best_train_cfg, dataset=dataset)
 
 elif cfg.subcommand == "upload":
     from AI.preprocess.upload import upload

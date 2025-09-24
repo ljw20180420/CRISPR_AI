@@ -179,7 +179,7 @@ class FOREcasTModel(nn.Module):
         return features_label
 
     def forward(
-        self, input: dict, label: Optional[dict], my_generator: MyGenerator
+        self, input: dict, label: Optional[dict], my_generator: Optional[MyGenerator]
     ) -> dict:
         logit = rearrange(self.linear(input["feature"].to(self.device)), "b m 1 -> b m")
         if label is not None:

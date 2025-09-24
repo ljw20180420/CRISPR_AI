@@ -71,7 +71,6 @@ Summarize benchmarks results by
   - plot_importance
   - plot_tree
 - model interpret.
-- tensorboard.
 - LightGBM, XGBoost, CatBoost, hmmlearn, seqlearn, pystruct
 - Use model.eval() in test and inference
 - Add api documentation after finish the project
