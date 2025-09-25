@@ -59,6 +59,8 @@ Summarize benchmarks results by
 
 # TODO
 
+- Save test result by tensorboard add_hparams.
+- Save hpo result by tensorboard add_hparams.
 - Retrain inDelphi, FOREcasT, Lindel with fair deletion size.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.

@@ -47,26 +47,27 @@ class Objective:
         self.target_metric = target_metric
 
     def __call__(self, trial: optuna.Trial):
-        model_path = (
+        checkpoints_path = (
             self.output_dir
+            / "checkpoints"
             / self.preprocess
             / self.model_type
             / self.data_name
             / self.study_name
             / f"trial-{trial._trial_id}"
         )
-        os.makedirs(model_path, exist_ok=True)
-        with open(model_path / "train.yaml", "w") as fd:
+        os.makedirs(checkpoints_path, exist_ok=True)
+        with open(checkpoints_path / "train.yaml", "w") as fd:
             yaml.dump(self.config_train(trial).as_dict(), fd)
-        with open(model_path / f"{self.model_type}.yaml", "w") as fd:
+        with open(checkpoints_path / f"{self.model_type}.yaml", "w") as fd:
             yaml.dump(self.config_model(trial).as_dict(), fd)
-        with open(model_path / "test.yaml", "w") as fd:
+        with open(checkpoints_path / "test.yaml", "w") as fd:
             yaml.dump(self.config_test(trial).as_dict(), fd)
 
         _, train_parser, test_parser = get_config()
 
         # train
-        train_cfg = train_parser.parse_path(model_path / "train.yaml")
+        train_cfg = train_parser.parse_path(checkpoints_path / "train.yaml")
         dataset = get_dataset(**train_cfg.dataset.as_dict())
         for epoch, logdir in MyTrain(**train_cfg.train.as_dict())(
             train_parser=train_parser,
@@ -83,7 +84,7 @@ class Objective:
                 break
 
         # test
-        test_cfg = test_parser.parse_path(model_path / "test.yaml")
+        test_cfg = test_parser.parse_path(checkpoints_path / "test.yaml")
         my_test = MyTest(**test_cfg.test.as_dict())
         best_train_cfg = my_test.get_best_cfg(train_parser)
         dataset = get_dataset(**best_train_cfg.dataset.as_dict())
@@ -96,8 +97,18 @@ class Objective:
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
         cfg.test = jsonargparse.Namespace(
-            model_path=(
+            checkpoints_path=(
                 self.output_dir
+                / "checkpoints"
+                / self.preprocess
+                / self.model_type
+                / self.data_name
+                / self.study_name
+                / f"trial-{trial._trial_id}"
+            ).as_posix(),
+            logs_path=(
+                self.output_dir
+                / "logs"
                 / self.preprocess
                 / self.model_type
                 / self.data_name
@@ -556,7 +567,7 @@ def main(
         study_name=study_name,
         target_metric=target_metric,
     )
-    study_path = output_dir / preprocess / model_type / data_name / study_name
+    study_path = output_dir / "logs" / preprocess / model_type / data_name / study_name
     os.makedirs(study_path, exist_ok=True)
     study = optuna.create_study(
         storage=optuna.storages.JournalStorage(

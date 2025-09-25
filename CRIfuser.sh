@@ -22,7 +22,8 @@ do
         ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name ${loss_function} --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model AI/preprocess/CRIfuser/CRIfuser.yaml --model.loss_weights "{'${loss_function}': ${loss_weight}}"
 
         # Test
-        model_path=${output_dir}/CRIfuser/CRIfuser/${data_name}/${loss_function}
+        checkpoints_path=${output_dir}/checkpoints/CRIfuser/CRIfuser/${data_name}/${loss_function}
+        logs_path=${output_dir}/logs/CRIfuser/CRIfuser/${data_name}/${loss_function}
         for target in \
             CrossEntropy \
             NonZeroCrossEntropy \
@@ -30,7 +31,7 @@ do
             NonZeroNonWildTypeCrossEntropy \
             GreatestCommonCrossEntropy
         do
-            ./run.py test --config ${test_config} --test.model_path ${model_path}  --test.target ${target}
+            ./run.py test --config ${test_config} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path}  --test.target ${target}
         done
     done
 done

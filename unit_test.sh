@@ -31,7 +31,8 @@ do
         ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name unit_test --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
         # Test
-        model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/unit_test
+        checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_type}/${data_name}/unit_test
+        logs_path=${output_dir}/logs/${preprocess}/${model_type}/${data_name}/unit_test
         for target in \
             CrossEntropy \
             NonZeroCrossEntropy \
@@ -39,7 +40,7 @@ do
             NonZeroNonWildTypeCrossEntropy \
             GreatestCommonCrossEntropy
         do
-            ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target ${target}
+            ./run.py test --config ${test_config} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.target ${target}
         done
     done
 done

@@ -36,7 +36,8 @@ do
         esac
 
         # Test
-        model_path=${output_dir}/${preprocess}/${model_type}/${data_name}/default
+        checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_type}/${data_name}/default
+        logs_path=${output_dir}/logs/${preprocess}/${model_type}/${data_name}/default
         for target in \
             CrossEntropy \
             NonZeroCrossEntropy \
@@ -44,7 +45,7 @@ do
             NonZeroNonWildTypeCrossEntropy \
             GreatestCommonCrossEntropy
         do
-            ./run.py test --config ${test_config} --test.model_path ${model_path} --test.target ${target}
+            ./run.py test --config ${test_config} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.target ${target}
         done
     done
 done
