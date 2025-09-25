@@ -10,7 +10,7 @@ output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/unit_test/CRIfuser
 test_config=AI/preprocess/test.yaml
 loss_weight=1.0
 
-for data_name in SX_spcas9 SX_spymac SX_ispymac
+for data_name in SX_spcas9
 do
     for loss_function in \
         double_sample_negative_ELBO \

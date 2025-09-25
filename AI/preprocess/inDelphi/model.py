@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import itertools
-from typing import Callable
+import optuna
+import jsonargparse
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -380,3 +381,16 @@ class inDelphiModel(nn.Module):
             ],
             axis=1,
         )
+
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "mid_dim": trial.suggest_int("mid_dim", 16, 64),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            DELLEN_LIMIT=45,
+            **hparam_dict,
+        )
+
+        return cfg, hparam_dict

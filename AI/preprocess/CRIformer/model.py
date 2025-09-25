@@ -8,6 +8,8 @@ import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 from typing import Optional
+import optuna
+import jsonargparse
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -165,3 +167,31 @@ class CRIformerModel(nn.Module):
             }
         )
         return df
+
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "hidden_size": trial.suggest_int("hidden_size", 128, 512, step=128),
+            "num_hidden_layers": trial.suggest_int("num_hidden_layers", 2, 4),
+            # num_attention_heads must devide hidden_size
+            "num_attention_heads": trial.suggest_categorical(
+                "num_attention_heads", choices=[2, 4, 8]
+            ),
+            "intermediate_size": trial.suggest_int(
+                "intermediate_size", 512, 2048, step=512
+            ),
+            "hidden_dropout_prob": trial.suggest_float("hidden_dropout_prob", 0.0, 0.1),
+            "attention_probs_dropout_prob": trial.suggest_float(
+                "attention_probs_dropout_prob", 0.0, 0.1
+            ),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            ext1_up=25,
+            ext1_down=6,
+            ext2_up=6,
+            ext2_down=25,
+            **hparam_dict,
+        )
+
+        return cfg, hparam_dict

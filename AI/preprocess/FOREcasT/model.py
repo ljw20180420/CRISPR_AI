@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Optional
+import optuna
+import jsonargparse
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -301,3 +303,17 @@ class FOREcasTModel(nn.Module):
             }
         )
         return df
+
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "reg_const": trial.suggest_float("reg_const", 0.0, 0.02),
+            "i1_reg_const": trial.suggest_float("i1_reg_const", 0.0, 0.02),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            max_del_size=44,
+            **hparam_dict,
+        )
+
+        return cfg, hparam_dict

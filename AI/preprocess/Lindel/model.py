@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import Optional, Literal
+import optuna
+import jsonargparse
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -229,3 +231,15 @@ class LindelModel(nn.Module):
         )
 
         return df
+
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "mh_len": trial.suggest_int("mh_len", 3, 5),
+            "reg_mode": trial.suggest_categorical("reg_mode", choices=["l2", "l1"]),
+            "reg_const": trial.suggest_float("reg_const", 0.0, 0.02),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(dlen=45, **hparam_dict)
+
+        return cfg, hparam_dict

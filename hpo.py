@@ -6,11 +6,10 @@ import pathlib
 from typing import Literal
 
 import jsonargparse
-import numpy as np
 import optuna
-import pandas as pd
 from torch import nn
 import yaml
+from torch.utils.tensorboard import SummaryWriter
 from tbparse import SummaryReader
 from common_ai.test import MyTest
 from common_ai.train import MyTrain
@@ -34,7 +33,7 @@ class Objective:
         batch_size: int,
         num_epochs: int,
         study_name: str,
-        target_metric: str,
+        target: str,
     ) -> None:
         self.output_dir = pathlib.Path(os.fspath(output_dir))
         self.preprocess = preprocess
@@ -44,30 +43,57 @@ class Objective:
         self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.study_name = study_name
-        self.target_metric = target_metric
-
-    def __call__(self, trial: optuna.Trial):
-        checkpoints_path = (
+        self.target = target
+        self.checkpoints_path = (
             self.output_dir
             / "checkpoints"
             / self.preprocess
             / self.model_type
             / self.data_name
             / self.study_name
-            / f"trial-{trial._trial_id}"
         )
-        os.makedirs(checkpoints_path, exist_ok=True)
-        with open(checkpoints_path / "train.yaml", "w") as fd:
+        self.logs_path = (
+            self.output_dir
+            / "logs"
+            / self.preprocess
+            / self.model_type
+            / self.data_name
+            / self.study_name
+        )
+
+    def __call__(self, trial: optuna.Trial):
+        os.makedirs(self.checkpoints_path / f"trial-{trial._trial_id}", exist_ok=True)
+        with open(
+            self.checkpoints_path / f"trial-{trial._trial_id}" / "train.yaml", "w"
+        ) as fd:
             yaml.dump(self.config_train(trial).as_dict(), fd)
-        with open(checkpoints_path / f"{self.model_type}.yaml", "w") as fd:
-            yaml.dump(self.config_model(trial).as_dict(), fd)
-        with open(checkpoints_path / "test.yaml", "w") as fd:
+        with open(
+            self.checkpoints_path / f"trial-{trial._trial_id}" / "test.yaml", "w"
+        ) as fd:
             yaml.dump(self.config_test(trial).as_dict(), fd)
+        with open(
+            self.checkpoints_path
+            / f"trial-{trial._trial_id}"
+            / f"{self.model_type}.yaml",
+            "w",
+        ) as fd:
+            model_module = importlib.import_module(
+                f"AI.preprocess.{self.preprocess}.model"
+            )
+            cfg, hparam_dict = getattr(
+                model_module, f"{self.model_type}Model"
+            ).my_model_hpo(trial)
+            cfg.class_path = (
+                f"AI.preprocess.{self.preprocess}.model.{self.model_type}Model"
+            )
+            yaml.dump(cfg.as_dict(), fd)
 
         _, train_parser, test_parser = get_config()
 
         # train
-        train_cfg = train_parser.parse_path(checkpoints_path / "train.yaml")
+        train_cfg = train_parser.parse_path(
+            self.checkpoints_path / f"trial-{trial._trial_id}" / "train.yaml"
+        )
         dataset = get_dataset(**train_cfg.dataset.as_dict())
         for epoch, logdir in MyTrain(**train_cfg.train.as_dict())(
             train_parser=train_parser,
@@ -77,45 +103,45 @@ class Objective:
             latest_event_file = get_latest_event_file(logdir)
             df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
             trial.report(
-                value=df.loc[df["step"] == epoch, f"eval/{self.target_metric}"].item(),
+                value=df.loc[df["step"] == epoch, f"eval/{self.target}"].item(),
                 step=epoch,
             )
             if trial.should_prune():
                 break
 
         # test
-        test_cfg = test_parser.parse_path(checkpoints_path / "test.yaml")
+        test_cfg = test_parser.parse_path(
+            self.checkpoints_path / f"trial-{trial._trial_id}" / "test.yaml"
+        )
         my_test = MyTest(**test_cfg.test.as_dict())
         best_train_cfg = my_test.get_best_cfg(train_parser)
         dataset = get_dataset(**best_train_cfg.dataset.as_dict())
         epoch, logdir = my_test(cfg=best_train_cfg, dataset=dataset)
         latest_event_file = get_latest_event_file(logdir)
         df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
+        target_metric_val = df.loc[df["step"] == epoch, f"test/{my_test.target}"].item()
+        tensorboard_writer = SummaryWriter(self.logs_path / "hpo")
+        full_hparam_dict = {
+            "preprocess": self.preprocess,
+            "model_type": self.model_type,
+        }
+        full_hparam_dict.update(hparam_dict)
+        tensorboard_writer.add_hparams(
+            hparam_dict=full_hparam_dict,
+            metric_dict={f"test/{my_test.target}": target_metric_val},
+        )
+        tensorboard_writer.close()
 
-        return df.loc[df["step"] == epoch, f"test/{my_test.target}"].item()
+        return target_metric_val
 
     def config_test(self, trial: optuna.Trial) -> jsonargparse.Namespace:
         cfg = jsonargparse.Namespace()
         cfg.test = jsonargparse.Namespace(
             checkpoints_path=(
-                self.output_dir
-                / "checkpoints"
-                / self.preprocess
-                / self.model_type
-                / self.data_name
-                / self.study_name
-                / f"trial-{trial._trial_id}"
+                self.checkpoints_path / f"trial-{trial._trial_id}"
             ).as_posix(),
-            logs_path=(
-                self.output_dir
-                / "logs"
-                / self.preprocess
-                / self.model_type
-                / self.data_name
-                / self.study_name
-                / f"trial-{trial._trial_id}"
-            ).as_posix(),
-            target=self.target_metric,
+            logs_path=(self.logs_path / f"trial-{trial._trial_id}").as_posix(),
+            target=self.target,
             batch_size=100,
             device="cuda",
         )
@@ -240,268 +266,6 @@ class Objective:
         cfg.model = f"{self.model_type}.yaml"
         return cfg
 
-    def config_model(
-        self,
-        trial: optuna.Trial,
-    ) -> jsonargparse.Namespace:
-        cfg = jsonargparse.Namespace()
-        cfg.class_path = f"AI.preprocess.{self.preprocess}.model.{self.model_type}Model"
-
-        if self.preprocess == "CRIformer":
-            if self.model_type == "CRIformer":
-                cfg.init_args = jsonargparse.Namespace(
-                    ext1_up=25,
-                    ext1_down=6,
-                    ext2_up=6,
-                    ext2_down=25,
-                    hidden_size=trial.suggest_int(
-                        "CRIformer.CRIformer.hidden_size", 128, 512, step=128
-                    ),
-                    num_hidden_layers=trial.suggest_int(
-                        "CRIformer.CRIformer.num_hidden_layers", 2, 4
-                    ),
-                    # num_attention_heads must devide hidden_size
-                    num_attention_heads=trial.suggest_categorical(
-                        "CRIformer.CRIformer.num_attention_heads", choices=[2, 4, 8]
-                    ),
-                    intermediate_size=trial.suggest_int(
-                        "CRIformer.CRIformer.intermediate_size", 512, 2048, step=512
-                    ),
-                    hidden_dropout_prob=trial.suggest_float(
-                        "CRIformer.CRIformer.hidden_dropout_prob", 0.0, 0.1
-                    ),
-                    attention_probs_dropout_prob=trial.suggest_float(
-                        "CRIformer.CRIformer.attention_probs_dropout_prob", 0.0, 0.1
-                    ),
-                )
-        elif self.preprocess == "CRIfuser":
-            if self.model_type == "CRIfuser":
-                half_layer_num = trial.suggest_int(
-                    "CRIfuser.CRIfuser.unet_channels", 2, 4
-                )
-                cfg.init_args = jsonargparse.Namespace(
-                    ext1_up=25,
-                    ext1_down=6,
-                    ext2_up=6,
-                    ext2_down=25,
-                    max_micro_homology=7,
-                    loss_weights={
-                        trial.suggest_categorical(
-                            "CRIfuser.CRIfuser.loss_weights",
-                            choices=[
-                                "double_sample_negative_ELBO",
-                                "importance_sample_negative_ELBO",
-                                "forward_negative_ELBO",
-                                "reverse_negative_ELBO",
-                                "sample_CE",
-                                "non_sample_CE",
-                            ],
-                        ): 1.0,
-                    },
-                    unet_channels=(
-                        32 * np.r_[1:half_layer_num, half_layer_num:0:-1]
-                    ).tolist(),
-                    noise_scheduler=trial.suggest_categorical(
-                        "CRIfuser.CRIfuser.noise_scheduler",
-                        choices=["linear", "cosine", "exp", "uniform"],
-                    ),
-                    noise_timesteps=trial.suggest_int(
-                        "CRIfuser.CRIfuser.noise_timesteps", 10, 30
-                    ),
-                    cosine_factor=0.008,
-                    exp_scale=5.0,
-                    exp_base=5.0,
-                    uniform_scale=1.0,
-                )
-        elif self.preprocess == "DeepHF":
-            if self.model_type == "DeepHF":
-                cfg.init_args = jsonargparse.Namespace(
-                    ext1_up=25,
-                    ext1_down=6,
-                    ext2_up=6,
-                    ext2_down=25,
-                    em_drop=trial.suggest_float("DeepHF.DeepHF.em_drop", 0.0, 0.2),
-                    fc_drop=trial.suggest_float("DeepHF.DeepHF.fc_drop", 0.0, 0.4),
-                    em_dim=trial.suggest_int("DeepHF.DeepHF.em_dim", 33, 55),
-                    rnn_units=trial.suggest_int("DeepHF.DeepHF.rnn_units", 50, 70),
-                    fc_num_hidden_layers=trial.suggest_int(
-                        "DeepHF.DeepHF.fc_num_hidden_layers", 2, 5
-                    ),
-                    fc_num_units=trial.suggest_int(
-                        "DeepHF.DeepHF.fc_num_units", 220, 420
-                    ),
-                    fc_activation=trial.suggest_categorical(
-                        "DeepHF.DeepHF.fc_activation",
-                        choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-                    ),
-                )
-            elif self.model_type == "CNN":
-                cfg.init_args = jsonargparse.Namespace(
-                    ext1_up=25,
-                    ext1_down=6,
-                    ext2_up=6,
-                    ext2_down=25,
-                    em_drop=trial.suggest_float("DeepHF.CNN.em_drop", 0.0, 0.2),
-                    fc_drop=trial.suggest_float("DeepHF.CNN.fc_drop", 0.0, 0.2),
-                    em_dim=trial.suggest_int("DeepHF.CNN.em_dim", 26, 46),
-                    fc_num_hidden_layers=trial.suggest_int(
-                        "DeepHF.CNN.fc_num_hidden_layers", 2, 4
-                    ),
-                    fc_num_units=trial.suggest_int("DeepHF.CNN.fc_num_units", 300, 500),
-                    fc_activation=trial.suggest_categorical(
-                        "DeepHF.CNN.fc_activation",
-                        choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-                    ),
-                    kernel_sizes=[1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13],
-                    feature_maps=trial.suggest_categorical(
-                        "DeepHF.CNN.feature_maps",
-                        choices=[
-                            [
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                            ],
-                            [
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                20,
-                                40,
-                                40,
-                                40,
-                                40,
-                                40,
-                                40,
-                                40,
-                            ],
-                            [
-                                20,
-                                20,
-                                20,
-                                20,
-                                40,
-                                40,
-                                40,
-                                40,
-                                80,
-                                80,
-                                80,
-                                80,
-                                80,
-                                80,
-                            ],
-                            [
-                                40,
-                                40,
-                                40,
-                                40,
-                                40,
-                                40,
-                                40,
-                                40,
-                                80,
-                                80,
-                                80,
-                                80,
-                                80,
-                                80,
-                            ],
-                        ],
-                    ),
-                )
-            elif self.model_type == "MLP":
-                cfg.init_args = jsonargparse.Namespace(
-                    ext1_up=25,
-                    ext1_down=6,
-                    ext2_up=6,
-                    ext2_down=25,
-                    fc_drop=trial.suggest_float("DeepHF.MLP.fc_drop", 0.0, 0.2),
-                    fc_num_hidden_layers=trial.suggest_int(
-                        "DeepHF.MLP.fc_num_hidden_layers", 3, 5
-                    ),
-                    fc_num_units=trial.suggest_int("DeepHF.MLP.fc_num_units", 300, 500),
-                    fc_activation=trial.suggest_categorical(
-                        "DeepHF.MLP.fc_activation",
-                        choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-                    ),
-                )
-            elif self.model_type == "XGBoost":
-                cfg.init_args = jsonargparse.Namespace(
-                    ext1_up=25,
-                    ext1_down=6,
-                    ext2_up=6,
-                    ext2_down=25,
-                    eta=trial.suggest_float("DeepHF.XGBoost.eta", 0.05, 0.2),
-                    max_depth=trial.suggest_int("DeepHF.XGBoost.max_depath", 4, 6),
-                    subsample=trial.suggest_float("DeepHF.XGBoost.subsample", 0.8, 1.0),
-                    reg_lambda=trial.suggest_float(
-                        "DeepHF.XGBoost.reg_lambda", 400.0, 1000.0
-                    ),
-                    num_boost_round=trial.suggest_int(
-                        "DeepHF.XGBoost.num_boost_round", 10, 20
-                    ),
-                )
-            elif self.model_type == "SGDClassifier":
-                cfg.init_args = jsonargparse.Namespace(
-                    ext1_up=25,
-                    ext1_down=6,
-                    ext2_up=6,
-                    ext2_down=25,
-                    penalty=trial.suggest_categorical(
-                        "DeepHF.SGDClassifier.penalty",
-                        choices=["l2", "l1", "elasticnet", None],
-                    ),
-                    alpha=trial.suggest_float(
-                        "DeepHF.SGDClassifier.alpha", 0.00005, 0.0002
-                    ),
-                    l1_ratio=trial.suggest_float(
-                        "DeepHF.SGDClassifier.l1_ratio", 0.075, 0.3
-                    ),
-                )
-        elif self.preprocess == "FOREcasT":
-            if self.model_type == "FOREcasT":
-                cfg.init_args = jsonargparse.Namespace(
-                    max_del_size=44,
-                    reg_const=trial.suggest_float(
-                        "FOREcasT.FOREcasT.reg_const", 0.0, 0.02
-                    ),
-                    i1_reg_const=trial.suggest_float(
-                        "FOREcasT.FOREcasT.i1_reg_const", 0.0, 0.02
-                    ),
-                )
-        elif self.preprocess == "inDelphi":
-            if self.model_type == "inDelphi":
-                cfg.init_args = jsonargparse.Namespace(
-                    DELLEN_LIMIT=45,
-                    mid_dim=trial.suggest_int("inDelphi.inDelphi.mid_dim", 16, 64),
-                )
-        elif self.preprocess == "Lindel":
-            if self.model_type == "Lindel":
-                cfg.init_args = jsonargparse.Namespace(
-                    dlen=45,
-                    mh_len=trial.suggest_int("Lindel.Lindel.mh_len", 3, 5),
-                    reg_mode=trial.suggest_categorical(
-                        "Lindel.Lindel.reg_mode", choices=["l2", "l1"]
-                    ),
-                    reg_const=trial.suggest_float("Lindel.Lindel.reg_const", 0.0, 0.02),
-                )
-
-        return cfg
-
 
 def main(
     output_dir: os.PathLike,
@@ -511,7 +275,7 @@ def main(
     data_name: str,
     batch_size: int,
     num_epochs: int,
-    target_metric: str,
+    target: str,
     sampler: Literal[
         "GridSampler",
         "RandomSampler",
@@ -546,7 +310,7 @@ def main(
         data_name: Dataset name.
         batch_size: Batch size.
         num_epochs: Number of epochs.
-        target_metric: Metric used to select hyperparameters.
+        target: Metric used to select hyperparameters.
         sampler: Sampler continually narrows down the search space using the records of suggested parameter values and evaluated objective values.
         pruner: Pruner to stop unpromising trials at the early stages.
         study_name: The name of the study.
@@ -565,14 +329,13 @@ def main(
         batch_size=batch_size,
         num_epochs=num_epochs,
         study_name=study_name,
-        target_metric=target_metric,
+        target=target,
     )
-    study_path = output_dir / "logs" / preprocess / model_type / data_name / study_name
-    os.makedirs(study_path, exist_ok=True)
+    os.makedirs(objective.logs_path, exist_ok=True)
     study = optuna.create_study(
         storage=optuna.storages.JournalStorage(
             optuna.storages.journal.JournalFileBackend(
-                (study_path / "optuna_journal_storage.log").as_posix()
+                (objective.logs_path / "optuna_journal_storage.log").as_posix()
             ),
         ),
         sampler=getattr(importlib.import_module("optuna.samplers"), sampler)(),

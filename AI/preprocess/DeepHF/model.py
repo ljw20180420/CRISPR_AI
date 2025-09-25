@@ -9,6 +9,8 @@ import torch.nn.functional as F
 import xgboost as xgb
 from scipy import special
 from sklearn import linear_model, preprocessing
+import optuna
+import jsonargparse
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
@@ -214,6 +216,31 @@ class DeepHFModel(nn.Module):
         )
         return df
 
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "em_drop": trial.suggest_float("em_drop", 0.0, 0.2),
+            "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.4),
+            "em_dim": trial.suggest_int("em_dim", 33, 55),
+            "rnn_units": trial.suggest_int("rnn_units", 50, 70),
+            "fc_num_hidden_layers": trial.suggest_int("fc_num_hidden_layers", 2, 5),
+            "fc_num_units": trial.suggest_int("fc_num_units", 220, 420),
+            "fc_activation": trial.suggest_categorical(
+                "fc_activation",
+                choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+            ),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            ext1_up=25,
+            ext1_down=6,
+            ext2_up=6,
+            ext2_down=25,
+            **hparam_dict,
+        )
+
+        return cfg, hparam_dict
+
 
 class MLPModel(nn.Module):
     model_type = "MLP"
@@ -377,6 +404,28 @@ class MLPModel(nn.Module):
             }
         )
         return df
+
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.2),
+            "fc_num_hidden_layers": trial.suggest_int("fc_num_hidden_layers", 3, 5),
+            "fc_num_units": trial.suggest_int("fc_num_units", 300, 500),
+            "fc_activation": trial.suggest_categorical(
+                "fc_activation",
+                choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+            ),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            ext1_up=25,
+            ext1_down=6,
+            ext2_up=6,
+            ext2_down=25,
+            **hparam_dict,
+        )
+
+        return cfg, hparam_dict
 
 
 class CNNModel(nn.Module):
@@ -577,6 +626,103 @@ class CNNModel(nn.Module):
             }
         )
         return df
+
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "em_drop": trial.suggest_float("em_drop", 0.0, 0.2),
+            "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.2),
+            "em_dim": trial.suggest_int("em_dim", 26, 46),
+            "fc_num_hidden_layers": trial.suggest_int("fc_num_hidden_layers", 2, 4),
+            "fc_num_units": trial.suggest_int("fc_num_units", 300, 500),
+            "fc_activation": trial.suggest_categorical(
+                "fc_activation",
+                choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+            ),
+            "feature_maps": trial.suggest_categorical(
+                "feature_maps",
+                choices=[
+                    [
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                    ],
+                    [
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        20,
+                        40,
+                        40,
+                        40,
+                        40,
+                        40,
+                        40,
+                        40,
+                    ],
+                    [
+                        20,
+                        20,
+                        20,
+                        20,
+                        40,
+                        40,
+                        40,
+                        40,
+                        80,
+                        80,
+                        80,
+                        80,
+                        80,
+                        80,
+                    ],
+                    [
+                        40,
+                        40,
+                        40,
+                        40,
+                        40,
+                        40,
+                        40,
+                        40,
+                        80,
+                        80,
+                        80,
+                        80,
+                        80,
+                        80,
+                    ],
+                ],
+            ),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            ext1_up=25,
+            ext1_down=6,
+            ext2_up=6,
+            ext2_down=25,
+            kernel_sizes=[1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13],
+            **hparam_dict,
+        )
+        hparam_dict["feature_maps"] = ":".join(
+            [str(feature_map) for feature_map in hparam_dict["feature_maps"]]
+        )
+
+        return cfg, hparam_dict
 
 
 class XGBoostModel:
@@ -837,6 +983,25 @@ class XGBoostModel:
 
         return X_value
 
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "eta": trial.suggest_float("eta", 0.05, 0.2),
+            "max_depth": trial.suggest_int("max_depath", 4, 6),
+            "subsample": trial.suggest_float("subsample", 0.8, 1.0),
+            "reg_lambda": trial.suggest_float("reg_lambda", 400.0, 1000.0),
+            "num_boost_round": trial.suggest_int("num_boost_round", 10, 20),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            ext1_up=25,
+            ext1_down=6,
+            ext2_up=6,
+            ext2_down=25,
+            **hparam_dict,
+        )
+        return cfg, hparam_dict
+
 
 class SGDClassifierModel:
     model_type = "SGDClassifier"
@@ -1083,3 +1248,24 @@ class SGDClassifierModel:
             return X_value, y_value, w_value
 
         return X_value
+
+    @classmethod
+    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+        hparam_dict = {
+            "penalty": trial.suggest_categorical(
+                "penalty",
+                choices=["l2", "l1", "elasticnet", None],
+            ),
+            "alpha": trial.suggest_float("alpha", 0.00005, 0.0002),
+            "l1_ratio": trial.suggest_float("l1_ratio", 0.075, 0.3),
+        }
+        cfg = jsonargparse.Namespace()
+        cfg.init_args = jsonargparse.Namespace(
+            ext1_up=25,
+            ext1_down=6,
+            ext2_up=6,
+            ext2_down=25,
+            **hparam_dict,
+        )
+
+        return cfg, hparam_dict

@@ -60,7 +60,8 @@ Summarize benchmarks results by
 # TODO
 
 - Train XGBoost.
-- Save hpo result by tensorboard add_hparams.
+- Move hpo to common_ai.
+- Try to read test results from hparams instead of scalars.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
