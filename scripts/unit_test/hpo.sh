@@ -2,6 +2,8 @@
 
 # change to the dir of the script
 cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+# change to the dir to the project
+cd ../..
 
 output_dir=${OUTPUT_DIR:-${HOME}"/CRISPR_results"}/unit_test/hpo
 

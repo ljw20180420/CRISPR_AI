@@ -74,7 +74,7 @@ class Objective:
             cfg=train_cfg,
             dataset=dataset,
         ):
-            latest_event_file, _ = get_latest_event_file(logdir)
+            latest_event_file = get_latest_event_file(logdir)
             df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
             trial.report(
                 value=df.loc[df["step"] == epoch, f"eval/{self.target_metric}"].item(),
@@ -89,7 +89,7 @@ class Objective:
         best_train_cfg = my_test.get_best_cfg(train_parser)
         dataset = get_dataset(**best_train_cfg.dataset.as_dict())
         epoch, logdir = my_test(cfg=best_train_cfg, dataset=dataset)
-        latest_event_file, _ = get_latest_event_file(logdir)
+        latest_event_file = get_latest_event_file(logdir)
         df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
 
         return df.loc[df["step"] == epoch, f"test/{my_test.target}"].item()

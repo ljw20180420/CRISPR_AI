@@ -59,9 +59,8 @@ Summarize benchmarks results by
 
 # TODO
 
-- eval will load train logs and rewrite train logs.
+- Train XGBoost.
 - Save hpo result by tensorboard add_hparams.
-- Retrain inDelphi, FOREcasT, Lindel with fair deletion size.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
