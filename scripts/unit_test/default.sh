@@ -4,7 +4,7 @@
 cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 train_config=AI/preprocess/train.yaml
-output_dir=${OUTPUT_DIR:-$HOME}
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/unit_test/default
 test_config=AI/preprocess/test.yaml
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
@@ -25,14 +25,14 @@ do
         model_config=AI/preprocess/${preprocess}/${model_type}.yaml
 
         # Train
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name unit_test --train.num_epochs 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
         # Eval
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name unit_test --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
         # Test
-        checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_type}/${data_name}/unit_test
-        logs_path=${output_dir}/logs/${preprocess}/${model_type}/${data_name}/unit_test
+        checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_type}/${data_name}/default
+        logs_path=${output_dir}/logs/${preprocess}/${model_type}/${data_name}/default
         for target in \
             CrossEntropy \
             NonZeroCrossEntropy \

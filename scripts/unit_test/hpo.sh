@@ -3,7 +3,7 @@
 # change to the dir of the script
 cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-output_dir=${OUTPUT_DIR:-$HOME}
+output_dir=${OUTPUT_DIR:-${HOME}"/CRISPR_results"}/unit_test/hpo
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
@@ -21,6 +21,6 @@ do
     do
         IFS=":" read preprocess model_type <<<${pre_model}
         # Hpo
-        ./hpo.py --output_dir ${output_dir} --preprocess ${preprocess} --model_type ${model_type} --data_file AI/dataset/test.json.gz --data_name ${data_name} --batch_size 100 --num_epochs 2 --target_metric GreatestCommonCrossEntropy --sampler TPESampler --pruner SuccessiveHalvingPruner --study_name unit_test_hpo --n_trials 2 --load_if_exists false
+        ./hpo.py --output_dir ${output_dir} --preprocess ${preprocess} --model_type ${model_type} --data_file AI/dataset/test.json.gz --data_name ${data_name} --batch_size 100 --num_epochs 2 --target_metric GreatestCommonCrossEntropy --sampler TPESampler --pruner SuccessiveHalvingPruner --study_name hpo --n_trials 2 --load_if_exists false
     done
 done

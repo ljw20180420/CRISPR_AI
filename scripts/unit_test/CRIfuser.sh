@@ -4,7 +4,7 @@
 cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 train_config=AI/preprocess/train.yaml
-output_dir=${OUTPUT_DIR:-$HOME}
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/unit_test/CRIfuser
 test_config=AI/preprocess/test.yaml
 loss_weight=1.0
 
@@ -18,14 +18,14 @@ do
         sample_CE non_sample_CE
     do
         # Train
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name ${loss_function}_test --train.num_epochs 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model AI/preprocess/CRIfuser/CRIfuser.yaml --model.loss_weights "{'${loss_function}': ${loss_weight}}"
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name ${loss_function} --train.num_epochs 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model AI/preprocess/CRIfuser/CRIfuser.yaml --model.loss_weights "{'${loss_function}': ${loss_weight}}"
 
         # Eval
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name ${loss_function}_test --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model AI/preprocess/CRIfuser/CRIfuser.yaml --model.loss_weights "{'${loss_function}': ${loss_weight}}"
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name ${loss_function} --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model AI/preprocess/CRIfuser/CRIfuser.yaml --model.loss_weights "{'${loss_function}': ${loss_weight}}"
 
         # Test
-        checkpoints_path=${output_dir}/checkpoints/CRIfuser/CRIfuser/${data_name}/${loss_function}_test
-        logs_path=${output_dir}/logs/CRIfuser/CRIfuser/${data_name}/${loss_function}_test
+        checkpoints_path=${output_dir}/checkpoints/CRIfuser/CRIfuser/${data_name}/${loss_function}
+        logs_path=${output_dir}/logs/CRIfuser/CRIfuser/${data_name}/${loss_function}
         for target in \
             CrossEntropy \
             NonZeroCrossEntropy \

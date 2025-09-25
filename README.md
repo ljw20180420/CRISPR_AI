@@ -59,7 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
-- Save test result by tensorboard add_hparams.
+- eval will load train logs and rewrite train logs.
 - Save hpo result by tensorboard add_hparams.
 - Retrain inDelphi, FOREcasT, Lindel with fair deletion size.
 - Benchmarks.
