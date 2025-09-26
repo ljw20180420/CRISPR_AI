@@ -5,9 +5,9 @@ cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 # change to the dir to the project
 cd ../..
 
-train_config=AI/preprocess/train.yaml
+train_config=AI/train.yaml
 output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/default
-test_config=AI/preprocess/test.yaml
+test_config=AI/test.yaml
 evaluation_only=${evaluation_only:-true}
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac

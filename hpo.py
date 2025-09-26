@@ -7,6 +7,7 @@ from typing import Literal
 
 import jsonargparse
 import optuna
+import datasets
 from torch import nn
 import yaml
 from torch.utils.tensorboard import SummaryWriter
@@ -15,8 +16,8 @@ from common_ai.test import MyTest
 from common_ai.train import MyTrain
 from common_ai.utils import get_latest_event_file
 
-from AI.preprocess.config import get_config
-from AI.preprocess.dataset import get_dataset
+from AI.config import get_config
+from AI.dataset import get_dataset
 
 # change directory to the current script
 os.chdir(pathlib.Path(__file__).parent)
@@ -26,31 +27,32 @@ class Objective:
     def __init__(
         self,
         output_dir: os.PathLike,
-        preprocess: str,
-        model_type: str,
-        data_file: os.PathLike,
-        data_name: str,
         batch_size: int,
         num_epochs: int,
-        study_name: str,
         target: str,
+        preprocess: str,
+        model_type: str,
+        device: Literal["cuda", "cpu"],
+        train_parser: jsonargparse.ArgumentParser,
+        test_parser: jsonargparse.ArgumentParser,
+        dataset: datasets.Dataset,
     ) -> None:
         self.output_dir = pathlib.Path(os.fspath(output_dir))
-        self.preprocess = preprocess
-        self.model_type = model_type
-        self.data_file = os.fspath(data_file)
-        self.data_name = data_name
         self.batch_size = batch_size
         self.num_epochs = num_epochs
-        self.study_name = study_name
         self.target = target
+        self.preprocess = preprocess
+        self.model_type = model_type
+        self.device = device
+        self.train_parser = train_parser
+        self.test_parser = test_parser
+        self.dataset = dataset
         self.checkpoints_path = (
             self.output_dir
             / "checkpoints"
             / self.preprocess
             / self.model_type
             / self.data_name
-            / self.study_name
         )
         self.logs_path = (
             self.output_dir
@@ -58,7 +60,6 @@ class Objective:
             / self.preprocess
             / self.model_type
             / self.data_name
-            / self.study_name
         )
 
     def __call__(self, trial: optuna.Trial):
@@ -94,12 +95,7 @@ class Objective:
         train_cfg = train_parser.parse_path(
             self.checkpoints_path / f"trial-{trial._trial_id}" / "train.yaml"
         )
-        dataset = get_dataset(**train_cfg.dataset.as_dict())
-        for epoch, logdir in MyTrain(**train_cfg.train.as_dict())(
-            train_parser=train_parser,
-            cfg=train_cfg,
-            dataset=dataset,
-        ):
+        for epoch, logdir in MyTrain(**train_cfg.train.as_dict())(train_parser):
             latest_event_file = get_latest_event_file(logdir)
             df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
             trial.report(
@@ -113,10 +109,7 @@ class Objective:
         test_cfg = test_parser.parse_path(
             self.checkpoints_path / f"trial-{trial._trial_id}" / "test.yaml"
         )
-        my_test = MyTest(**test_cfg.test.as_dict())
-        best_train_cfg = my_test.get_best_cfg(train_parser)
-        dataset = get_dataset(**best_train_cfg.dataset.as_dict())
-        epoch, logdir = my_test(cfg=best_train_cfg, dataset=dataset)
+        epoch, logdir = my_test = MyTest(**test_cfg.test.as_dict())(train_parser)
         latest_event_file = get_latest_event_file(logdir)
         df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
         target_metric_val = df.loc[df["step"] == epoch, f"test/{my_test.target}"].item()
@@ -129,6 +122,7 @@ class Objective:
         tensorboard_writer.add_hparams(
             hparam_dict=full_hparam_dict,
             metric_dict={f"test/{my_test.target}": target_metric_val},
+            global_step=trial._trial_id,
         )
         tensorboard_writer.close()
 
@@ -143,7 +137,7 @@ class Objective:
             logs_path=(self.logs_path / f"trial-{trial._trial_id}").as_posix(),
             target=self.target,
             batch_size=100,
-            device="cuda",
+            device=self.device,
         )
         return cfg
 
@@ -157,7 +151,7 @@ class Objective:
             last_epoch=-1,
             clip_value=1.0,
             accumulate_steps=1,
-            device="cuda",
+            device=self.device,
             evaluation_only=False,
         )
         model_module = importlib.import_module(f"AI.preprocess.{self.preprocess}.model")
@@ -267,87 +261,99 @@ class Objective:
         return cfg
 
 
-def main(
-    output_dir: os.PathLike,
-    preprocess: str,
-    model_type: str,
-    data_file: os.PathLike,
-    data_name: str,
-    batch_size: int,
-    num_epochs: int,
-    target: str,
-    sampler: Literal[
-        "GridSampler",
-        "RandomSampler",
-        "TPESampler",
-        "CmaEsSampler",
-        "GPSampler",
-        "PartialFixedSampler",
-        "NSGAIISampler",
-        "QMCSampler",
-    ],
-    pruner: Literal[
-        "MedianPruner",
-        "NopPruner",
-        "PatientPruner",
-        "PercentilePruner",
-        "SuccessiveHalvingPruner",
-        "HyperbandPruner",
-        "ThresholdPruner",
-        "WilcoxonPruner",
-    ],
-    study_name: str,
-    n_trials: int,
-    load_if_exists: bool,
-) -> None:
-    """Arguments of optuna.
+class MyHpo:
+    def __init__(
+        self,
+        output_dir: os.PathLike,
+        study_name: str,
+        batch_size: int,
+        num_epochs: int,
+        n_trials: int,
+        target: str,
+        preprocess: str,
+        model_type: str,
+        sampler: Literal[
+            "GridSampler",
+            "RandomSampler",
+            "TPESampler",
+            "CmaEsSampler",
+            "GPSampler",
+            "PartialFixedSampler",
+            "NSGAIISampler",
+            "QMCSampler",
+        ],
+        pruner: Literal[
+            "MedianPruner",
+            "NopPruner",
+            "PatientPruner",
+            "PercentilePruner",
+            "SuccessiveHalvingPruner",
+            "HyperbandPruner",
+            "ThresholdPruner",
+            "WilcoxonPruner",
+        ],
+        device: Literal["cuda", "cpu"],
+        load_if_exists: bool,
+    ):
+        """Arguments of Hpo.
 
-    Args:
-        output_dir: Output directory.
-        preprocess: Preprocess method for data.
-        model_type: Type of model.
-        data_file: Data file.
-        data_name: Dataset name.
-        batch_size: Batch size.
-        num_epochs: Number of epochs.
-        target: Metric used to select hyperparameters.
-        sampler: Sampler continually narrows down the search space using the records of suggested parameter values and evaluated objective values.
-        pruner: Pruner to stop unpromising trials at the early stages.
-        study_name: The name of the study.
-        n_trials: The total number of trials in the study.
-        load_if_exists: Flag to control the behavior to handle a conflict of study names. In the case where a study named study_name already exists in the storage.
-    """
-    # if model_type == "DeepHF":
-    #     torch.backends.cudnn.enabled = False
-    output_dir = pathlib.Path(os.fspath(output_dir))
-    objective = Objective(
-        output_dir=output_dir,
-        preprocess=preprocess,
-        model_type=model_type,
-        data_file=data_file,
-        data_name=data_name,
-        batch_size=batch_size,
-        num_epochs=num_epochs,
-        study_name=study_name,
-        target=target,
-    )
-    os.makedirs(objective.logs_path, exist_ok=True)
-    study = optuna.create_study(
-        storage=optuna.storages.JournalStorage(
-            optuna.storages.journal.JournalFileBackend(
-                (objective.logs_path / "optuna_journal_storage.log").as_posix()
+        Args:
+            output_dir: output directory.
+            study_name: the name of the study.
+            batch_size: batch size.
+            num_epochs: number of epochs.
+            n_trials: the total number of trials in the study.
+            target: metric used to select hyperparameters.
+            preprocess: preprocess method for data.
+            model_type: type of model.
+            sampler: sampler continually narrows down the search space using the records of suggested parameter values and evaluated objective values.
+            pruner: pruner to stop unpromising trials at the early stages.
+            device: device.
+            load_if_exists: flag to control the behavior to handle a conflict of study names. In the case where a study named study_name already exists in the storage.
+        """
+        self.output_dir = pathlib.Path(os.fspath(output_dir))
+        self.study_name = study_name
+        self.batch_size = batch_size
+        self.num_epochs = num_epochs
+        self.n_trials = n_trials
+        self.target = target
+        self.preprocess = preprocess
+        self.model_type = model_type
+        self.sampler = sampler
+        self.pruner = pruner
+        self.device = device
+        self.load_if_exists = load_if_exists
+
+    def __call__(
+        self,
+        train_parser: jsonargparse.ArgumentParser,
+        test_parser: jsonargparse.ArgumentParser,
+        dataset: datasets.Dataset,
+    ) -> None:
+        objective = Objective(
+            output_dir=self.output_dir,
+            preprocess=preprocess,
+            model_type=model_type,
+            data_file=data_file,
+            data_name=data_name,
+            batch_size=batch_size,
+            num_epochs=num_epochs,
+            study_name=study_name,
+            target=target,
+        )
+        os.makedirs(objective.logs_path, exist_ok=True)
+        study = optuna.create_study(
+            storage=optuna.storages.JournalStorage(
+                optuna.storages.journal.JournalFileBackend(
+                    (objective.logs_path / "optuna_journal_storage.log").as_posix()
+                ),
             ),
-        ),
-        sampler=getattr(importlib.import_module("optuna.samplers"), sampler)(),
-        pruner=getattr(importlib.import_module("optuna.pruners"), pruner)(),
-        study_name=study_name,
-        load_if_exists=load_if_exists,
-    )
-    study.optimize(
-        func=objective,
-        n_trials=n_trials,
-    )
-
-
-if __name__ == "__main__":
-    jsonargparse.auto_cli(main, as_positional=False)
+            sampler=getattr(importlib.import_module("optuna.samplers"), sampler)(),
+            pruner=getattr(importlib.import_module("optuna.pruners"), pruner)(),
+            study_name=study_name,
+            load_if_exists=load_if_exists,
+        )
+        study.optimize(
+            func=objective,
+            n_trials=n_trials,
+        )

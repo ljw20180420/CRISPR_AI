@@ -2,8 +2,8 @@
 
 import os
 import pathlib
-from AI.preprocess.config import get_config
-from AI.preprocess.dataset import get_dataset
+from AI.config import get_config
+from AI.dataset import get_dataset
 from common_ai.train import MyTrain
 from common_ai.test import MyTest
 
@@ -16,13 +16,8 @@ cfg = parser.parse_args()
 
 if cfg.subcommand == "train":
     dataset = get_dataset(**cfg.train.dataset.as_dict())
-    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(
-        train_parser=train_parser, cfg=cfg.train, dataset=dataset
-    ):
+    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(train_parser):
         pass
 
 elif cfg.subcommand == "test":
-    my_test = MyTest(**cfg.test.test.as_dict())
-    best_train_cfg = my_test.get_best_cfg(train_parser)
-    dataset = get_dataset(**best_train_cfg.dataset.as_dict())
-    epoch, logdir = my_test(cfg=best_train_cfg, dataset=dataset)
+    epoch, logdir = my_test = MyTest(**cfg.test.test.as_dict())(train_parser)
