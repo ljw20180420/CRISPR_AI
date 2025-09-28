@@ -3,7 +3,6 @@
 import os
 import pathlib
 from AI.config import get_config
-from AI.dataset import get_dataset
 from common_ai.train import MyTrain
 from common_ai.test import MyTest
 
@@ -15,8 +14,7 @@ parser, train_parser, test_parser = get_config()
 cfg = parser.parse_args()
 
 if cfg.subcommand == "train":
-    dataset = get_dataset(**cfg.train.dataset.as_dict())
-    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(train_parser):
+    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(train_parser, cfg.train):
         pass
 
 elif cfg.subcommand == "test":

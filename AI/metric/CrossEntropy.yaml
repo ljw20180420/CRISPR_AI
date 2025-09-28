@@ -1,0 +1,6 @@
+class_path: AI.metric.CrossEntropy
+init_args:
+  ext1_up: 25
+  ext1_down: 6
+  ext2_up: 6
+  ext2_down: 25

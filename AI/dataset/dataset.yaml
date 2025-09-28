@@ -1,0 +1,7 @@
+data_file: AI/dataset/dataset.json.gz
+# name: # SX_spcas9, SX_spymac, SX_ispymac
+test_ratio: 0.05
+validation_ratio: 0.05
+random_insert_uplimit: 0
+insert_uplimit: 2
+seed: 63036

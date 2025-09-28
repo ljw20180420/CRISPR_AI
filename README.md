@@ -59,6 +59,9 @@ Summarize benchmarks results by
 
 # TODO
 
+- Use train_parser.parse_args(train_parser.args)
+- Use separate configuration for components
+- Include separate configuration in train.yaml, test.yaml, hpo.yaml.
 - Train XGBoost.
 - Move hpo to common_ai.
 - Try to read test results from hparams instead of scalars.
