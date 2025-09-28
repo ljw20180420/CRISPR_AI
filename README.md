@@ -59,12 +59,11 @@ Summarize benchmarks results by
 
 # TODO
 
-- Use train_parser.parse_args(train_parser.args)
-- Use separate configuration for components
-- Include separate configuration in train.yaml, test.yaml, hpo.yaml.
+- Include separate configuration in hpo.yaml.
 - Train XGBoost.
 - Move hpo to common_ai.
 - Try to read test results from hparams instead of scalars.
+- Add torch.profiler https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html#using-tracing-functionality.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.

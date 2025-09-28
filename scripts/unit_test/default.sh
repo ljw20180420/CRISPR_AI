@@ -8,16 +8,6 @@ cd ../..
 train_config=AI/train.yaml
 output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/unit_test/default
 test_config=AI/test.yaml
-metrics=""
-for target in \
-    CrossEntropy \
-    NonZeroCrossEntropy \
-    NonWildTypeCrossEntropy \
-    NonZeroNonWildTypeCrossEntropy \
-    GreatestCommonCrossEntropy
-do
-    metrics="${metrics} AI/metric/${target}.yaml"
-done
 
 for data_name in SX_spcas9
 do
@@ -37,10 +27,10 @@ do
         model_config=AI/preprocess/${preprocess}/${model_type}.yaml
 
         # Train
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --dataset AI/dataset/dataset.yaml --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --metric ${metrics} --model ${model_config}
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
         # Eval
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --train.evaluation_only true --dataset AI/dataset/dataset.yaml --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --metric ${metrics} --model ${model_config}
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
         # Test
         checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_type}/${data_name}/default

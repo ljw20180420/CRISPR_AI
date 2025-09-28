@@ -95,9 +95,7 @@ class Objective:
         train_cfg = train_parser.parse_path(
             self.checkpoints_path / f"trial-{trial._trial_id}" / "train.yaml"
         )
-        for epoch, logdir in MyTrain(**train_cfg.train.as_dict())(
-            train_parser, train_cfg.train
-        ):
+        for epoch, logdir in MyTrain(**train_cfg.train.as_dict())(train_parser):
             latest_event_file = get_latest_event_file(logdir)
             df = SummaryReader(latest_event_file.as_posix(), pivot=True).scalars
             trial.report(

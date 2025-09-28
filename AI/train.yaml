@@ -9,66 +9,23 @@ train:
   device: cuda # cuda, cpu
   evaluation_only: false
 
-logger:
-  log_level: WARNING # CRITICAL, FATAL, ERROR, WARNING, INFO, DEBUG, NOTSET
+logger: component/logger.yaml
 
-generator:
-  seed: 63036
+generator: component/generator.yaml
 
-initializer:
-  name: kaiming_uniform_ # uniform_, normal_, xavier_uniform_, xavier_normal_, kaiming_uniform_, kaiming_normal_, trunc_normal_
+initializer: component/initializer.yaml
 
-optimizer:
-  name: AdamW # Adadelta, Adafactor, Adagrad, Adam, AdamW, Adamax, ASGD, NAdam, RAdam, RMSprop, SGD
-  learning_rate: 0.0001
-  weight_decay: 0.0
+optimizer: component/optimizer.yaml
 
-lr_scheduler:
-  name: CosineAnnealingWarmRestarts # CosineAnnealingWarmRestarts, ConstantLR, ReduceLROnPlateau
-  warmup_epochs: 3
-  period_epochs: 30
+lr_scheduler: component/lr_scheduler.yaml
 
-early_stopping:
-  patience: null
-  delta: 0.0
+early_stopping: component/early_stopping.yaml
 
-# dataset:
-#   data_file: AI/dataset/dataset.json.gz
-#   # name: # SX_spcas9, SX_spymac, SX_ispymac
-#   test_ratio: 0.05
-#   validation_ratio: 0.05
-#   random_insert_uplimit: 0
-#   insert_uplimit: 2
-#   seed: 63036
+dataset: dataset/dataset.yaml
 
-# metric:
-#   - class_path: AI.metric.CrossEntropy
-#     init_args:
-#       ext1_up: 25
-#       ext1_down: 6
-#       ext2_up: 6
-#       ext2_down: 25
-#   - class_path: AI.metric.NonZeroCrossEntropy
-#     init_args:
-#       ext1_up: 25
-#       ext1_down: 6
-#       ext2_up: 6
-#       ext2_down: 25
-#   - class_path: AI.metric.NonWildTypeCrossEntropy
-#     init_args:
-#       ext1_up: 25
-#       ext1_down: 6
-#       ext2_up: 6
-#       ext2_down: 25
-#   - class_path: AI.metric.NonZeroNonWildTypeCrossEntropy
-#     init_args:
-#       ext1_up: 25
-#       ext1_down: 6
-#       ext2_up: 6
-#       ext2_down: 25
-#   - class_path: AI.metric.GreatestCommonCrossEntropy
-#     init_args:
-#       ext1_up: 25
-#       ext1_down: 6
-#       ext2_up: 6
-#       ext2_down: 25
+metric:
+  - metric/CrossEntropy.yaml
+  - metric/NonZeroCrossEntropy.yaml
+  - metric/NonWildTypeCrossEntropy.yaml
+  - metric/NonZeroNonWildTypeCrossEntropy.yaml
+  - metric/GreatestCommonCrossEntropy.yaml

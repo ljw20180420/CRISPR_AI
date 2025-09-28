@@ -14,7 +14,7 @@ parser, train_parser, test_parser = get_config()
 cfg = parser.parse_args()
 
 if cfg.subcommand == "train":
-    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(train_parser, cfg.train):
+    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(train_parser):
         pass
 
 elif cfg.subcommand == "test":
