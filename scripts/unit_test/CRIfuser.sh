@@ -35,7 +35,7 @@ do
             NonZeroNonWildTypeCrossEntropy \
             GreatestCommonCrossEntropy
         do
-            ./run.py test --config ${test_config} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.target ${target}
+            ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target}
         done
     done
 done

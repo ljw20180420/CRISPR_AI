@@ -59,8 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
-- Include separate configuration in hpo.yaml.
-- Define abstract class for mode, metric and dataset.
+- Define abstract class for model and metric.
 - Train XGBoost.
 - Move hpo to common_ai.
 - Try to read test results from hparams instead of scalars.

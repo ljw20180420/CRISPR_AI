@@ -34,8 +34,8 @@ do
             --train.train.num_epochs 2 \
             --train.dataset,data_file AI/dataset/test.json.gz \
             --train.dataset.name ${data_name} \
-            --test.test.checkpoints_path ${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/${trial_name} \
-            --test.test.logs_path ${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/${trial_name} \
-            --test.test.target GreatestCommonCrossEntropy
+            --test.checkpoints_path ${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/${trial_name} \
+            --test.logs_path ${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/${trial_name} \
+            --test.target GreatestCommonCrossEntropy
     done
 done

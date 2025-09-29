@@ -7,6 +7,7 @@ import optuna
 import jsonargparse
 import yaml
 
+from common_ai.dataset import MyDatasetAbstract
 from common_ai.utils import split_train_valid_test, SeqTokenizer
 
 
@@ -256,16 +257,16 @@ def trans_func(
     }
 
 
-class MyDataset:
+class MyDataset(MyDatasetAbstract):
     def __init__(
         self,
         data_file: os.PathLike,
         name: Literal["SX_spcas9", "SX_spymac", "SX_ispymac"],
         test_ratio: float,
         validation_ratio: float,
+        seed: int,
         random_insert_uplimit: int,
         insert_uplimit: int,
-        seed: int,
         **kwargs,
     ):
         """Parameters of dataset.
@@ -275,17 +276,19 @@ class MyDataset:
             name: Data name. Generally correpond to Cas protein name.
             test_ratio: Proportion for test samples.
             validation_ratio: Proportion for validation samples.
+            seed: random seed.
             random_insert_uplimit: The maximal discriminated length of random insertion.
             insert_uplimit: The maximal insertion length to count.
-            seed: random seed.
         """
-        self.data_file = os.fspath(data_file)
-        self.name = name
-        self.test_ratio = test_ratio
-        self.validation_ratio = validation_ratio
+        super().__init__(
+            data_file=os.fspath(data_file),
+            name=name,
+            test_ratio=test_ratio,
+            validation_ratio=validation_ratio,
+            seed=seed,
+        )
         self.random_insert_uplimit = random_insert_uplimit
         self.insert_uplimit = insert_uplimit
-        self.seed = seed
 
     def __call__(self):
         ds = datasets.load_dataset(
@@ -390,8 +393,8 @@ class MyDataset:
         return ds
 
     @classmethod
-    def my_hpo(
-        self,
+    def hpo(
+        cls,
         trial: optuna.Trial,
         cfg: jsonargparse.Namespace,
         hparam_dict: dict,

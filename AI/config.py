@@ -13,11 +13,6 @@ from common_ai import config
 def get_config() -> tuple[jsonargparse.ArgumentParser]:
     parser, train_parser, test_parser = config.get_config()
 
-    train_parser.add_class_arguments(
-        theclass=MyDataset,
-        nested_key="dataset",
-    )
-
     train_parser.add_argument(
         "--metric",
         nargs="+",
@@ -28,16 +23,16 @@ def get_config() -> tuple[jsonargparse.ArgumentParser]:
 
     train_parser.add_subclass_arguments(
         baseclass=(
-            CRIformer_M.CRIformerModel,
-            CRIfuser_M.CRIfuserModel,
-            DeepHF_M.DeepHFModel,
-            DeepHF_M.MLPModel,
-            DeepHF_M.CNNModel,
-            DeepHF_M.XGBoostModel,
-            DeepHF_M.SGDClassifierModel,
-            FOREcasT_M.FOREcasTModel,
-            inDelphi_M.inDelphiModel,
-            Lindel_M.LindelModel,
+            CRIformer_M.CRIformer,
+            CRIfuser_M.CRIfuser,
+            DeepHF_M.DeepHF,
+            DeepHF_M.MLP,
+            DeepHF_M.CNN,
+            DeepHF_M.XGBoost,
+            DeepHF_M.SGDClassifier,
+            FOREcasT_M.FOREcasT,
+            inDelphi_M.inDelphi,
+            Lindel_M.Lindel,
         ),
         nested_key="model",
     )
