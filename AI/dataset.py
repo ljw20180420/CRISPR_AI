@@ -253,120 +253,135 @@ def trans_func(
     }
 
 
-def get_dataset(
-    data_file: os.PathLike,
-    name: Literal["SX_spcas9", "SX_spymac", "SX_ispymac"],
-    test_ratio: float,
-    validation_ratio: float,
-    random_insert_uplimit: int,
-    insert_uplimit: int,
-    seed: int,
-    **kwargs,
-):
-    """Parameters of dataset.
+class MyDataset:
+    def __init__(
+        self,
+        data_file: os.PathLike,
+        name: Literal["SX_spcas9", "SX_spymac", "SX_ispymac"],
+        test_ratio: float,
+        validation_ratio: float,
+        random_insert_uplimit: int,
+        insert_uplimit: int,
+        seed: int,
+        **kwargs,
+    ):
+        """Parameters of dataset.
 
-    Args:
-        data_file: File path.
-        name: Data name. Generally correpond to Cas protein name.
-        test_ratio: Proportion for test samples.
-        validation_ratio: Proportion for validation samples.
-        random_insert_uplimit: The maximal discriminated length of random insertion.
-        insert_uplimit: The maximal insertion length to count.
-        seed: random seed.
-    """
-    ds = datasets.load_dataset(
-        "json",
-        data_files=data_file,
-        features=datasets.Features(
-            {
-                "ref1": datasets.Value("string"),
-                "ref2": datasets.Value("string"),
-                "cuts": [
-                    datasets.Features(
-                        {
-                            "cut1": datasets.Value("int64"),
-                            "cut2": datasets.Value("int64"),
-                            "authors": [
-                                datasets.Features(
-                                    {
-                                        "author": datasets.Value("string"),
-                                        "files": [
-                                            datasets.Features(
-                                                {
-                                                    "file": datasets.Value("string"),
-                                                    "ref1_end": datasets.Sequence(
-                                                        datasets.Value("int64")
-                                                    ),
-                                                    "ref2_start": datasets.Sequence(
-                                                        datasets.Value("int64")
-                                                    ),
-                                                    "random_insert": datasets.Sequence(
-                                                        datasets.Value("string")
-                                                    ),
-                                                    "count": datasets.Sequence(
-                                                        datasets.Value("int64")
-                                                    ),
-                                                }
-                                            )
-                                        ],
-                                    }
-                                )
-                            ],
-                        }
-                    )
-                ],
+        Args:
+            data_file: File path.
+            name: Data name. Generally correpond to Cas protein name.
+            test_ratio: Proportion for test samples.
+            validation_ratio: Proportion for validation samples.
+            random_insert_uplimit: The maximal discriminated length of random insertion.
+            insert_uplimit: The maximal insertion length to count.
+            seed: random seed.
+        """
+        self.data_file = os.fspath(data_file)
+        self.name = name
+        self.test_ratio = test_ratio
+        self.validation_ratio = validation_ratio
+        self.random_insert_uplimit = random_insert_uplimit
+        self.insert_uplimit = insert_uplimit
+        self.seed = seed
+
+    def __call__(self):
+        ds = datasets.load_dataset(
+            "json",
+            data_files=self.data_file,
+            features=datasets.Features(
+                {
+                    "ref1": datasets.Value("string"),
+                    "ref2": datasets.Value("string"),
+                    "cuts": [
+                        datasets.Features(
+                            {
+                                "cut1": datasets.Value("int64"),
+                                "cut2": datasets.Value("int64"),
+                                "authors": [
+                                    datasets.Features(
+                                        {
+                                            "author": datasets.Value("string"),
+                                            "files": [
+                                                datasets.Features(
+                                                    {
+                                                        "file": datasets.Value(
+                                                            "string"
+                                                        ),
+                                                        "ref1_end": datasets.Sequence(
+                                                            datasets.Value("int64")
+                                                        ),
+                                                        "ref2_start": datasets.Sequence(
+                                                            datasets.Value("int64")
+                                                        ),
+                                                        "random_insert": datasets.Sequence(
+                                                            datasets.Value("string")
+                                                        ),
+                                                        "count": datasets.Sequence(
+                                                            datasets.Value("int64")
+                                                        ),
+                                                    }
+                                                )
+                                            ],
+                                        }
+                                    )
+                                ],
+                            }
+                        )
+                    ],
+                }
+            ),
+        )
+
+        if self.name == "SX_spcas9":
+            filters = {
+                "ref_filter": None,
+                "cut_filter": None,
+                "author_filter": lambda author, ref1, ref2, cut1, cut2: author == "SX",
+                "file_filter": lambda file, ref1, ref2, cut1, cut2, author: bool(
+                    re.search("^(A2-|A7-|D2-)", file)
+                ),
             }
-        ),
-    )
+        elif self.name == "SX_spymac":
+            filters = {
+                "ref_filter": None,
+                "cut_filter": None,
+                "author_filter": lambda author, ref1, ref2, cut1, cut2: author == "SX",
+                "file_filter": lambda file, ref1, ref2, cut1, cut2, author: bool(
+                    re.search("^(X-|x-|B2-|36t-)", file)
+                ),
+            }
+        else:
+            assert (
+                self.name == "SX_ispymac"
+            ), "name can only be SX_spcas9, SX_spymac or SX_ispymac"
+            filters = {
+                "ref_filter": None,
+                "cut_filter": None,
+                "author_filter": lambda author, ref1, ref2, cut1, cut2: author == "SX",
+                "file_filter": lambda file, ref1, ref2, cut1, cut2, author: bool(
+                    re.search("^(i10t-|i83-)", file)
+                ),
+            }
 
-    if name == "SX_spcas9":
-        filters = {
-            "ref_filter": None,
-            "cut_filter": None,
-            "author_filter": lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            "file_filter": lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(A2-|A7-|D2-)", file)
+        ds = ds.map(
+            lambda examples, filters=filters: filter_refs(examples, **filters),
+            batched=True,
+        )
+
+        ds = ds.map(
+            lambda examples, random_insert_uplimit=self.random_insert_uplimit, get_observation=GetObservation(
+                self.random_insert_uplimit
+            ), get_insertion_count=GetInsertionCount(
+                "ACGT", self.insert_uplimit
+            ): trans_func(
+                examples, random_insert_uplimit, get_observation, get_insertion_count
             ),
-        }
-    elif name == "SX_spymac":
-        filters = {
-            "ref_filter": None,
-            "cut_filter": None,
-            "author_filter": lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            "file_filter": lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(X-|x-|B2-|36t-)", file)
-            ),
-        }
-    else:
-        assert (
-            name == "SX_ispymac"
-        ), "name can only be SX_spcas9, SX_spymac or SX_ispymac"
-        filters = {
-            "ref_filter": None,
-            "cut_filter": None,
-            "author_filter": lambda author, ref1, ref2, cut1, cut2: author == "SX",
-            "file_filter": lambda file, ref1, ref2, cut1, cut2, author: bool(
-                re.search("^(i10t-|i83-)", file)
-            ),
-        }
+            batched=True,
+            remove_columns=["cuts"],
+        )
 
-    ds = ds.map(
-        lambda examples, filters=filters: filter_refs(examples, **filters),
-        batched=True,
-    )
+        ds = split_train_valid_test(
+            ds, self.validation_ratio, self.test_ratio, self.seed
+        )
 
-    ds = ds.map(
-        lambda examples, random_insert_uplimit=random_insert_uplimit, get_observation=GetObservation(
-            random_insert_uplimit
-        ), get_insertion_count=GetInsertionCount(
-            "ACGT", insert_uplimit
-        ): trans_func(
-            examples, random_insert_uplimit, get_observation, get_insertion_count
-        ),
-        batched=True,
-        remove_columns=["cuts"],
-    )
-
-    ds = split_train_valid_test(ds, validation_ratio, test_ratio, seed)
-
-    return ds
+        return ds

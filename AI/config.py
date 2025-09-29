@@ -6,15 +6,15 @@ from .preprocess.FOREcasT import model as FOREcasT_M
 from .preprocess.inDelphi import model as inDelphi_M
 from .preprocess.Lindel import model as Lindel_M
 from .metric import CrossEntropyBase
-from .dataset import get_dataset
+from .dataset import MyDataset
 from common_ai import config
 
 
 def get_config() -> tuple[jsonargparse.ArgumentParser]:
     parser, train_parser, test_parser = config.get_config()
 
-    train_parser.add_function_arguments(
-        function=get_dataset,
+    train_parser.add_class_arguments(
+        theclass=MyDataset,
         nested_key="dataset",
     )
 
