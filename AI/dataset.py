@@ -3,6 +3,9 @@ import datasets
 from typing import Literal, Callable
 import re
 import numpy as np
+import optuna
+import jsonargparse
+import yaml
 
 from common_ai.utils import split_train_valid_test, SeqTokenizer
 
@@ -385,3 +388,21 @@ class MyDataset:
         )
 
         return ds
+
+    @classmethod
+    def my_hpo(
+        self,
+        trial: optuna.Trial,
+        cfg: jsonargparse.Namespace,
+        hparam_dict: dict,
+    ) -> dict:
+        # Neglect __path__, copy class_path and init_args.
+        config_dict = {
+            "class_path": cfg.class_path,
+            "init_args": cfg.init_args.as_dict(),
+        }
+        # Trial hyperparameters.
+        hparam_dict["dataset"] = {}
+        config_dict["init_args"].update(hparam_dict["dataset"])
+
+        return config_dict

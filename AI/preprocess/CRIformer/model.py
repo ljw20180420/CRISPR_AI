@@ -19,9 +19,7 @@ from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
 
 
-class CRIformerModel(nn.Module):
-    model_type = "CRIformer"
-
+class CRIformer(nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -169,7 +167,7 @@ class CRIformerModel(nn.Module):
         return df
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
         hparam_dict = {
             "hidden_size": trial.suggest_int("hidden_size", 128, 512, step=128),
             "num_hidden_layers": trial.suggest_int("num_hidden_layers", 2, 4),

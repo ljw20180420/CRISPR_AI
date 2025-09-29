@@ -15,9 +15,7 @@ from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
 
 
-class FOREcasTModel(nn.Module):
-    model_type = "FOREcasT"
-
+class FOREcasT(nn.Module):
     def __init__(
         self,
         max_del_size: int,

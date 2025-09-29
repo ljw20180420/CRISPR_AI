@@ -25,9 +25,7 @@ from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
 
 
-class DeepHFModel(nn.Module):
-    model_type = "DeepHF"
-
+class DeepHF(nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -217,7 +215,7 @@ class DeepHFModel(nn.Module):
         return df
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
         hparam_dict = {
             "em_drop": trial.suggest_float("em_drop", 0.0, 0.2),
             "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.4),
@@ -242,9 +240,7 @@ class DeepHFModel(nn.Module):
         return cfg, hparam_dict
 
 
-class MLPModel(nn.Module):
-    model_type = "MLP"
-
+class MLP(nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -406,7 +402,7 @@ class MLPModel(nn.Module):
         return df
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
         hparam_dict = {
             "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.2),
             "fc_num_hidden_layers": trial.suggest_int("fc_num_hidden_layers", 3, 5),
@@ -428,9 +424,7 @@ class MLPModel(nn.Module):
         return cfg, hparam_dict
 
 
-class CNNModel(nn.Module):
-    model_type = "CNN"
-
+class CNN(nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -628,7 +622,7 @@ class CNNModel(nn.Module):
         return df
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
         hparam_dict = {
             "em_drop": trial.suggest_float("em_drop", 0.0, 0.2),
             "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.2),
@@ -725,9 +719,7 @@ class CNNModel(nn.Module):
         return cfg, hparam_dict
 
 
-class XGBoostModel:
-    model_type = "XGBoost"
-
+class XGBoost:
     def __init__(
         self,
         ext1_up: int,
@@ -984,7 +976,7 @@ class XGBoostModel:
         return X_value
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
         hparam_dict = {
             "eta": trial.suggest_float("eta", 0.05, 0.2),
             "max_depth": trial.suggest_int("max_depath", 4, 6),
@@ -1003,9 +995,7 @@ class XGBoostModel:
         return cfg, hparam_dict
 
 
-class SGDClassifierModel:
-    model_type = "SGDClassifier"
-
+class SGDClassifier:
     def __init__(
         self,
         ext1_up: int,
@@ -1250,7 +1240,7 @@ class SGDClassifierModel:
         return X_value
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
         hparam_dict = {
             "penalty": trial.suggest_categorical(
                 "penalty",

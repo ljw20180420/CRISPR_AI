@@ -6,8 +6,6 @@ from common_ai.generator import MyGenerator
 
 
 class DataCollator:
-    preprocess = "FOREcasT"
-
     def __init__(self, max_del_size: int) -> None:
         self.max_del_size = max_del_size
         (

@@ -29,8 +29,6 @@ class TwoMerEnergy:
 
 
 class DataCollator:
-    preprocess = "DeepHF"
-
     def __init__(
         self,
         ext1_up: int,

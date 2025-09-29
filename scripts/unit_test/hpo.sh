@@ -5,7 +5,9 @@ cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 # change to the dir to the project
 cd ../..
 
+hpo_config="AI/hpo.yaml"
 output_dir=${OUTPUT_DIR:-${HOME}"/CRISPR_results"}/unit_test/hpo
+trial_name="trial"
 
 for data_name in SX_spcas9
 do
@@ -21,8 +23,19 @@ do
         CRIfuser:CRIfuser \
         FOREcasT:FOREcasT
     do
-        IFS=":" read preprocess model_type <<<${pre_model}
-        # Hpo
-        ./hpo.py --output_dir ${output_dir} --preprocess ${preprocess} --model_type ${model_type} --data_file AI/dataset/test.json.gz --data_name ${data_name} --batch_size 100 --num_epochs 2 --target GreatestCommonCrossEntropy --sampler TPESampler --pruner SuccessiveHalvingPruner --study_name study --n_trials 2 --load_if_exists false
+        IFS=":" read preprocess model_cls <<<${pre_model}
+        # trial_name will be appended by trial id like trial_name-0, trial_name-1 and so on.
+        ./run.py hpo \
+            --config ${hpo_config} \
+            --study_name study \
+            --n_trials 2 \
+            --train.train.output_dir ${output_dir} \
+            --train.train.trial_name ${trial_name} \
+            --train.train.num_epochs 2 \
+            --train.dataset,data_file AI/dataset/test.json.gz \
+            --train.dataset.name ${data_name} \
+            --test.test.checkpoints_path ${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/${trial_name} \
+            --test.test.logs_path ${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/${trial_name} \
+            --test.test.target GreatestCommonCrossEntropy
     done
 done

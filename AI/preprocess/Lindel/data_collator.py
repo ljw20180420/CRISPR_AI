@@ -7,8 +7,6 @@ from common_ai.generator import MyGenerator
 
 
 class DataCollator:
-    preprocess = "Lindel"
-
     def __init__(self, dlen: int, mh_len: int) -> None:
         self.dlen = dlen
         self.mh_len = mh_len

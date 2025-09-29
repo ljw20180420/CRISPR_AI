@@ -20,9 +20,7 @@ from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
 
 
-class CRIfuserModel(nn.Module):
-    model_type = "CRIfuser"
-
+class CRIfuser(nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -1011,7 +1009,7 @@ class CRIfuserModel(nn.Module):
         plt.close()
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
+    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
         hparam_dict = {
             "loss_weights": trial.suggest_categorical(
                 "loss_weights",

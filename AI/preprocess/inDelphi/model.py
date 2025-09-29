@@ -20,9 +20,7 @@ from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
 
 
-class inDelphiModel(nn.Module):
-    model_type = "inDelphi"
-
+class inDelphi(nn.Module):
     def __init__(
         self,
         DELLEN_LIMIT: int,

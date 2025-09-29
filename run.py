@@ -18,4 +18,7 @@ if cfg.subcommand == "train":
         pass
 
 elif cfg.subcommand == "test":
-    epoch, logdir = my_test = MyTest(**cfg.test.test.as_dict())(train_parser)
+    epoch, logdir = MyTest(**cfg.test.test.as_dict())(train_parser)
+
+elif cfg.subcommand == "hpo":
+    pass

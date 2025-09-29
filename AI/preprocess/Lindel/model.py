@@ -15,9 +15,7 @@ from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
 
 
-class LindelModel(nn.Module):
-    model_type = "Lindel"
-
+class Lindel(nn.Module):
     def __init__(
         self,
         dlen: int,

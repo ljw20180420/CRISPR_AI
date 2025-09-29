@@ -6,8 +6,6 @@ from common_ai.generator import MyGenerator
 
 
 class DataCollator:
-    preprocess = "CRIformer"
-
     def __init__(
         self,
         ext1_up: int,

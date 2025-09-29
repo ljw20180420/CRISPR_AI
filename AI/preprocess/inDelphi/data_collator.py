@@ -6,8 +6,6 @@ from common_ai.generator import MyGenerator
 
 
 class DataCollator:
-    preprocess = "inDelphi"
-
     def __init__(self, DELLEN_LIMIT: int) -> None:
         self.DELLEN_LIMIT = DELLEN_LIMIT
         self.lefts = np.concatenate(

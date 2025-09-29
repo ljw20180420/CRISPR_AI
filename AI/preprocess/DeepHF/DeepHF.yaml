@@ -1,4 +1,4 @@
-class_path: AI.preprocess.DeepHF.model.DeepHFModel
+class_path: AI.preprocess.DeepHF.model.DeepHF
 init_args:
   ext1_up: 25
   ext1_down: 6
