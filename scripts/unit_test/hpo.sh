@@ -24,6 +24,8 @@ do
         FOREcasT:FOREcasT
     do
         IFS=":" read preprocess model_cls <<<${pre_model}
+        model_config=AI/preprocess/${preprocess}/${model_cls}.yaml
+
         # trial_name will be appended by trial id like trial_name-0, trial_name-1 and so on.
         ./run.py hpo \
             --config ${hpo_config} \
@@ -33,7 +35,8 @@ do
             --train.train.output_dir ${output_dir} \
             --train.train.trial_name ${trial_name} \
             --train.train.num_epochs 2 \
-            --train.dataset,data_file AI/dataset/test.json.gz \
+            --train.dataset.data_file AI/dataset/test.json.gz \
             --train.dataset.name ${data_name} \
+            --train.model ${model_config}
     done
 done

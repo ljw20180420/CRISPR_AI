@@ -61,8 +61,7 @@ Summarize benchmarks results by
 
 - Fix bug of jsonargparse in parsing config file list.
 - Train XGBoost.
-- Move hpo to common_ai.
-- Try to read test results from hparams instead of scalars.
+- Try to read test results from hparams instead of scalars, so that it is only necessary to store hparams in test.
 - Add torch.profiler https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html#using-tracing-functionality.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.

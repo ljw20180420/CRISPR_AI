@@ -2,15 +2,16 @@
 
 import os
 import pathlib
-from common_ai.config import get_config
+from common_ai.config import get_config, get_train_parser
 from common_ai.train import MyTrain
 from common_ai.test import MyTest
+from common_ai.hpo import MyHpo
 
 # change directory to the current script
 os.chdir(pathlib.Path(__file__).parent)
 
 # parse arguments
-parser, train_parser, test_parser = get_config()
+parser, train_parser, test_parser, hpo_parser = get_config()
 cfg = parser.parse_args()
 
 if cfg.subcommand == "train":
@@ -21,4 +22,4 @@ elif cfg.subcommand == "test":
     epoch, logdir = MyTest(**cfg.test.as_dict())(train_parser)
 
 elif cfg.subcommand == "hpo":
-    pass
+    MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
