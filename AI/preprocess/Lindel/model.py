@@ -13,9 +13,10 @@ from einops import einsum, repeat
 
 from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
 
 
-class Lindel(nn.Module):
+class Lindel(MyModelAbstract, nn.Module):
     def __init__(
         self,
         dlen: int,
@@ -231,13 +232,11 @@ class Lindel(nn.Module):
         return df
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "mh_len": trial.suggest_int("mh_len", 3, 5),
-            "reg_mode": trial.suggest_categorical("reg_mode", choices=["l2", "l1"]),
-            "reg_const": trial.suggest_float("reg_const", 0.0, 0.02),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(dlen=45, **hparam_dict)
-
-        return cfg, hparam_dict
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.mh_len = trial.suggest_int("Lindel/Lindel/mh_len", 3, 5)
+        cfg.model.init_args.reg_mode = trial.suggest_categorical(
+            "Lindel/Lindel/reg_mode", choices=["l2", "l1"]
+        )
+        cfg.model.init_args.reg_const = trial.suggest_float(
+            "Lindel/Lindel/reg_const", 0.0, 0.02
+        )

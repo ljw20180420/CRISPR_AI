@@ -18,9 +18,10 @@ from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
 from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
+from common_ai.model import MyModelAbstract
 
 
-class inDelphi(nn.Module):
+class inDelphi(MyModelAbstract, nn.Module):
     def __init__(
         self,
         DELLEN_LIMIT: int,
@@ -381,14 +382,7 @@ class inDelphi(nn.Module):
         )
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "mid_dim": trial.suggest_int("mid_dim", 16, 64),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            DELLEN_LIMIT=45,
-            **hparam_dict,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.mid_dim = trial.suggest_int(
+            "inDelphi/inDelphi/mid_dim", 16, 64
         )
-
-        return cfg, hparam_dict

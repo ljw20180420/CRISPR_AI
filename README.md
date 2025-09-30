@@ -59,7 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
-- Define abstract class for model and metric.
+- Fix bug of jsonargparse in parsing config file list.
 - Train XGBoost.
 - Move hpo to common_ai.
 - Try to read test results from hparams instead of scalars.

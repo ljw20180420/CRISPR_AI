@@ -27,15 +27,13 @@ do
         # trial_name will be appended by trial id like trial_name-0, trial_name-1 and so on.
         ./run.py hpo \
             --config ${hpo_config} \
-            --study_name study \
-            --n_trials 2 \
+            --hpo.target GreatestCommonCrossEntropy \
+            --hpo.study_name study \
+            --hpo.n_trials 2 \
             --train.train.output_dir ${output_dir} \
             --train.train.trial_name ${trial_name} \
             --train.train.num_epochs 2 \
             --train.dataset,data_file AI/dataset/test.json.gz \
             --train.dataset.name ${data_name} \
-            --test.checkpoints_path ${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/${trial_name} \
-            --test.logs_path ${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/${trial_name} \
-            --test.target GreatestCommonCrossEntropy
     done
 done

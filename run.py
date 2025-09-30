@@ -2,7 +2,7 @@
 
 import os
 import pathlib
-from AI.config import get_config
+from common_ai.config import get_config
 from common_ai.train import MyTrain
 from common_ai.test import MyTest
 

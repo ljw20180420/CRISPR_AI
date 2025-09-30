@@ -13,9 +13,10 @@ from einops import rearrange, einsum, repeat
 
 from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
 
 
-class FOREcasT(nn.Module):
+class FOREcasT(MyModelAbstract, nn.Module):
     def __init__(
         self,
         max_del_size: int,
@@ -303,15 +304,10 @@ class FOREcasT(nn.Module):
         return df
 
     @classmethod
-    def my_model_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "reg_const": trial.suggest_float("reg_const", 0.0, 0.02),
-            "i1_reg_const": trial.suggest_float("i1_reg_const", 0.0, 0.02),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            max_del_size=44,
-            **hparam_dict,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.reg_const = trial.suggest_float(
+            "FOREcasT/FOREcasT/reg_const", 0.0, 0.02
         )
-
-        return cfg, hparam_dict
+        cfg.model.init_args.i1_reg_const = trial.suggest_float(
+            "FOREcasT/FOREcasT/i1_reg_const", 0.0, 0.02
+        )

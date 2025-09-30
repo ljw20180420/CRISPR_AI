@@ -18,9 +18,10 @@ from einops import einsum, rearrange, repeat
 
 from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
 
 
-class CRIfuser(nn.Module):
+class CRIfuser(MyModelAbstract, nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -1009,47 +1010,30 @@ class CRIfuser(nn.Module):
         plt.close()
 
     @classmethod
-    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "loss_weights": trial.suggest_categorical(
-                "loss_weights",
-                choices=[
-                    "double_sample_negative_ELBO",
-                    "importance_sample_negative_ELBO",
-                    "forward_negative_ELBO",
-                    "reverse_negative_ELBO",
-                    "sample_CE",
-                    "non_sample_CE",
-                ],
-            ),
-            "half_layer_num": trial.suggest_int("half_layer_num", 2, 4),
-            "noise_scheduler": trial.suggest_categorical(
-                "noise_scheduler",
-                choices=["linear", "cosine", "exp", "uniform"],
-            ),
-            "noise_timesteps": trial.suggest_int("noise_timesteps", 10, 30),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            ext1_up=25,
-            ext1_down=6,
-            ext2_up=6,
-            ext2_down=25,
-            max_micro_homology=7,
-            loss_weights={hparam_dict["loss_weights"]: 1.0},
-            unet_channels=(
-                32
-                * np.r_[
-                    1 : hparam_dict["half_layer_num"],
-                    hparam_dict["half_layer_num"] : 0 : -1,
-                ]
-            ).tolist(),
-            noise_scheduler=hparam_dict["noise_scheduler"],
-            noise_timesteps=hparam_dict["noise_timesteps"],
-            cosine_factor=0.008,
-            exp_scale=5.0,
-            exp_base=5.0,
-            uniform_scale=1.0,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.loss_weights = trial.suggest_categorical(
+            "CRIfuser/CRIfuser/loss_weights",
+            choices=[
+                {"double_sample_negative_ELBO": 1.0},
+                {"importance_sample_negative_ELBO": 1.0},
+                {"forward_negative_ELBO": 1.0},
+                {"reverse_negative_ELBO": 1.0},
+                {"sample_CE": 1.0},
+                {"non_sample_CE": 1.0},
+            ],
         )
-
-        return cfg, hparam_dict
+        cfg.model.init_args.unet_channels = trial.suggest_categorical(
+            "CRIfuser/CRIfuser/unet_channels",
+            choices=[
+                [32, 64, 32],
+                [32, 64, 96, 64, 32],
+                [32, 64, 96, 128, 96, 64, 32],
+            ],
+        )
+        cfg.model.init_args.noise_scheduler = trial.suggest_categorical(
+            "CRIfuser/CRIfuser/noise_scheduler",
+            choices=["linear", "cosine", "exp", "uniform"],
+        )
+        cfg.model.init_args.noise_timesteps = trial.suggest_int(
+            "CRIfuser/CRIfuser/noise_timesteps", 10, 30
+        )

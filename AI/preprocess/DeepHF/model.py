@@ -23,9 +23,10 @@ from common_ai.generator import MyGenerator
 from common_ai.initializer import MyInitializer
 from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
+from common_ai.model import MyModelAbstract
 
 
-class DeepHF(nn.Module):
+class DeepHF(MyModelAbstract, nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -215,32 +216,30 @@ class DeepHF(nn.Module):
         return df
 
     @classmethod
-    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "em_drop": trial.suggest_float("em_drop", 0.0, 0.2),
-            "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.4),
-            "em_dim": trial.suggest_int("em_dim", 33, 55),
-            "rnn_units": trial.suggest_int("rnn_units", 50, 70),
-            "fc_num_hidden_layers": trial.suggest_int("fc_num_hidden_layers", 2, 5),
-            "fc_num_units": trial.suggest_int("fc_num_units", 220, 420),
-            "fc_activation": trial.suggest_categorical(
-                "fc_activation",
-                choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-            ),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            ext1_up=25,
-            ext1_down=6,
-            ext2_up=6,
-            ext2_down=25,
-            **hparam_dict,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.em_drop = trial.suggest_float(
+            "DeepHF/DeepHF/em_drop", 0.0, 0.2
+        )
+        cfg.model.init_args.fc_drop = trial.suggest_float(
+            "DeepHF/DeepHF/fc_drop", 0.0, 0.4
+        )
+        cfg.model.init_args.em_dim = trial.suggest_int("DeepHF/DeepHF/em_dim", 33, 55)
+        cfg.model.init_args.rnn_units = trial.suggest_int(
+            "DeepHF/DeepHF/rnn_units", 50, 70
+        )
+        cfg.model.init_args.fc_num_hidden_layers = trial.suggest_int(
+            "DeepHF/DeepHF/fc_num_hidden_layers", 2, 5
+        )
+        cfg.model.init_args.fc_num_units = trial.suggest_int(
+            "DeepHF/DeepHF/fc_num_units", 220, 420
+        )
+        cfg.model.init_args.fc_activation = trial.suggest_categorical(
+            "DeepHF/DeepHF/fc_activation",
+            choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
         )
 
-        return cfg, hparam_dict
 
-
-class MLP(nn.Module):
+class MLP(MyModelAbstract, nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -402,29 +401,23 @@ class MLP(nn.Module):
         return df
 
     @classmethod
-    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.2),
-            "fc_num_hidden_layers": trial.suggest_int("fc_num_hidden_layers", 3, 5),
-            "fc_num_units": trial.suggest_int("fc_num_units", 300, 500),
-            "fc_activation": trial.suggest_categorical(
-                "fc_activation",
-                choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-            ),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            ext1_up=25,
-            ext1_down=6,
-            ext2_up=6,
-            ext2_down=25,
-            **hparam_dict,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.fc_drop = trial.suggest_float(
+            "DeepHF/MLP/fc_drop", 0.0, 0.2
+        )
+        cfg.model.init_args.fc_num_hidden_layers = trial.suggest_int(
+            "DeepHF/MLP/fc_num_hidden_layers", 3, 5
+        )
+        cfg.model.init_args.fc_num_units = trial.suggest_int(
+            "DeepHF/MLP/fc_num_units", 300, 500
+        )
+        cfg.model.init_args.fc_activation = trial.suggest_categorical(
+            "DeepHF/MLP/fc_activation",
+            choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
         )
 
-        return cfg, hparam_dict
 
-
-class CNN(nn.Module):
+class CNN(MyModelAbstract, nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -622,104 +615,96 @@ class CNN(nn.Module):
         return df
 
     @classmethod
-    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "em_drop": trial.suggest_float("em_drop", 0.0, 0.2),
-            "fc_drop": trial.suggest_float("fc_drop", 0.0, 0.2),
-            "em_dim": trial.suggest_int("em_dim", 26, 46),
-            "fc_num_hidden_layers": trial.suggest_int("fc_num_hidden_layers", 2, 4),
-            "fc_num_units": trial.suggest_int("fc_num_units", 300, 500),
-            "fc_activation": trial.suggest_categorical(
-                "fc_activation",
-                choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
-            ),
-            "feature_maps": trial.suggest_categorical(
-                "feature_maps",
-                choices=[
-                    [
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                    ],
-                    [
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        20,
-                        40,
-                        40,
-                        40,
-                        40,
-                        40,
-                        40,
-                        40,
-                    ],
-                    [
-                        20,
-                        20,
-                        20,
-                        20,
-                        40,
-                        40,
-                        40,
-                        40,
-                        80,
-                        80,
-                        80,
-                        80,
-                        80,
-                        80,
-                    ],
-                    [
-                        40,
-                        40,
-                        40,
-                        40,
-                        40,
-                        40,
-                        40,
-                        40,
-                        80,
-                        80,
-                        80,
-                        80,
-                        80,
-                        80,
-                    ],
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.em_drop = trial.suggest_float(
+            "DeepHF/CNN/em_drop", 0.0, 0.2
+        )
+        cfg.model.init_args.fc_drop = trial.suggest_float(
+            "DeepHF/CNN/fc_drop", 0.0, 0.2
+        )
+        cfg.model.init_args.em_dim = trial.suggest_int("DeepHF/CNN/em_dim", 26, 46)
+        cfg.model.init_args.fc_num_hidden_layers = trial.suggest_int(
+            "DeepHF/CNN/fc_num_hidden_layers", 2, 4
+        )
+        cfg.model.init_args.fc_num_units = trial.suggest_int(
+            "DeepHF/CNN/fc_num_units", 300, 500
+        )
+        cfg.model.init_args.fc_activation = trial.suggest_categorical(
+            "DeepHF/CNN/fc_activation",
+            choices=["elu", "relu", "tanh", "sigmoid", "hard_sigmoid"],
+        )
+        cfg.model.init_args.feature_maps = trial.suggest_categorical(
+            "DeepHF/CNN/feature_maps",
+            choices=[
+                [
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
                 ],
-            ),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            ext1_up=25,
-            ext1_down=6,
-            ext2_up=6,
-            ext2_down=25,
-            kernel_sizes=[1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13],
-            **hparam_dict,
+                [
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    20,
+                    40,
+                    40,
+                    40,
+                    40,
+                    40,
+                    40,
+                    40,
+                ],
+                [
+                    20,
+                    20,
+                    20,
+                    20,
+                    40,
+                    40,
+                    40,
+                    40,
+                    80,
+                    80,
+                    80,
+                    80,
+                    80,
+                    80,
+                ],
+                [
+                    40,
+                    40,
+                    40,
+                    40,
+                    40,
+                    40,
+                    40,
+                    40,
+                    80,
+                    80,
+                    80,
+                    80,
+                    80,
+                    80,
+                ],
+            ],
         )
-        hparam_dict["feature_maps"] = ":".join(
-            [str(feature_map) for feature_map in hparam_dict["feature_maps"]]
-        )
-
-        return cfg, hparam_dict
 
 
-class XGBoost:
+class XGBoost(MyModelAbstract):
     def __init__(
         self,
         ext1_up: int,
@@ -976,26 +961,23 @@ class XGBoost:
         return X_value
 
     @classmethod
-    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "eta": trial.suggest_float("eta", 0.05, 0.2),
-            "max_depth": trial.suggest_int("max_depath", 4, 6),
-            "subsample": trial.suggest_float("subsample", 0.8, 1.0),
-            "reg_lambda": trial.suggest_float("reg_lambda", 400.0, 1000.0),
-            "num_boost_round": trial.suggest_int("num_boost_round", 10, 20),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            ext1_up=25,
-            ext1_down=6,
-            ext2_up=6,
-            ext2_down=25,
-            **hparam_dict,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.eta = trial.suggest_float("DeepHF/XGBoost/eta", 0.05, 0.2)
+        cfg.model.init_args.max_depth = trial.suggest_int(
+            "DeepHF/XGBoost/max_depath", 4, 6
         )
-        return cfg, hparam_dict
+        cfg.model.init_args.subsample = trial.suggest_float(
+            "DeepHF/XGBoost/subsample", 0.8, 1.0
+        )
+        cfg.model.init_args.reg_lambda = trial.suggest_float(
+            "DeepHF/XGBoost/reg_lambda", 400.0, 1000.0
+        )
+        cfg.model.init_args.num_boost_round = trial.suggest_int(
+            "DeepHF/XGBoost/num_boost_round", 10, 20
+        )
 
 
-class SGDClassifier:
+class SGDClassifier(MyModelAbstract):
     def __init__(
         self,
         ext1_up: int,
@@ -1240,22 +1222,14 @@ class SGDClassifier:
         return X_value
 
     @classmethod
-    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "penalty": trial.suggest_categorical(
-                "penalty",
-                choices=["l2", "l1", "elasticnet", None],
-            ),
-            "alpha": trial.suggest_float("alpha", 0.00005, 0.0002),
-            "l1_ratio": trial.suggest_float("l1_ratio", 0.075, 0.3),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            ext1_up=25,
-            ext1_down=6,
-            ext2_up=6,
-            ext2_down=25,
-            **hparam_dict,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.penalty = trial.suggest_categorical(
+            "DeepHF/SGDClassifier/penalty",
+            choices=["l2", "l1", "elasticnet", None],
         )
-
-        return cfg, hparam_dict
+        cfg.model.init_args.alpha = trial.suggest_float(
+            "DeepHF/SGDClassifier/alpha", 0.00005, 0.0002
+        )
+        cfg.model.init_args.l1_ratio = trial.suggest_float(
+            "DeepHF/SGDClassifier/l1_ratio", 0.075, 0.3
+        )

@@ -17,9 +17,10 @@ from einops import einsum, repeat, rearrange
 
 from .data_collator import DataCollator
 from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
 
 
-class CRIformer(nn.Module):
+class CRIformer(MyModelAbstract, nn.Module):
     def __init__(
         self,
         ext1_up: int,
@@ -167,29 +168,23 @@ class CRIformer(nn.Module):
         return df
 
     @classmethod
-    def my_hpo(cls, trial: optuna.Trial) -> tuple[jsonargparse.Namespace, dict]:
-        hparam_dict = {
-            "hidden_size": trial.suggest_int("hidden_size", 128, 512, step=128),
-            "num_hidden_layers": trial.suggest_int("num_hidden_layers", 2, 4),
-            # num_attention_heads must devide hidden_size
-            "num_attention_heads": trial.suggest_categorical(
-                "num_attention_heads", choices=[2, 4, 8]
-            ),
-            "intermediate_size": trial.suggest_int(
-                "intermediate_size", 512, 2048, step=512
-            ),
-            "hidden_dropout_prob": trial.suggest_float("hidden_dropout_prob", 0.0, 0.1),
-            "attention_probs_dropout_prob": trial.suggest_float(
-                "attention_probs_dropout_prob", 0.0, 0.1
-            ),
-        }
-        cfg = jsonargparse.Namespace()
-        cfg.init_args = jsonargparse.Namespace(
-            ext1_up=25,
-            ext1_down=6,
-            ext2_up=6,
-            ext2_down=25,
-            **hparam_dict,
+    def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
+        cfg.model.init_args.hidden_size = trial.suggest_int(
+            "CRIformer/CRIformer/hidden_size", 128, 512, step=128
         )
-
-        return cfg, hparam_dict
+        cfg.model.init_args.num_hidden_layers = trial.suggest_int(
+            "CRIformer/CRIformer/num_hidden_layers", 2, 4
+        )
+        # num_attention_heads must devide hidden_size
+        cfg.model.init_args.num_attention_heads = trial.suggest_categorical(
+            "CRIformer/CRIformer/num_attention_heads", choices=[2, 4, 8]
+        )
+        cfg.model.init_args.intermediate_size = trial.suggest_int(
+            "CRIformer/CRIformer/intermediate_size", 512, 2048, step=512
+        )
+        cfg.model.init_args.hidden_dropout_prob = trial.suggest_float(
+            "CRIformer/CRIformer/hidden_dropout_prob", 0.0, 0.1
+        )
+        cfg.model.init_args.attention_probs_dropout_prob = trial.suggest_float(
+            "CRIformer/CRIformer/attention_probs_dropout_prob", 0.0, 0.1
+        )
