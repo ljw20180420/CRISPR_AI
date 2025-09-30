@@ -59,6 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
+- In hpo, convert scalars other than int, float, str, bool, or torch.Tensor to str before SummaryWriter.
 - Fix bug of jsonargparse in parsing config file list.
 - Train XGBoost.
 - Try to read test results from hparams instead of scalars, so that it is only necessary to store hparams in test.
