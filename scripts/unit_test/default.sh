@@ -27,10 +27,10 @@ do
         model_config=AI/preprocess/${preprocess}/${model_cls}.yaml
 
         # Train
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 2 --profiler.use_profiler true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
         # Eval
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
+        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 2 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
         # Test
         checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
