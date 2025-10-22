@@ -15,11 +15,11 @@ parser, train_parser, test_parser, hpo_parser = get_config()
 cfg = parser.parse_args()
 
 if cfg.subcommand == "train":
-    for epoch, logdir in MyTrain(**cfg.train.train.as_dict())(train_parser):
+    for epoch in MyTrain(**cfg.train.train.as_dict())(train_parser):
         pass
 
 elif cfg.subcommand == "test":
-    epoch, logdir = MyTest(**cfg.test.as_dict())(train_parser)
+    epoch = MyTest(**cfg.test.as_dict())(train_parser)
 
 elif cfg.subcommand == "hpo":
     MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
