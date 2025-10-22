@@ -59,11 +59,13 @@ Summarize benchmarks results by
 
 # TODO
 
-- In hpo, convert scalars other than int, float, str, bool, or torch.Tensor to str before SummaryWriter.
-- Fix bug of jsonargparse in parsing config file list.
+- Add test for profile.
+- Add toggle for profile.
+- Modify `hpo.py` for compatibility with profiled `train.py`
+- Use python port of viennarna instead of command line.
 - Train XGBoost.
-- Try to read test results from hparams instead of scalars, so that it is only necessary to store hparams in test.
-- Add torch.profiler https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html#using-tracing-functionality.
+- arrange trained results
+- test rearrange results by evaluation only
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
