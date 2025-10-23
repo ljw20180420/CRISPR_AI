@@ -6,6 +6,7 @@ cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 cd ../..
 
 train_config=AI/train.yaml
+hta_config=AI/hta.yaml
 output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/unit_test/default
 test_config=AI/test.yaml
 
@@ -32,9 +33,13 @@ do
         # Eval
         ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 2 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
 
-        # Test
         checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
         logs_path=${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/default
+        
+        # Hta
+        ./run.py hta --config ${hta_config} --trace_dir ${logs_path}/profile
+
+        # Test
         for target in \
             CrossEntropy \
             NonZeroCrossEntropy \

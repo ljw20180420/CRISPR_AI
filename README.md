@@ -59,8 +59,6 @@ Summarize benchmarks results by
 
 # TODO
 
-- Add test for profile.
-- Add toggle for profile.
 - Modify `hpo.py` for compatibility with profiled `train.py`
 - Use python port of viennarna instead of command line.
 - Train XGBoost.
