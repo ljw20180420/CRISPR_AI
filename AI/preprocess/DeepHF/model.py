@@ -24,6 +24,7 @@ from common_ai.initializer import MyInitializer
 from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
 from common_ai.model import MyModelAbstract
+from common_ai.profiler import MyProfiler
 
 
 class DeepHF(MyModelAbstract, nn.Module):
@@ -812,6 +813,7 @@ class XGBoost(MyModelAbstract):
         eval_dataloader: torch.utils.data.DataLoader,
         my_generator: MyGenerator,
         my_optimizer: MyOptimizer,
+        my_profiler: MyProfiler,
     ):
         if not hasattr(self, "Xy_train") or not hasattr(self, "train_loss_num"):
             X_train, y_train, w_train = [], [], []
@@ -1090,6 +1092,7 @@ class SGDClassifier(MyModelAbstract):
         eval_dataloader: torch.utils.data.DataLoader,
         my_generator: MyGenerator,
         my_optimizer: MyOptimizer,
+        my_profiler: MyProfiler,
     ) -> None:
         train_loss, train_loss_num = 0.0, 0.0
         for examples in tqdm(train_dataloader):
@@ -1099,12 +1102,14 @@ class SGDClassifier(MyModelAbstract):
             X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
+
             self.sgd_classifier.partial_fit(
                 X=X_value,
                 y=y_value,
                 classes=self.classes,
                 sample_weight=w_value,
             )
+
             train_loss += (
                 (
                     np.ma.log(

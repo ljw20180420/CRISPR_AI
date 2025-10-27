@@ -19,6 +19,7 @@ from common_ai.generator import MyGenerator
 from common_ai.optimizer import MyOptimizer
 from common_ai.train import MyTrain
 from common_ai.model import MyModelAbstract
+from common_ai.profiler import MyProfiler
 
 
 class inDelphi(MyModelAbstract, nn.Module):
@@ -308,9 +309,10 @@ class inDelphi(MyModelAbstract, nn.Module):
         eval_dataloader: torch.utils.data.DataLoader,
         my_generator: MyGenerator,
         my_optimizer: MyOptimizer,
+        my_profiler: MyProfiler,
     ) -> tuple[float]:
         train_loss, train_loss_num, grad_norm = my_train.my_train_epoch(
-            self, train_dataloader, my_generator, my_optimizer
+            self, train_dataloader, my_generator, my_optimizer, my_profiler
         )
         self.train_knn(train_dataloader, eval_dataloader, my_generator)
         return train_loss, train_loss_num, grad_norm

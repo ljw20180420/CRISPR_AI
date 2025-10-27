@@ -12,7 +12,7 @@ from common_ai.hpo import MyHpo
 os.chdir(pathlib.Path(__file__).parent)
 
 # parse arguments
-parser, train_parser, test_parser, hpo_parser = get_config()
+parser, train_parser, test_parser, hta_parser, hpo_parser = get_config()
 cfg = parser.parse_args()
 
 if cfg.subcommand == "train":
