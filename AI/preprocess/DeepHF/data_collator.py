@@ -1,8 +1,7 @@
 import numpy as np
 import torch
-import more_itertools
 import Bio.SeqUtils.MeltingTemp as Tm
-import subprocess
+import RNA
 from ..utils import MicroHomologyTool
 from common_ai.utils import SeqTokenizer
 from common_ai.generator import MyGenerator
@@ -10,7 +9,7 @@ from common_ai.generator import MyGenerator
 
 class TwoMerEnergy:
     def __init__(self) -> None:
-        self.seq_tokenizer = SeqTokenizer("ACGU")
+        self.seq_tokenizer = SeqTokenizer("ACGT")
         self.energy = np.array(
             [
                 [-0.2, -1.1, -0.9, -0.9],
@@ -128,47 +127,26 @@ class DataCollator:
         }
 
     def _get_energy(self, examples: list[dict]) -> None:
-        sp = subprocess.Popen(
-            "RNAfold --noPS",
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-        )
-        fa_lines = []
         for example in examples:
             ref1 = example["ref1"]
             cut1 = example["cut1"]
             sgRNA = ref1[cut1 - 17 : cut1 + 3]
             sgRNA_scaffold = sgRNA + example["scaffold"]
             if sgRNA_scaffold not in self.energy_records:
-                fa_lines.append(f">{len(fa_lines) // 2}")
-                fa_lines.append(sgRNA)
-                fa_lines.append(f">{len(fa_lines) // 2}")
-                fa_lines.append(sgRNA_scaffold)
-        stdout, _ = sp.communicate(input="\n".join(fa_lines).encode())
-        for (
-            _,
-            sgRNA,
-            sgRNA_energy,
-            _,
-            sgRNA_scaffold,
-            sgRNA_scaffold_energy,
-        ) in more_itertools.batched(stdout.decode().splitlines(), 6):
-            dG = float(sgRNA_energy.split(" (")[1][:-2].strip())
-            dG_binding_20 = self.two_mer_energy(sgRNA)
-            dG_binding_7to20 = self.two_mer_energy(sgRNA[7:])
-            align_seq = sgRNA_scaffold_energy.split(" (")[0]
-            if align_seq[18 : 18 + len(self.ext_stem)] == self.ext_stem:
-                stem = 1.0
-            else:
-                stem = 0.0
-            self.energy_records[sgRNA_scaffold.replace("U", "T")] = [
-                stem,
-                dG,
-                dG_binding_20,
-                dG_binding_7to20,
-            ]
+                dG = RNA.fold(sgRNA)[1]
+                dG_binding_20 = self.two_mer_energy(sgRNA)
+                dG_binding_7to20 = self.two_mer_energy(sgRNA[7:])
+                align_seq = RNA.fold(sgRNA_scaffold)[0]
+                if align_seq[18 : 18 + len(self.ext_stem)] == self.ext_stem:
+                    stem = 1.0
+                else:
+                    stem = 0.0
+                self.energy_records[sgRNA_scaffold] = [
+                    stem,
+                    dG,
+                    dG_binding_20,
+                    dG_binding_7to20,
+                ]
 
     def _assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert cut >= 17 and len(ref) - cut >= 4, f"ref is too short to contain 21mer"

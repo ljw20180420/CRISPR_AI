@@ -59,7 +59,6 @@ Summarize benchmarks results by
 
 # TODO
 
-- Use python port of viennarna instead of command line.
 - Train XGBoost.
 - arrange trained results
 - test rearrange results by evaluation only
