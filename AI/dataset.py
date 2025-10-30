@@ -289,7 +289,7 @@ class MyDataset(MyDatasetAbstract):
         self.random_insert_uplimit = random_insert_uplimit
         self.insert_uplimit = insert_uplimit
 
-    def __call__(self):
+    def __call__(self) -> datasets.Dataset:
         ds = datasets.load_dataset(
             "json",
             data_files=self.data_file,
