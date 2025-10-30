@@ -5,6 +5,8 @@ scikit-learn
 xgboost
 lightgbm
 
+shap
+
 jsonargparse[all]
 docstring-inheritance
 more-itertools
