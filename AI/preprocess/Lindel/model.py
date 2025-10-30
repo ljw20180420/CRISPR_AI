@@ -19,7 +19,7 @@ from common_ai.model import MyModelAbstract
 class Lindel(MyModelAbstract, nn.Module):
     def __init__(
         self,
-        dlen: int,
+        max_del_size: int,
         mh_len: int,
         reg_mode: Literal["l2", "l1"],
         reg_const: float,
@@ -27,7 +27,7 @@ class Lindel(MyModelAbstract, nn.Module):
         """Lindel parameters
 
         Args:
-            dlen: the upper limit of deletion length (strictly less than dlen).
+            max_del_size: maximal deletion size.
             mh_len: the upper limit of micro-homology length.
             reg_model: regularization method, should be l2 or l1.
             reg_const: regularization coefficient.
@@ -36,13 +36,13 @@ class Lindel(MyModelAbstract, nn.Module):
         self.reg_mode = reg_mode
         self.reg_const = reg_const
 
-        self.data_collator = DataCollator(dlen=dlen, mh_len=mh_len)
+        self.data_collator = DataCollator(max_del_size=max_del_size, mh_len=mh_len)
         # onehotencoder(ref[cut-17:cut+3])
         self.model_indel = nn.Linear(in_features=20 * 4 + 19 * 16, out_features=2)
         # onehotencoder(ref[cut-3:cut+3])
         self.model_ins = nn.Linear(in_features=6 * 4 + 5 * 16, out_features=21)
         # concatenate get_feature and onehotencoder(ref[cut-17:cut+3])
-        class_dim = (5 + 1 + 5 + dlen - 1) * (dlen - 1) // 2
+        class_dim = (5 + 1 + 5 + max_del_size) * (max_del_size) // 2
         self.model_del = nn.Linear(
             in_features=class_dim * (mh_len + 1) + 20 * 4 + 19 * 16,
             out_features=class_dim,

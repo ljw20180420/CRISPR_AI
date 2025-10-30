@@ -25,21 +25,21 @@ from common_ai.profiler import MyProfiler
 class inDelphi(MyModelAbstract, nn.Module):
     def __init__(
         self,
-        DELLEN_LIMIT: int,
+        max_del_size: int,
         mid_dim: int,
     ) -> None:
         """inDelphi paramters.
 
         Args:
-            DELLEN_LIMIT: the upper limit of deletion length (strictly less than DELLEN_LIMIT).
+            max_del_size: maximal deletion size.
             mid_dim: the size of middle layer of MLP.
         """
         super().__init__()
-        self.DELLEN_LIMIT = DELLEN_LIMIT
+        self.max_del_size = max_del_size
 
-        self.data_collator = DataCollator(DELLEN_LIMIT=DELLEN_LIMIT)
+        self.data_collator = DataCollator(max_del_size=max_del_size)
         self.register_buffer(
-            "del_lens", torch.arange(1, DELLEN_LIMIT, dtype=torch.float32)
+            "del_lens", torch.arange(1, max_del_size + 1, dtype=torch.float32)
         )
         self.mh_in_layer = nn.Linear(in_features=2, out_features=mid_dim)
         self.mh_mid_layer = nn.Linear(in_features=mid_dim, out_features=mid_dim)
@@ -57,7 +57,7 @@ class inDelphi(MyModelAbstract, nn.Module):
         self, logits: torch.Tensor, del_lens: torch.Tensor
     ) -> torch.Tensor:
         return torch.exp(logits.squeeze() - 0.25 * del_lens) * (
-            del_lens < self.DELLEN_LIMIT
+            del_lens <= self.max_del_size
         )
 
     def forward(
@@ -181,7 +181,7 @@ class inDelphi(MyModelAbstract, nn.Module):
             1 - insert_probabilities,
             "b w, b -> b w",
         )
-        DELLEN_LIMIT = self.DELLEN_LIMIT
+        max_del_size = self.max_del_size
         sample_idxs, probas, rpos1s, rpos2s, random_inss = [], [], [], [], []
         for sample_idx, (
             delete_probability,
@@ -203,7 +203,7 @@ class inDelphi(MyModelAbstract, nn.Module):
             )
         ):
             mh_mh_len = mh_mh_len[mh_mh_len > 0].astype(int)
-            mh_del_len = mh_del_len[mh_del_len < self.DELLEN_LIMIT]
+            mh_del_len = mh_del_len[mh_del_len <= self.max_del_size]
             probas.append(
                 (delete_probability[: len(mh_mh_len)] / (mh_mh_len + 1)).repeat(
                     mh_mh_len + 1
@@ -217,18 +217,21 @@ class inDelphi(MyModelAbstract, nn.Module):
             rpos2s.append(rpos2_mh)
             probas.append(
                 (
-                    delete_probability[-(DELLEN_LIMIT - 1) :]
-                    / np.arange(2, DELLEN_LIMIT + 1)
-                ).repeat(np.arange(2, DELLEN_LIMIT + 1))
+                    delete_probability[-(max_del_size):]
+                    / np.arange(2, max_del_size + 2)
+                ).repeat(np.arange(2, max_del_size + 2))
             )
             rpos1s.append(
                 np.concatenate(
-                    [np.arange(-DEL_SIZE, 1) for DEL_SIZE in range(1, DELLEN_LIMIT)]
+                    [np.arange(-DEL_SIZE, 1) for DEL_SIZE in range(1, max_del_size + 1)]
                 )
             )
             rpos2s.append(
                 np.concatenate(
-                    [np.arange(0, DEL_SIZE + 1) for DEL_SIZE in range(1, DELLEN_LIMIT)]
+                    [
+                        np.arange(0, DEL_SIZE + 1)
+                        for DEL_SIZE in range(1, max_del_size + 1)
+                    ]
                 )
             )
             random_inss.append(

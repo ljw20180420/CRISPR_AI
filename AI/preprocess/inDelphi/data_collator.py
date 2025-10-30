@@ -6,19 +6,13 @@ from common_ai.generator import MyGenerator
 
 
 class DataCollator:
-    def __init__(self, DELLEN_LIMIT: int) -> None:
-        self.DELLEN_LIMIT = DELLEN_LIMIT
+    def __init__(self, max_del_size: int) -> None:
+        self.max_del_size = max_del_size
         self.lefts = np.concatenate(
-            [
-                np.arange(-DEL_SIZE, 1)
-                for DEL_SIZE in range(self.DELLEN_LIMIT - 1, 0, -1)
-            ]
+            [np.arange(-DEL_SIZE, 1) for DEL_SIZE in range(self.max_del_size, 0, -1)]
         )
         self.rights = np.concatenate(
-            [
-                np.arange(0, DEL_SIZE + 1)
-                for DEL_SIZE in range(self.DELLEN_LIMIT - 1, 0, -1)
-            ]
+            [np.arange(0, DEL_SIZE + 1) for DEL_SIZE in range(self.max_del_size, 0, -1)]
         )
         self.del_lens = self.rights - self.lefts
         self.seq_tokenizer = SeqTokenizer("ACGT")
@@ -132,7 +126,7 @@ class DataCollator:
                     insert_1bp_count / (insert_1bp_count + del_count + self.epsilon)
                 )
                 # mhless_counts
-                mhless_counts = np.zeros(self.DELLEN_LIMIT - 1)
+                mhless_counts = np.zeros(self.max_del_size)
                 np.add.at(
                     mhless_counts,
                     self.del_lens[all_mh_lens == 0] - 1,
@@ -168,7 +162,9 @@ class DataCollator:
                 torch.from_numpy(
                     np.append(
                         mh_del_len,
-                        np.full(max_mh_genotype - len(mh_del_len), self.DELLEN_LIMIT),
+                        np.full(
+                            max_mh_genotype - len(mh_del_len), self.max_del_size + 1
+                        ),
                     )
                 )
                 for mh_del_len in mh_del_lens
@@ -230,5 +226,5 @@ class DataCollator:
 
     def _assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert (
-            cut >= self.DELLEN_LIMIT - 1 and len(ref) - cut >= self.DELLEN_LIMIT - 1
-        ), f"reference is too short to contain DELLEN_LIMIT {self.DELLEN_LIMIT}"
+            cut >= self.max_del_size and len(ref) - cut >= self.max_del_size
+        ), f"reference is too short to contain max_del_size {self.max_del_size}"

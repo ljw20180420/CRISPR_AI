@@ -7,14 +7,14 @@ from common_ai.generator import MyGenerator
 
 
 class DataCollator:
-    def __init__(self, dlen: int, mh_len: int) -> None:
-        self.dlen = dlen
+    def __init__(self, max_del_size: int, mh_len: int) -> None:
+        self.max_del_size = max_del_size
         self.mh_len = mh_len
         self.lefts = np.concatenate(
-            [np.arange(-dl - 2, 3) for dl in range(1, self.dlen)]
+            [np.arange(-dl - 2, 3) for dl in range(1, self.max_del_size + 1)]
         )
         self.rights = np.concatenate(
-            [np.arange(-2, dl + 3) for dl in range(1, self.dlen)]
+            [np.arange(-2, dl + 3) for dl in range(1, self.max_del_size + 1)]
         )
         self.del_lens = self.rights - self.lefts
         self.seq_tokenzier = SeqTokenizer("ACGT")
@@ -155,8 +155,8 @@ class DataCollator:
 
     def _assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
         assert (
-            cut >= self.dlen - 1 + 2 and len(ref) - cut >= self.dlen - 1 + 2
-        ), f"ref is too short to contain deletion length {self.dlen - 1} up to 2bp away from the cleavage site {cut}"
+            cut >= self.max_del_size + 2 and len(ref) - cut >= self.max_del_size + 2
+        ), f"ref is too short to contain deletion length {self.max_del_size} up to 2bp away from the cleavage site {cut}"
 
     def _onehot_encoder(self, guide: str) -> torch.Tensor:
         guideVal = torch.from_numpy(self.seq_tokenzier(guide))
@@ -172,7 +172,9 @@ class DataCollator:
     ) -> np.ndarray:
         features = (
             len(self.lefts) * np.minimum(mh_lens, self.mh_len)
-            + (self.dlen - 1 + 5 + del_lens + 1 + 5) * (self.dlen - del_lens - 1) // 2
+            + (self.max_del_size + 5 + del_lens + 1 + 5)
+            * (self.max_del_size - del_lens)
+            // 2
             + dstarts
             + del_lens
             + 2
