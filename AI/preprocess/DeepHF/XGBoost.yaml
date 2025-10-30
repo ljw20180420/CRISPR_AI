@@ -5,7 +5,7 @@ init_args:
   ext2_up: 6
   ext2_down: 25
   eta: 0.03
-  max_depth: 10
+  max_depth: 6
   subsample: 0.8
   reg_lambda: 10.0
-  num_boost_round: 10
+  num_boost_round: 6
