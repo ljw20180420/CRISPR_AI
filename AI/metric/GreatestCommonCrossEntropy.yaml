@@ -4,3 +4,4 @@ init_args:
   ext1_down: 6
   ext2_up: 6
   ext2_down: 25
+  max_del_size: 44

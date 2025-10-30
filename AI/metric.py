@@ -277,6 +277,7 @@ class GreatestCommonCrossEntropy(MyMetricAbstract):
         ext1_down: int,
         ext2_up: int,
         ext2_down: int,
+        max_del_size: int,
     ) -> None:
         """GreatestCommonCrossEntropy arguments.
 
@@ -285,6 +286,7 @@ class GreatestCommonCrossEntropy(MyMetricAbstract):
             ext1_down: downstream limit of the templated insertion of the upstream end.
             ext2_up: upstream limit of the templated insertion of the downstream end.
             ext2_down: downstream limit of the resection of the downstream end.
+            max_del_size: maximal deletion size.
         """
         self.ext1_up = ext1_up
         self.ext1_down = ext1_down
@@ -300,12 +302,7 @@ class GreatestCommonCrossEntropy(MyMetricAbstract):
             FOREcasT_min_del_size, inDelphi_min_del_size, Lindel_min_del_size
         )
 
-        FOREcasT_max_del_size = 44
-        inDelphi_max_del_size = 44
-        Lindel_max_del_size = 44
-        max_del_size = min(
-            FOREcasT_max_del_size, inDelphi_max_del_size, Lindel_max_del_size
-        )
+        # max_del_size = min(FOREcasT_max_del_size, inDelphi_max_del_size, Lindel_max_del_size)
 
         FOREcasT_ext = 0
         inDelphi_ext = 0
