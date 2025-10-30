@@ -31,6 +31,12 @@ random_DNA()
     printf $str
 }
 
+random_scaffold()
+{
+    local scaffolds=(spcas9 spymac)
+    printf ${scaffolds[RANDOM%2]}
+}
+
 # Collate all data
 concat_algs |
 sort --parallel 24 -t $'\t' -k1,9 |
@@ -43,11 +49,12 @@ head -n 3000 |
 gzip > test.json.gz
 
 # Generate inference data
-> inference.json
+printf "ref,cut,scaffold\n" > inference.csv
 for i in {1..1000}
 do
     ref=$(random_DNA 104)"GG"$(random_DNA 94)
-    printf "{\"ref\": \"%s\", \"cut\": 100}\n" $ref \
-        >> inference.json
+    scaffold=$(random_scaffold)
+    printf "%s,100,%s\n" $ref $scaffold \
+        >> inference.csv
 done
-gzip --force inference.json
+gzip --force inference.csv
