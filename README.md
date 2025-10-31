@@ -59,9 +59,15 @@ Summarize benchmarks results by
 
 # TODO
 
-- Train XGBoost.
-- arrange trained results
-- test rearrange results by evaluation only
+- Read SHAP and huggingface hub.
+- upload/download
+- inference
+- shap
+- app
+- space
+- Add inference subcommand to config.
+- Add test for inference.
+- Add abstract class for MyInference in common_ai.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
@@ -72,8 +78,8 @@ Summarize benchmarks results by
   - pred_interactions
   - plot_importance
   - plot_tree
-- model interpret.
-- LightGBM, XGBoost, CatBoost, hmmlearn, seqlearn, pystruct
+- SHAP.
+- LightGBM, XGBoost, CatBoost, hmmlearn, seqlearn, pystruct, InterpretML
 - Use model.eval() in test and inference
 - Add api documentation after finish the project
 - train use float32

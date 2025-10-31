@@ -7,6 +7,6 @@ AI/preprocess/FOREcasT/reference/
 AI/preprocess/Lindel/reference/
 AI/preprocess/inDelphi/reference/
 AI/preprocess/malijia/reference/
-benchmark
+paper/benchmark
 AI/dataset/data/SX/csvfiles/*
 !AI/dataset/data/SX/csvfiles/*.csv
