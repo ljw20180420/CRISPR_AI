@@ -5,12 +5,18 @@ cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 # change to the dir to the project
 cd ../..
 
+function title() {
+    sharps="#################################"
+    printf "\n%s\n%s\n%s\n" ${sharps} $1 ${sharps}
+}
+
 hpo_config="AI/hpo.yaml"
 output_dir=${OUTPUT_DIR:-${HOME}"/CRISPR_results"}/unit_test/hpo
 trial_name="trial"
 
 for data_name in SX_spcas9
 do
+    title ${data_name}
     for pre_model in \
         CRIformer:CRIformer \
         inDelphi:inDelphi \
@@ -23,6 +29,8 @@ do
         CRIfuser:CRIfuser \
         FOREcasT:FOREcasT
     do
+        title ${pre_model}
+
         IFS=":" read preprocess model_cls <<<${pre_model}
         model_config=AI/preprocess/${preprocess}/${model_cls}.yaml
 

@@ -61,13 +61,9 @@ Summarize benchmarks results by
 
 - Read SHAP and huggingface hub.
 - upload/download
-- inference
 - shap
 - app
 - space
-- Add inference subcommand to config.
-- Add test for inference.
-- Add abstract class for MyInference in common_ai.
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
