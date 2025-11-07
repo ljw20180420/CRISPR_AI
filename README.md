@@ -61,6 +61,7 @@ Summarize benchmarks results by
 
 - Read SHAP and huggingface hub.
 - shap
+  - various plot.
   - interactions
   - deeplift visualization
   - supervised clustering of models
@@ -77,7 +78,6 @@ Summarize benchmarks results by
   - pred_interactions
   - plot_importance
   - plot_tree
-- SHAP.
 - LightGBM, XGBoost, CatBoost, hmmlearn, seqlearn, pystruct, InterpretML
 - Use model.eval() in test and inference
 - Add api documentation after finish the project
