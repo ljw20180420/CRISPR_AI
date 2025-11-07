@@ -60,8 +60,11 @@ Summarize benchmarks results by
 # TODO
 
 - Read SHAP and huggingface hub.
-- upload/download
 - shap
+  - interactions
+  - deeplift visualization
+  - supervised clustering of models
+- upload/download
 - app
 - space
 - Benchmarks.
