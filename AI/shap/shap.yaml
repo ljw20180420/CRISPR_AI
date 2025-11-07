@@ -1,0 +1,7 @@
+class_path: AI.shap.MyShap
+init_args:
+  explainer_cls: SamplingExplainer
+  load_only: true
+  # shap_target:
+  nsamples_per_feature: 200
+  seed: 63036
