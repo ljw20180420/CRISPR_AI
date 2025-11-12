@@ -8,7 +8,6 @@ from torch.distributions import Categorical
 from typing import Optional, Literal
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from tqdm import tqdm
 import optuna
 import jsonargparse
 
@@ -396,7 +395,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
     ) -> pd.DataFrame:
         batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape
         probas = []
-        for i in tqdm(range(batch_size)):
+        for i in range(batch_size):
             proba = torch.ones(ref2_dim, ref1_dim, device=self.device) / (
                 ref2_dim * ref1_dim
             )
