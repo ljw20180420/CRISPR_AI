@@ -59,12 +59,27 @@ Summarize benchmarks results by
 
 # TODO
 
+- Figures
+  - profile heatmap
+  - diffusion dynamics
+  - diagram, unet two trapezoid with layers, input sequence one-hot small blocks, microhomology blocks, model header circle lines.
+  - Convolution kernel heatmap.
+  - Metrics hexagon.
+  - metric distribution.
+  - frame shift.
+- More metrics.
+- Add sample number in CRIfuser eval_output to speed up evaluation and shap.
+- Train CRIfuser model for other metrics.
 - Read SHAP and huggingface hub.
 - shap
   - various plot.
   - interactions
   - deeplift visualization
-  - supervised clustering of models
+  - shap.multioutput_decision_plot to compare multiple models
+  - shap.plots.group_difference to compare multiple models
+  - shap.plots.bar with groups to compare multiple models
+  - shap.plots.embedding to compare multiple models (supervised clustering of models)
+  - merge shap values according to biomarks like mmej
 - upload/download
 - app
 - space

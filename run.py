@@ -3,6 +3,7 @@
 import os
 import pathlib
 import pandas as pd
+import numpy as np
 from common_ai.config import get_config, get_train_parser
 from common_ai.train import MyTrain
 from common_ai.test import MyTest
@@ -41,8 +42,19 @@ elif cfg.subcommand == "infer":
     ).to_csv(cfg.infer.output, index=False)
 
 elif cfg.subcommand == "explain":
-    explanation = MyShap(**cfg.explain.shap.init_args.as_dict())(
-        explain_parser, train_parser
+    my_shap = MyShap(**cfg.explain.shap.init_args.as_dict())
+    explanation = my_shap(explain_parser, train_parser)
+    my_shap.visualize(
+        explain_parser,
+        train_parser,
+        explanation,
+        local_idxs=[0],
+    )
+    explanation.data = np.array(["A", "C", "G", "T"])[explanation.data]
+    my_shap.text_plot(
+        explanation=explanation,
+        local_idxs=[0],
+        logs_path=pathlib.Path(os.fspath(cfg.explain.test.logs_path)),
     )
 
 elif cfg.subcommand == "hta":
