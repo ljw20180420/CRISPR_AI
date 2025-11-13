@@ -69,8 +69,16 @@ do
             large_indel \
             mmej
         do
-            ./run.py explain --config ${explain_config} --shap.load_only false --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
-            ./run.py explain --config ${explain_config} --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
+            case ${model_cls} in
+                CRIfuser)
+                    ./run.py explain --config ${explain_config} --shap.load_only false --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.overwrite.model.init_args.eval_output_step 4 --test.overwrite.model.init_args.eval_output_batch_size 16 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
+                    ./run.py explain --config ${explain_config} --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.overwrite.model.init_args.eval_output_step 4 --test.overwrite.model.init_args.eval_output_batch_size 16 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
+                ;;
+                *)
+                    ./run.py explain --config ${explain_config} --shap.load_only false --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
+                    ./run.py explain --config ${explain_config} --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
+                ;;
+            esac
         done
     done
 done
