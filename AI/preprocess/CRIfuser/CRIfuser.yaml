@@ -20,3 +20,5 @@ init_args:
   exp_scale: 5.0
   exp_base: 5.0
   uniform_scale: 1.0
+  eval_output_step: 1
+  eval_output_batch_size: 1
