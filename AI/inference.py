@@ -26,9 +26,9 @@ class MyInference(MyInferenceAbstract):
             ext2_down: downstream limit of the resection of the downstream end.
             max_del_size: maximal deletion size.
         """
-        # Lindel allow deletion to cross cut site for 2bps
-        self.ext_up = max(ext1_up, ext2_up, max_del_size + 2)
-        self.ext_down = max(ext1_down, ext2_down, max_del_size + 2)
+        # Lindel allow deletion to cross cut site for 2bps. FOREcasT needs ±3bps around deletion boundaries.
+        self.ext_up = max(ext1_up, ext2_up, max_del_size + max(2, 3))
+        self.ext_down = max(ext1_down, ext2_down, max_del_size + max(2, 3))
         self.scaffolds = {
             "spcas9": "GTTTTAGAGCTAGAAATAGCAAGTTAAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG",
             "spymac": "GTTTCAGAGCTATGCTGGAAACAGCATAGCAAGTTGAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG",
