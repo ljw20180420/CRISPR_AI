@@ -59,6 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
+- Add benchmark for accuracy of CRIfuser with different downsampling
 - Figures
   - profile heatmap
   - diffusion dynamics
