@@ -452,14 +452,18 @@ class DataCollator:
     ) -> tuple[int]:
         left_mh = None
         for i in range(1, mh_max + 2):
-            if i > mh_max or ref[cut + left - i] != ref[cut + right - i]:
+            if (
+                i > mh_max
+                or cut + left - i < 0
+                or ref[cut + left - i] != ref[cut + right - i]
+            ):
                 if left_mh is None:
                     left_mh = i - 1
                 else:
                     left_mh_1 = i - 1
                     break
-        if left_mh == mh_max:
-            left_mh_1 = mh_max
+        if left_mh == mh_max or cut + left - left_mh == 0:
+            left_mh_1 = left_mh
         return left_mh, left_mh_1
 
     def _getRightMH(
@@ -467,14 +471,18 @@ class DataCollator:
     ) -> tuple[int]:
         right_mh = None
         for i in range(0, mh_max + 1):
-            if i >= mh_max or ref[cut + left + i] != ref[cut + right + i]:
+            if (
+                i >= mh_max
+                or cut + right + i >= len(ref)
+                or ref[cut + left + i] != ref[cut + right + i]
+            ):
                 if right_mh is None:
                     right_mh = i
                 else:
                     right_mh_1 = i
                     break
-        if right_mh == mh_max:
-            right_mh_1 = mh_max
+        if right_mh == mh_max or cut + right + right_mh == len(ref):
+            right_mh_1 = right_mh
         return right_mh, right_mh_1
 
     def _assert_reference_length_and_cut(self, ref: str, cut: int) -> None:
