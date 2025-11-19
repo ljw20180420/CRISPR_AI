@@ -30,7 +30,6 @@ do
         title ${pre_model}
 
         IFS=":" read preprocess model_cls <<<${pre_model}
-        model_config=AI/preprocess/${preprocess}/${model_cls}.yaml
 
         title "upload"
         hf upload \
