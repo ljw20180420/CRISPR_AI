@@ -40,8 +40,8 @@ do
 
         hf upload \
             ${preprocess}_${model_cls}_${data_name} \
-            ${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/default/train \
-            logs/train \
+            ${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/default \
+            logs \
             --delete="*"
     done
 done
