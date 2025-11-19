@@ -4,11 +4,13 @@ import os
 import pathlib
 import pandas as pd
 import numpy as np
+import gradio as gr
 from common_ai.config import get_config, get_train_parser
 from common_ai.train import MyTrain
 from common_ai.test import MyTest
 from AI.inference import MyInference
 from AI.shap import MyShap
+from AI.gradio_fn import MyGradioFn
 from common_ai.hta import MyHta
 from common_ai.hpo import MyHpo
 
@@ -22,6 +24,7 @@ os.chdir(pathlib.Path(__file__).parent)
     test_parser,
     infer_parser,
     explain_parser,
+    app_parser,
     hta_parser,
     hpo_parser,
 ) = get_config()
@@ -56,6 +59,9 @@ elif cfg.subcommand == "explain":
         local_idxs=[0],
         logs_path=pathlib.Path(os.fspath(cfg.explain.test.logs_path)),
     )
+
+elif cfg.subcommand == "app":
+    MyGradioFn(cfg.app, train_parser).launch()
 
 elif cfg.subcommand == "hta":
     MyHta(**cfg.hta.as_dict())()
