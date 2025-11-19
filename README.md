@@ -81,7 +81,6 @@ Summarize benchmarks results by
   - shap.plots.bar with groups to compare multiple models
   - shap.plots.embedding to compare multiple models (supervised clustering of models)
   - merge shap values according to biomarks like mmej
-- upload/download
 - app
 - space
 - Benchmarks.
