@@ -13,7 +13,7 @@ function title() {
 app_config=AI/app.yaml
 target="GreatestCommonCrossEntropy"
 device=${device:-"cuda"}
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/default
+owner="ljw20180420"
 
 printf "inference:\n" > ${app_config}
 for data_name in SX_spcas9 SX_spymac SX_ispymac
@@ -51,11 +51,11 @@ do
     do
         IFS=":" read preprocess model_cls <<<${pre_model}
 
-        printf "  - checkpoints_path: %s/checkpoints/%s/%s/%s/default\n" \
-            ${output_dir} ${preprocess} ${model_cls} ${data_name} \
+        printf "  - checkpoints_path: %s/%s_%s_%s\n" \
+            ${owner} ${preprocess} ${model_cls} ${data_name} \
             >> ${app_config}
-        printf "    logs_path: %s/logs/%s/%s/%s/default\n" \
-            ${output_dir} ${preprocess} ${model_cls} ${data_name} \
+        printf "    logs_path: %s/%s_%s_%s\n" \
+            ${owner} ${preprocess} ${model_cls} ${data_name} \
             >> ${app_config}
         printf "    target: %s\n" \
             ${target} \
