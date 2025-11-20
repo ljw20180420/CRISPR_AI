@@ -4,7 +4,6 @@ import os
 import pathlib
 import pandas as pd
 import numpy as np
-import gradio as gr
 from common_ai.config import get_config, get_train_parser
 from common_ai.train import MyTrain
 from common_ai.test import MyTest

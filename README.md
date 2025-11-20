@@ -59,6 +59,14 @@ Summarize benchmarks results by
 
 # TODO
 
+- decrease test dataset
+- github push to triggle test
+- run copy of script instead of modify the original one
+- build docker from viennarna biocontainer
+- github release to triggle action of build docker
+- huggingface space of docker
+- run shap parallelly
+- add space time compare of models
 - Add benchmark for accuracy of CRIfuser with different downsampling
 - Figures
   - profile heatmap
@@ -81,7 +89,6 @@ Summarize benchmarks results by
   - shap.plots.bar with groups to compare multiple models
   - shap.plots.embedding to compare multiple models (supervised clustering of models)
   - merge shap values according to biomarks like mmej
-- app
 - space
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.

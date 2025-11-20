@@ -45,7 +45,7 @@ gzip > dataset.json.gz
 
 # Get samll test dataset
 zcat dataset.json.gz |
-head -n 3000 |
+head -n 100 |
 gzip > test.json.gz
 
 # Generate inference data
