@@ -1,7 +1,7 @@
 .vscode/settings.json
 **/__pycache__
-theory/*
-!theory/theory.tex
+paper/theory/*
+!paper/theory/theory.tex
 AI/preprocess/DeepHF/reference/
 AI/preprocess/FOREcasT/reference/
 AI/preprocess/Lindel/reference/
@@ -11,3 +11,4 @@ paper/figure
 AI/dataset/data/SX/csvfiles/*
 !AI/dataset/data/SX/csvfiles/*.csv
 AI/app.yaml
+.dockerignore
