@@ -59,10 +59,9 @@ Summarize benchmarks results by
 
 # TODO
 
-- decrease test dataset
+- hf space Dockerfile simply from an exist docker
 - github push to triggle test
-- run copy of script instead of modify the original one
-- build docker from viennarna biocontainer
+- build docker for app.sh
 - github release to triggle action of build docker
 - huggingface space of docker
 - run shap parallelly
