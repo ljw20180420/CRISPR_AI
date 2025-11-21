@@ -61,9 +61,7 @@ Summarize benchmarks results by
 
 - hf space Dockerfile simply from an exist docker
 - github push to triggle test
-- build docker for app.sh
 - github release to triggle action of build docker
-- huggingface space of docker
 - run shap parallelly
 - add space time compare of models
 - Add benchmark for accuracy of CRIfuser with different downsampling
@@ -76,7 +74,6 @@ Summarize benchmarks results by
   - metric distribution.
   - frame shift.
 - More metrics.
-- Add sample number in CRIfuser eval_output to speed up evaluation and shap.
 - Train CRIfuser model for other metrics.
 - Read SHAP and huggingface hub.
 - shap
@@ -88,11 +85,9 @@ Summarize benchmarks results by
   - shap.plots.bar with groups to compare multiple models
   - shap.plots.embedding to compare multiple models (supervised clustering of models)
   - merge shap values according to biomarks like mmej
-- space
 - Benchmarks.
   - Draw epoch-status during training process, including XGBoost.
 - hyperparameter choice (optuna) for models with good benchmarks.
-- upload, inference, app, space
 - xgboost interpret.
   - get_score
   - pred_contribs
