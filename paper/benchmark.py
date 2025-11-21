@@ -65,6 +65,18 @@ test_df = pd.DataFrame(test_dict)
 # save
 os.makedirs("paper/benchmark", exist_ok=True)
 test_df.to_csv("paper/benchmark/default.csv", index=False)
+test_df.query("metric == 'GreatestCommonCrossEntropy'").drop(
+    columns=["metric", "best_epoch"]
+).assign(
+    data_name=lambda df: df["data_name"]
+    .str.removeprefix("SX_")
+    .str.replace("spcas9", "spycas9")
+).rename(
+    columns={"model_cls": "model", "data_name": "cas protein", "value": "cross entropy"}
+).to_latex(
+    "paper/benchmark/default.tex", index=False, escape=True
+)
+
 for data_name in data_names:
     for metric in metrics:
         ax = (
