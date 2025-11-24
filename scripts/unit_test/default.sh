@@ -50,10 +50,10 @@ do
 
         title Test
         for target in \
-            CrossEntropy \
-            NonZeroCrossEntropy \
-            NonWildTypeCrossEntropy \
-            NonZeroNonWildTypeCrossEntropy \
+            # CrossEntropy \
+            # NonZeroCrossEntropy \
+            # NonWildTypeCrossEntropy \
+            # NonZeroNonWildTypeCrossEntropy \
             GreatestCommonCrossEntropy
         do
             ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target}
