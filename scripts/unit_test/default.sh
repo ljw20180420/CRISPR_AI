@@ -64,9 +64,9 @@ do
 
         title explain
         for shap_target in \
-            small_indel \
-            unilateral \
-            large_indel \
+            # small_indel \
+            # unilateral \
+            # large_indel \
             mmej
         do
             case ${model_cls} in

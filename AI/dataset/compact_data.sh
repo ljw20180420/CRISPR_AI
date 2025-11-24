@@ -50,7 +50,7 @@ gzip > test.json.gz
 
 # Generate inference data
 printf "ref,cut,scaffold\n" > inference.csv
-for i in {1..1000}
+for i in {1..100}
 do
     ref=$(random_DNA 104)"GG"$(random_DNA 94)
     scaffold=$(random_scaffold)
