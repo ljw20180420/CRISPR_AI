@@ -1,13 +1,13 @@
 FROM quay.io/condaforge/miniforge3:latest 
 
 WORKDIR /AI_env
-COPY requirements_conda.txt requirements.txt requirements_torch_pascal.txt ./
+COPY requirements_conda.txt requirements.txt ./
 RUN conda install --file requirements_conda.txt && \
     conda clean -a
 RUN pip install -r requirements.txt && \
-    pip install -r requirements_torch_pascal.txt && \
+    pip install torch --index-url https://download.pytorch.org/whl/cpu && \
     pip cache purge
-RUN rm requirements_conda.txt requirements.txt requirements_torch_pascal.txt
+RUN rm requirements_conda.txt requirements.txt
 COPY ./ CRISPR_AI
 RUN wget https://github.com/ljw20180420/common_ai/archive/refs/tags/v1.0.8.tar.gz
 RUN mkdir common_ai CRISPR_result && \

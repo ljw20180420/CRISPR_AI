@@ -59,6 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
+- Use hf pipeline.
 - hf space Dockerfile simply from an exist docker
 - github push to triggle test
 - github release to triggle action of build docker

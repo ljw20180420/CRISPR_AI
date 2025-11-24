@@ -27,6 +27,4 @@ HolisticTraceAnalysis
 
 transformers
 diffusers
-evaluate
-torchtune
 gradio
