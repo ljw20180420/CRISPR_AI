@@ -49,12 +49,7 @@ do
         ./run.py hta --config ${hta_config} --trace_dir ${logs_path}/profile
 
         title Test
-        for target in \
-            # CrossEntropy \
-            # NonZeroCrossEntropy \
-            # NonWildTypeCrossEntropy \
-            # NonZeroNonWildTypeCrossEntropy \
-            GreatestCommonCrossEntropy
+        for target in GreatestCommonCrossEntropy # CrossEntropy, NonZeroCrossEntropy, NonWildTypeCrossEntropy, NonZeroNonWildTypeCrossEntropy
         do
             ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target}
         done
@@ -63,11 +58,7 @@ do
         ./run.py infer --config ${infer_config} --output ${logs_path}/inference_output.csv --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path}
 
         title explain
-        for shap_target in \
-            # small_indel \
-            # unilateral \
-            # large_indel \
-            mmej
+        for shap_target in mmej # small_indel, unilateral, large_indel
         do
             case ${model_cls} in
                 CRIfuser)
