@@ -9,10 +9,10 @@ RUN pip install -r requirements.txt && \
     pip cache purge
 RUN rm requirements_conda.txt requirements.txt requirements_torch_pascal.txt
 COPY ./ CRISPR_AI
-RUN wget https://github.com/ljw20180420/common_ai/archive/refs/tags/v1.0.6.tar.gz
+RUN wget https://github.com/ljw20180420/common_ai/archive/refs/tags/v1.0.7.tar.gz
 RUN mkdir common_ai CRISPR_result && \
-    tar zxf v1.0.6.tar.gz -C common_ai --strip-components 1 && \
-    rm v1.0.6.tar.gz
+    tar zxf v1.0.7.tar.gz -C common_ai --strip-components 1 && \
+    rm v1.0.7.tar.gz
 ENV HF_HOME="/AI_env/hf_cache" \
     PYTHONPATH="/AI_env/common_ai" \
     OUTPUT_DIR="/AI_env/CRISPR_result" \
