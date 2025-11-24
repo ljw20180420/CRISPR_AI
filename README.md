@@ -60,7 +60,6 @@ Summarize benchmarks results by
 # TODO
 
 - Use hf pipeline.
-- hf space Dockerfile simply from an exist docker
 - add space time compare of models
 - Add benchmark for accuracy of CRIfuser with different downsampling
 - Figures

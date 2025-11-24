@@ -12,3 +12,4 @@ AI/dataset/data/SX/csvfiles/*
 !AI/dataset/data/SX/csvfiles/*.csv
 AI/app.yaml
 .dockerignore
+scripts/formal/Dockerfile
