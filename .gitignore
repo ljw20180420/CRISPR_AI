@@ -8,6 +8,7 @@ AI/preprocess/Lindel/reference/
 AI/preprocess/inDelphi/reference/
 paper/benchmark
 paper/figure
+paper/summary_shap
 AI/dataset/data/SX/csvfiles/*
 !AI/dataset/data/SX/csvfiles/*.csv
 AI/app.yaml

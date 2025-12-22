@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 
-import sys
 import pathlib
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
-
-import importlib.util
 import sys
 
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 
 sys.path.insert(0, pathlib.Path(__file__).parent.parent.as_posix())
 from AI.preprocess.utils import MicroHomologyTool
