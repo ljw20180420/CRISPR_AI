@@ -33,7 +33,7 @@ do
         IFS=":" read preprocess model_cls <<<${pre_model}
         model_config=AI/preprocess/${preprocess}/${model_cls}.yaml
 
-        title Train/Eval
+        title Eval
         case ${model_cls} in
             XGBoost)
                 ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.device cpu --train.evaluation_only true --dataset.name ${data_name} --model ${model_config}

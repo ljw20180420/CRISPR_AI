@@ -10,11 +10,8 @@ function title() {
     printf "\n%s\n%s\n%s\n" ${sharps} $1 ${sharps}
 }
 
-train_config=AI/train.yaml
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/CRIfuser
 test_config=AI/test.yaml
-loss_weight=1.0
-evaluation_only=${evaluation_only:-true}
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/CRIfuser
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
@@ -30,9 +27,6 @@ do
 
         checkpoints_path=${output_dir}/checkpoints/CRIfuser/CRIfuser/${data_name}/${loss_function}
         logs_path=${output_dir}/logs/CRIfuser/CRIfuser/${data_name}/${loss_function}
-
-        title Train/Eval
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name ${loss_function} --train.evaluation_only ${evaluation_only} --dataset.name ${data_name} --model AI/preprocess/CRIfuser/CRIfuser.yaml --model.loss_weights "{'${loss_function}': ${loss_weight}}"
 
         title Test
         for target in \
