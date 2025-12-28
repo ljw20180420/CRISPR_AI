@@ -21,7 +21,8 @@ do
         importance_sample_negative_ELBO \
         forward_negative_ELBO \
         reverse_negative_ELBO \
-        sample_CE non_sample_CE
+        sample_CE \
+        non_sample_CE
     do
         title ${loss_function}
 
