@@ -176,8 +176,11 @@ plt.switch_backend("agg")
 mpl.rcParams["pdf.fonttype"] = 42
 mpl.rcParams["ps.fonttype"] = 42
 
-for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
-    total, ref, count, stagger = search_stagger_examples(
-        data_file="AI/dataset/dataset.json.gz", data_name=data_name, minimal_count=1000
-    )
-    draw_model_archtecture_mmej(total, ref, count, stagger, data_name)
+# for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
+#     total, ref, count, stagger = search_stagger_examples(
+#         data_file="AI/dataset/dataset.json.gz", data_name=data_name, minimal_count=1000
+#     )
+#     draw_model_archtecture_mmej(total, ref, count, stagger, data_name)
+
+sx_ref = "CCTGAAAGATACACCTTGTAGTCCTCCGTAAGGTAGAGCAGGCCCAGGTA"
+draw_model_archtecture_mmej(0, sx_ref, 0, 0, "unknown")
