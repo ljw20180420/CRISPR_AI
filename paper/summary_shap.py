@@ -4,9 +4,9 @@ import os
 import pathlib
 from typing import Literal
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
-import umap
 from plotnine import (
     aes,
     element_text,
@@ -20,7 +20,9 @@ from plotnine import (
     theme,
 )
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
+from umap import UMAP
 
 
 def collect_shap(
@@ -60,7 +62,7 @@ def collect_shap(
 
 
 def shap_heatmap(
-    shap_df: pd.DataFrame, data_names: list[str], shap_targets: list[str]
+    shap_df: pd.DataFrame, data_names: list[str], shap_targets: list[str], cut: int
 ) -> None:
     abs_mean_df = (
         shap_df.groupby(["preprocess", "model_cls", "data_name", "shap_target"])
@@ -89,7 +91,7 @@ def shap_heatmap(
                 value_vars=[f"pos{i}" for i in range(94)],
                 var_name="pos",
                 value_name="value",
-            ).assign(pos=lambda df: df["pos"].str.replace("pos", "").astype(int))
+            ).assign(pos=lambda df: df["pos"].str.replace("pos", "").astype(int) - cut)
 
             (
                 ggplot(data=data, mapping=aes(x="pos", y="y", fill="value"))
@@ -109,12 +111,14 @@ def shap_reducer(
     shap_df: pd.DataFrame,
     data_names: list[str],
     shap_targets: list[str],
-    method: Literal["pca", "umap"],
+    method: Literal["pca", "tsne", "umap"],
 ) -> None:
     if method == "pca":
         reducer = PCA(n_components=2)
+    elif method == "tsne":
+        reducer = TSNE(n_components=2)
     elif method == "umap":
-        reducer = umap.UMAP(n_components=2)
+        reducer = UMAP(n_components=2)
 
     os.makedirs(f"paper/summary_shap/{method}", exist_ok=True)
     for data_name in data_names:
@@ -179,23 +183,28 @@ def shap_reducer(
 
 # Swith to non-gui backend (https://stackoverflow.com/questions/52839758/matplotlib-and-runtimeerror-main-thread-is-not-in-main-loop).
 plt.switch_backend("agg")
+# Editable axis in illustrator (https://stackoverflow.com/questions/54101529/how-can-i-export-a-matplotlib-figure-as-a-vector-graphic-with-editable-text-fiel)
+mpl.rcParams["pdf.fonttype"] = 42
+mpl.rcParams["ps.fonttype"] = 42
 
 preprocess_model_cls_pairs = [
-    ("CRIformer", "CRIformer"),
+    # ("CRIformer", "CRIformer"),
     ("CRIfuser", "CRIfuser"),
-    ("DeepHF", "DeepHF"),
-    ("DeepHF", "MLP"),
-    ("DeepHF", "CNN"),
-    ("DeepHF", "XGBoost"),
-    ("DeepHF", "SGDClassifier"),
+    # ("DeepHF", "DeepHF"),
+    # ("DeepHF", "MLP"),
+    # ("DeepHF", "CNN"),
+    # ("DeepHF", "XGBoost"),
+    # ("DeepHF", "SGDClassifier"),
     ("FOREcasT", "FOREcasT"),
     ("inDelphi", "inDelphi"),
     ("Lindel", "Lindel"),
 ]
 data_names = ["SX_spcas9", "SX_spymac", "SX_ispymac"]
 shap_targets = ["large_indel", "mmej", "small_indel", "unilateral"]
+cut = 47
 
 shap_df = collect_shap(preprocess_model_cls_pairs, data_names, shap_targets)
-# shap_heatmap(shap_df, data_names, shap_targets)
+shap_heatmap(shap_df, data_names, shap_targets, cut)
 # shap_reducer(shap_df, data_names, shap_targets, method="pca")
-shap_reducer(shap_df, data_names, shap_targets, method="umap")
+# shap_reducer(shap_df, data_names, shap_targets, method="tsne")
+# shap_reducer(shap_df, data_names, shap_targets, method="umap")
