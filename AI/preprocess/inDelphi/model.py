@@ -1,25 +1,26 @@
-import torch
-import torch.nn.functional as F
-import torch.nn as nn
-from typing import Optional
-from sklearn.neighbors import KNeighborsRegressor
-import numpy as np
-import pandas as pd
-from tqdm import tqdm
 import itertools
-import optuna
+from typing import Optional
+
 import jsonargparse
+import numpy as np
+import optuna
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
+from common_ai.optimizer import MyOptimizer
+from common_ai.profiler import MyProfiler
+from common_ai.train import MyTrain
+from einops import einsum, repeat
+from sklearn.neighbors import KNeighborsRegressor
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from einops import einsum, repeat
+from tqdm import tqdm
 
 from .data_collator import DataCollator
-from common_ai.generator import MyGenerator
-from common_ai.optimizer import MyOptimizer
-from common_ai.train import MyTrain
-from common_ai.model import MyModelAbstract
-from common_ai.profiler import MyProfiler
 
 
 class inDelphi(MyModelAbstract, nn.Module):
@@ -120,7 +121,7 @@ class inDelphi(MyModelAbstract, nn.Module):
         total_del_len_weight: torch.Tensor,
         genotype_count: torch.Tensor,
         total_del_len_count: torch.Tensor,
-    ) -> float:
+    ) -> tuple[float, float]:
         # negative correlation
         batch_size = mh_weight.shape[0]
         genotype_pearson = einsum(

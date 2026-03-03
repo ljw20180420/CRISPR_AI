@@ -1,19 +1,20 @@
-import numpy as np
-import pandas as pd
-import torch.nn as nn
-import torch
-import torch.nn.functional as F
 from typing import Optional
-import optuna
+
 import jsonargparse
+import numpy as np
+import optuna
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
+from einops import einsum, rearrange, repeat
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from einops import rearrange, einsum, repeat
 
 from .data_collator import DataCollator
-from common_ai.generator import MyGenerator
-from common_ai.model import MyModelAbstract
 
 
 class FOREcasT(MyModelAbstract, nn.Module):
@@ -195,7 +196,7 @@ class FOREcasT(MyModelAbstract, nn.Module):
             }
         return {"logit": logit}
 
-    def loss_fun(self, logit: torch.Tensor, count: torch.Tensor) -> float:
+    def loss_fun(self, logit: torch.Tensor, count: torch.Tensor) -> tuple[float, float]:
         # kl divergence
         batch_size = logit.shape[0]
         loss = F.kl_div(

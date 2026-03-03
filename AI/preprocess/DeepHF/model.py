@@ -1,30 +1,30 @@
 import pickle
 from typing import Literal, Optional
 
+import jsonargparse
 import numpy as np
+import optuna
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import xgboost as xgb
+from common_ai.generator import MyGenerator
+from common_ai.initializer import MyInitializer
+from common_ai.model import MyModelAbstract
+from common_ai.optimizer import MyOptimizer
+from common_ai.profiler import MyProfiler
+from common_ai.train import MyTrain
+from einops import einsum, rearrange, repeat
+from einops.layers.torch import Rearrange
 from scipy import special
 from sklearn import linear_model, preprocessing
-import optuna
-import jsonargparse
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from einops import einsum, rearrange, repeat
-from einops.layers.torch import Rearrange
-
 from tqdm import tqdm
+
 from .data_collator import DataCollator
-from common_ai.generator import MyGenerator
-from common_ai.initializer import MyInitializer
-from common_ai.optimizer import MyOptimizer
-from common_ai.train import MyTrain
-from common_ai.model import MyModelAbstract
-from common_ai.profiler import MyProfiler
 
 
 class DeepHF(MyModelAbstract, nn.Module):
@@ -173,7 +173,9 @@ class DeepHF(MyModelAbstract, nn.Module):
             }
         return {"logit": logit}
 
-    def loss_fun(self, logit: torch.Tensor, observation: torch.Tensor) -> float:
+    def loss_fun(
+        self, logit: torch.Tensor, observation: torch.Tensor
+    ) -> tuple[float, float]:
         loss = -einsum(
             F.log_softmax(logit, dim=1),
             rearrange(observation, "b r2 r1 -> b (r2 r1)"),
@@ -358,7 +360,9 @@ class MLP(MyModelAbstract, nn.Module):
             }
         return {"logit": logit}
 
-    def loss_fun(self, logit: torch.Tensor, observation: torch.Tensor) -> float:
+    def loss_fun(
+        self, logit: torch.Tensor, observation: torch.Tensor
+    ) -> tuple[float, float]:
         loss = -einsum(
             F.log_softmax(logit, dim=1),
             rearrange(observation, "b r2 r1 -> b (r2 r1)"),
@@ -572,7 +576,9 @@ class CNN(MyModelAbstract, nn.Module):
             }
         return {"logit": logit}
 
-    def loss_fun(self, logit: torch.Tensor, observation: torch.Tensor) -> float:
+    def loss_fun(
+        self, logit: torch.Tensor, observation: torch.Tensor
+    ) -> tuple[float, float]:
         loss = -einsum(
             F.log_softmax(logit, dim=1),
             rearrange(observation, "b r2 r1 -> b (r2 r1)"),

@@ -1,23 +1,24 @@
-import numpy as np
-import pandas as pd
-from diffusers.models.embeddings import get_timestep_embedding
-import torch.nn as nn
-import torch
-import torch.nn.functional as F
-from torch.distributions import Categorical
-from typing import Optional, Literal
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import optuna
+from typing import Literal, Optional
+
 import jsonargparse
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import numpy as np
+import optuna
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
+from diffusers.models.embeddings import get_timestep_embedding
+from einops import einsum, rearrange, repeat
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from einops import einsum, rearrange, repeat
+from torch.distributions import Categorical
 
 from .data_collator import DataCollator
-from common_ai.generator import MyGenerator
-from common_ai.model import MyModelAbstract
 
 
 class CRIfuser(MyModelAbstract, nn.Module):
@@ -351,7 +352,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
         t: torch.Tensor,
         p_theta_0_on_t_logit: torch.Tensor,
         observation: torch.Tensor,
-    ) -> float:
+    ) -> tuple[float, float]:
         loss = 0
         if "double_sample_negative_ELBO" in self.loss_weights:
             loss += (

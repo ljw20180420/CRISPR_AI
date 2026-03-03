@@ -1,19 +1,20 @@
-import numpy as np
-import pandas as pd
-import torch.nn as nn
-import torch
-import torch.nn.functional as F
-from typing import Optional, Literal
-import optuna
+from typing import Literal, Optional
+
 import jsonargparse
+import numpy as np
+import optuna
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from common_ai.generator import MyGenerator
+from common_ai.model import MyModelAbstract
+from einops import einsum, repeat
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from einops import einsum, repeat
 
 from .data_collator import DataCollator
-from common_ai.generator import MyGenerator
-from common_ai.model import MyModelAbstract
 
 
 class Lindel(MyModelAbstract, nn.Module):
@@ -90,7 +91,7 @@ class Lindel(MyModelAbstract, nn.Module):
         logit_del: torch.Tensor,
         count_del: torch.Tensor,
         model_del: nn.Linear,
-    ) -> float:
+    ) -> tuple[float, float]:
         batch_size = logit_indel.shape[0]
         loss = (
             self._cross_entropy_reg(logit_indel, count_indel, model_indel)
