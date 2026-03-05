@@ -1,9 +1,9 @@
-import pandas as pd
 import datasets
-import torch
 import jsonargparse
-from common_ai.test import MyTest
+import pandas as pd
+import torch
 from common_ai.inference import MyInferenceAbstract
+from common_ai.test import MyTest
 
 
 class MyInference(MyInferenceAbstract):
@@ -84,4 +84,4 @@ class MyInference(MyInferenceAbstract):
             accum_sample_idx += len(examples)
             dfs.append(df)
 
-        return pd.concat(dfs)
+        return pd.concat(dfs).reset_index(drop=True)
