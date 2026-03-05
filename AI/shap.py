@@ -1,11 +1,12 @@
 from typing import Literal
-import numpy as np
-import pandas as pd
+
 import datasets
 import jsonargparse
-
+import numpy as np
+import pandas as pd
 from common_ai.shap import MyShapAbstract
 from common_ai.utils import SeqTokenizer
+
 from AI.inference import MyInference
 from AI.preprocess.utils import MicroHomologyTool
 
@@ -79,14 +80,15 @@ class MyShap(MyShapAbstract):
             + ["spymac"],
         )
 
+    # explainer will convert pandas to numpy before calling predict
     def predict(
         self,
-        X: pd.DataFrame,
+        arr: np.ndarray,
         my_inference: MyInference,
         test_cfg: jsonargparse.Namespace,
         train_parser: jsonargparse.ArgumentParser,
-    ) -> pd.DataFrame:
-        infer_in = self.numpy2infer_in(X, my_inference)
+    ) -> np.ndarray:
+        infer_in = self.numpy2infer_in(arr, my_inference)
         infer_out = my_inference(
             infer_df=infer_in,
             test_cfg=test_cfg,
@@ -94,7 +96,6 @@ class MyShap(MyShapAbstract):
         )
         return self.infer_out2shap(infer_out, infer_in)
 
-    # explainer will convert pandas to numpy
     def numpy2infer_in(
         self, arr: np.ndarray, my_inference: MyInference
     ) -> pd.DataFrame:
