@@ -758,7 +758,7 @@ class XGBoost(MyModelAbstract):
 
     def my_initialize_model(
         self, my_initializer: MyInitializer, my_generator: MyGenerator
-    ):
+    ) -> None:
         pass
 
     def eval_output(
@@ -1030,7 +1030,7 @@ class SGDClassifier(MyModelAbstract):
 
     def my_initialize_model(
         self, my_initializer: MyInitializer, my_generator: MyGenerator
-    ):
+    ) -> None:
         pass
 
     def eval_output(
