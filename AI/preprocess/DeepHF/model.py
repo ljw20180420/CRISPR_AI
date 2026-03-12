@@ -1116,7 +1116,7 @@ class SGDClassifier(MyModelAbstract):
                 sample_weight=w_value,
             )
 
-            train_loss += (
+            train_loss += -(
                 (
                     np.ma.log(
                         preprocessing.normalize(
@@ -1154,7 +1154,7 @@ class SGDClassifier(MyModelAbstract):
             X_value, y_value, w_value = self._get_feature(
                 input=batch["input"], label=batch["label"]
             )
-            eval_loss += (
+            eval_loss += -(
                 (
                     np.ma.log(
                         preprocessing.normalize(
