@@ -820,6 +820,7 @@ class XGBoost(MyModelAbstract):
         my_generator: MyGenerator,
         my_optimizer: MyOptimizer,
         my_profiler: MyProfiler,
+        metrics: dict,
     ):
         if not hasattr(self, "Xy_train") or not hasattr(self, "train_loss_num"):
             X_train, y_train, w_train = [], [], []
@@ -1099,6 +1100,7 @@ class SGDClassifier(MyModelAbstract):
         my_generator: MyGenerator,
         my_optimizer: MyOptimizer,
         my_profiler: MyProfiler,
+        metrics: dict,
     ) -> None:
         train_loss, train_loss_num = 0.0, 0.0
         for examples in tqdm(train_dataloader):

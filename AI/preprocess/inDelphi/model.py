@@ -314,6 +314,7 @@ class inDelphi(MyModelAbstract, nn.Module):
         my_generator: MyGenerator,
         my_optimizer: MyOptimizer,
         my_profiler: MyProfiler,
+        metrics: dict,
     ) -> tuple[float]:
         train_loss, train_loss_num, grad_norm = my_train.my_train_epoch(
             self, train_dataloader, my_generator, my_optimizer, my_profiler
