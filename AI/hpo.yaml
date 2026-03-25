@@ -2,8 +2,8 @@ hpo:
   # target:
   maximize_target: false
   learning_rate_range:
-    - 0.01
     - 0.00001
+    - 0.01
   # study_name:
   n_trials: 10
   sampler: TPESampler # GridSampler, RandomSampler, TPESampler, CmaEsSampler, GPSampler, PartialFixedSampler, NSGAIISampler, QMCSampler
