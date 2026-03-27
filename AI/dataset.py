@@ -1,13 +1,13 @@
 import os
-import datasets
-from typing import Literal, Callable
 import re
+from typing import Callable, Literal
+
+import datasets
+import jsonargparse
 import numpy as np
 import optuna
-import jsonargparse
-
 from common_ai.dataset import MyDatasetAbstract
-from common_ai.utils import split_train_valid_test, SeqTokenizer
+from common_ai.utils import SeqTokenizer, split_train_valid_test
 
 
 class GetInsertionCount:
@@ -279,13 +279,11 @@ class MyDataset(MyDatasetAbstract):
             random_insert_uplimit: The maximal discriminated length of random insertion.
             insert_uplimit: The maximal insertion length to count.
         """
-        super().__init__(
-            data_file=os.fspath(data_file),
-            name=name,
-            test_ratio=test_ratio,
-            validation_ratio=validation_ratio,
-            seed=seed,
-        )
+        super().__init__(name=name)
+        self.data_file = os.fspath(data_file)
+        self.test_ratio = test_ratio
+        self.validation_ratio = validation_ratio
+        self.seed = seed
         self.random_insert_uplimit = random_insert_uplimit
         self.insert_uplimit = insert_uplimit
 
