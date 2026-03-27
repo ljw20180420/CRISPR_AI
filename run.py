@@ -2,19 +2,25 @@
 
 import os
 import pathlib
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from common_ai.config import get_config, get_train_parser
-from common_ai.train import MyTrain
+from common_ai.hpo import MyHpo
+from common_ai.hta import MyHta
 from common_ai.test import MyTest
+from common_ai.train import MyTrain
+from common_ai.utils import reproduce
+
+from AI.gradio_fn import MyGradioFn
 from AI.inference import MyInference
 from AI.shap import MyShap
-from AI.gradio_fn import MyGradioFn
-from common_ai.hta import MyHta
-from common_ai.hpo import MyHpo
 
 # change directory to the current script
 os.chdir(pathlib.Path(__file__).parent)
+
+# improve reproducibility
+reproduce()
 
 # parse arguments
 (
@@ -66,4 +72,7 @@ elif cfg.subcommand == "hta":
     MyHta(**cfg.hta.as_dict())()
 
 elif cfg.subcommand == "hpo":
+    MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
+elif cfg.subcommand == "hpo":
+    MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
     MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
