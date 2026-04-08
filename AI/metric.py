@@ -1,13 +1,56 @@
-import numpy as np
-import pandas as pd
-import optuna
 import jsonargparse
+import numpy as np
+import optuna
+import pandas as pd
+from common_ai.metric import MyMetricAbstract
+from einops import einsum, rearrange
+from scipy.stats import entropy
 
 # torch does not import opt_einsum as backend by default. import opt_einsum manually will enable it.
 from torch.backends import opt_einsum
-from einops import einsum, rearrange
 
-from common_ai.metric import MyMetricAbstract
+
+def get_observation(
+    examples, batch: dict, ext1_up: int, ext1_down: int, ext2_up: int, ext2_down: int
+) -> np.ndarray:
+
+    observation = batch["label"]["observation"].cpu().numpy()
+    cut1 = np.array([example["cut1"] for example in examples])
+    cut2 = np.array([example["cut2"] for example in examples])
+    observation = np.stack(
+        [
+            ob[
+                c2 - ext2_up : c2 + ext2_down + 1,
+                c1 - ext1_up : c1 + ext1_down + 1,
+            ]
+            for ob, c1, c2 in zip(observation, cut1, cut2)
+        ]
+    )
+
+    return observation
+
+
+def get_proba(
+    df: pd.DataFrame,
+    ext1_up: int,
+    ext1_down: int,
+    ext2_up: int,
+    ext2_down: int,
+    batch_size: int,
+) -> np.ndarray:
+    # filter out of range data
+    df = df.query(
+        "rpos1 <= @ext1_down & rpos1 >= -@ext1_up & rpos2 <= @ext2_down & rpos2 >= -@ext2_up"
+    )
+    # assume df contains no duplicates
+    probas = np.zeros((batch_size, ext2_up + ext2_down + 1, ext1_up + ext1_down + 1))
+    probas[
+        df["sample_idx"],
+        df["rpos2"] + ext2_up,
+        df["rpos1"] + ext1_up,
+    ] = df["proba"]
+
+    return probas
 
 
 def step(
@@ -22,30 +65,14 @@ def step(
     fill: float,
     include_fill: bool,
 ) -> tuple:
-    observation = batch["label"]["observation"].cpu().numpy()
-    cut1 = np.array([example["cut1"] for example in examples])
-    cut2 = np.array([example["cut2"] for example in examples])
-    observation = np.stack(
-        [
-            ob[
-                c2 - ext2_up : c2 + ext2_down + 1,
-                c1 - ext1_up : c1 + ext1_down + 1,
-            ]
-            for ob, c1, c2 in zip(observation, cut1, cut2)
-        ]
+    observation = get_observation(
+        examples, batch, ext1_up, ext1_down, ext2_up, ext2_down
     )
     observation = observation * mask
-    # filter out of range data
-    df = df.query(
-        "rpos1 <= @ext1_down & rpos1 >= -@ext1_up & rpos2 <= @ext2_down & rpos2 >= -@ext2_up"
+
+    probas = get_proba(
+        df, ext1_up, ext1_down, ext2_up, ext2_down, batch_size=observation.shape[0]
     )
-    # assume df contains not duplicates
-    probas = np.zeros(observation.shape)
-    probas[
-        df["sample_idx"],
-        df["rpos2"] + ext2_up,
-        df["rpos1"] + ext1_up,
-    ] = df["proba"]
     probas = probas * mask
     probas = probas / rearrange(
         np.maximum(einsum(probas, "b r2 r1 -> b"), np.finfo(np.float64).tiny),
@@ -62,6 +89,16 @@ def step(
     loss_num = einsum(mask_probas, observation, "b r2 r1, b r2 r1 -> ")
 
     return loss, loss_num
+
+
+def extract_mask_and_normalize(array: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    mask = rearrange(mask, "r2 r1 -> (r2 r1)").astype(bool)
+    array = rearrange(array, "b r2 r1 -> b (r2 r1)")[:, mask]
+    array = array / np.maximum(
+        array.sum(axis=-1, keepdims=True), np.finfo(np.float64).tiny
+    )
+
+    return array
 
 
 class CrossEntropy(MyMetricAbstract):
@@ -370,3 +407,107 @@ class GreatestCommonCrossEntropy(MyMetricAbstract):
     @classmethod
     def hpo(cls, trial: optuna.Trial, cfg: jsonargparse.Namespace) -> None:
         pass
+
+
+class Likelihood(GreatestCommonCrossEntropy):
+    def epoch(self) -> float:
+        return -super().epoch()
+
+
+class Pearson(GreatestCommonCrossEntropy):
+    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
+        observation = extract_mask_and_normalize(
+            array=get_observation(
+                examples,
+                batch,
+                self.ext1_up,
+                self.ext1_down,
+                self.ext2_up,
+                self.ext2_down,
+            ),
+            mask=self.mask,
+        )
+
+        probas = extract_mask_and_normalize(
+            array=get_proba(
+                df,
+                self.ext1_up,
+                self.ext1_down,
+                self.ext2_up,
+                self.ext2_down,
+                batch_size=observation.shape[0],
+            ),
+            mask=self.mask,
+        )
+
+        for ob, pb in zip(observation, probas):
+            if ob.std() == 0 or pb.std() == 0:
+                continue
+            self.accum_loss += np.corrcoef(ob, pb)[0, 1]
+            self.accum_loss_num += 1
+
+
+class MSE(GreatestCommonCrossEntropy):
+    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
+        observation = extract_mask_and_normalize(
+            array=get_observation(
+                examples,
+                batch,
+                self.ext1_up,
+                self.ext1_down,
+                self.ext2_up,
+                self.ext2_down,
+            ),
+            mask=self.mask,
+        )
+
+        probas = extract_mask_and_normalize(
+            array=get_proba(
+                df,
+                self.ext1_up,
+                self.ext1_down,
+                self.ext2_up,
+                self.ext2_down,
+                batch_size=observation.shape[0],
+            ),
+            mask=self.mask,
+        )
+
+        for ob, pb in zip(observation, probas):
+            if ob.sum() == 0:
+                continue
+            self.accum_loss += np.mean((ob - pb) ** 2)
+            self.accum_loss_num += 1
+
+
+class SymKL(GreatestCommonCrossEntropy):
+    def step(self, df: pd.DataFrame, examples: list, batch: dict) -> None:
+        observation = extract_mask_and_normalize(
+            array=get_observation(
+                examples,
+                batch,
+                self.ext1_up,
+                self.ext1_down,
+                self.ext2_up,
+                self.ext2_down,
+            ),
+            mask=self.mask,
+        )
+
+        probas = extract_mask_and_normalize(
+            array=get_proba(
+                df,
+                self.ext1_up,
+                self.ext1_down,
+                self.ext2_up,
+                self.ext2_down,
+                batch_size=observation.shape[0],
+            ),
+            mask=self.mask,
+        )
+
+        for ob, pb in zip(observation, probas):
+            if ob.sum() == 0:
+                continue
+            self.accum_loss += (entropy(pk=ob, qk=pb) + entropy(pk=pb, qk=ob)) / 2.0
+            self.accum_loss_num += 1

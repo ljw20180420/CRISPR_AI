@@ -40,9 +40,19 @@ do
             NonZeroCrossEntropy \
             NonWildTypeCrossEntropy \
             NonZeroNonWildTypeCrossEntropy \
-            GreatestCommonCrossEntropy
+            GreatestCommonCrossEntropy \
+            Likelihood \
+            Pearson \
+            MSE \
+            SymKL
         do
-            ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target}
+            if [[ "${target}" == "Likelihood" ]] || [[ "${target}" == "Pearson" ]]
+            then
+                maximize_target=True
+            else
+                maximize_target=False
+            fi
+            ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target} --maximize_target ${maximize_target}
         done
     done
 done

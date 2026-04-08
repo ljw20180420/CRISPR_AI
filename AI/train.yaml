@@ -31,5 +31,9 @@ metric:
   - metric/NonWildTypeCrossEntropy.yaml
   - metric/NonZeroNonWildTypeCrossEntropy.yaml
   - metric/GreatestCommonCrossEntropy.yaml
+  - metric/Likelihood.yaml
+  - metric/Pearson.yaml
+  - metric/MSE.yaml
+  - metric/SymKL.yaml
 
 # model:
