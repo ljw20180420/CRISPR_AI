@@ -871,7 +871,7 @@ class XGBoost(MyModelAbstract):
         )
 
         return (
-            np.mean(evals_result["train"]["mlogloss"]).item() * self.train_loss_num,
+            evals_result["train"]["mlogloss"][0] * self.train_loss_num,
             self.train_loss_num,
             float("nan"),
         )
