@@ -59,6 +59,19 @@ Summarize benchmarks results by
 
 # TODO
 
+- 同步CRISPR_AI的dataset子模块(可能已经同步了rearr)
+- 重新训练模型
+- 更新文章中的例子
+- 把王永明模型改版和CRIformer放在补充文档中，作为额外尝试
+- 训练一个额外的xgboost作为随机插入模型，和CRIfuser独立
+
+- CRIfuser损失函数bench
+- 用__all__来去除不必要的.preprocess和.model
+- 把AI重命名成CRISPR_AI，把run.py移动到CRISPR_AI下的__main__.py
+- shap.py现在支持读取pandas（pull requests），因此不需要再转化为numpy了
+- 跑shap
+- 更新文章method
+
 - Use hf pipeline.
 - add space time compare of models
 - Add benchmark for accuracy of CRIfuser with different downsampling

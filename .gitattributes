@@ -1,3 +1,5 @@
 AI/dataset/test.json.gz filter=lfs diff=lfs merge=lfs -text
 AI/dataset/dataset.json.gz filter=lfs diff=lfs merge=lfs -text
 AI/dataset/inference.csv.gz filter=lfs diff=lfs merge=lfs -text
+AI/dataset/dataset.naapam.json.gz filter=lfs diff=lfs merge=lfs -text
+AI/dataset/test.naapam.json.gz filter=lfs diff=lfs merge=lfs -text

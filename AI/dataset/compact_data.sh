@@ -11,11 +11,24 @@ concat_algs()
         do
             bname=$(basename $alg)
             # ref1, ref2, cut1, cut2, author, file, ref1_end, ref2_start, random_insert, count, score
-            zcat $alg | awk -F "\t" -v OFS="\t" -v author=$author -v file=${bname%.alg.gz} '{
-                gsub("-", "", $18)
-                ref1_len = match($18, /[acgtn]-*[acgtn]/)
-                print toupper(substr($18, 1, ref1_len)), toupper(substr($18, ref1_len + 1)), $16, $17 - ref1_len, author, file, $8, $11 - ref1_len, toupper($10), $2, $3
-            }'
+            zcat $alg | awk -F "\t" -v OFS="\t" -v author=$author -v file=${bname%.alg.gz} '
+                NR % 3 == 1 {
+                    cut1 = $16
+                    cut2 = $17
+                    ref1_end = $8
+                    ref2_start = $11
+                    random_insert = toupper($10)
+                    count = $2
+                    score = $3
+                }
+                NR % 3 == 2 {
+                    gsub("-", "", $0)
+                    ref1_len = match($0, /[acgtn]-*[acgtn]/)
+                    ref1 = toupper(substr($0, 1, ref1_len))
+                    ref2 = toupper(substr($0, ref1_len + 1))
+                    print ref1, ref2, cut1, cut2 - ref1_len, author, file, ref1_end, ref2_start - ref1_len, random_insert, count, score
+                }
+            '
         done
     done
 }
@@ -37,24 +50,26 @@ random_scaffold()
     printf ${scaffolds[RANDOM%2]}
 }
 
-# Collate all data
-concat_algs |
-sort --parallel 24 -t $'\t' -k1,9 |
-./to_json.awk -v min_score=0 |
-gzip > dataset.json.gz
+concat_algs
 
-# Get samll test dataset
-zcat dataset.json.gz |
-head -n 100 |
-gzip > test.json.gz
+# # Collate all data
+# concat_algs |
+# sort --parallel 24 -t $'\t' -k1,9 |
+# ./to_json.awk -v min_score=0 |
+# gzip > dataset.naapam.json.gz
 
-# Generate inference data
-printf "ref,cut,scaffold\n" > inference.csv
-for i in {1..100}
-do
-    ref=$(random_DNA 104)"GG"$(random_DNA 94)
-    scaffold=$(random_scaffold)
-    printf "%s,100,%s\n" $ref $scaffold \
-        >> inference.csv
-done
-gzip --force inference.csv
+# # Get small test dataset
+# zcat dataset.naapam.json.gz |
+# head -n 100 |
+# gzip > test.naapam.json.gz
+
+# # Generate inference data
+# printf "ref,cut,scaffold\n" > inference.csv
+# for i in {1..100}
+# do
+#     ref=$(random_DNA 104)"GG"$(random_DNA 94)
+#     scaffold=$(random_scaffold)
+#     printf "%s,100,%s\n" $ref $scaffold \
+#         >> inference.csv
+# done
+# gzip --force inference.csv
