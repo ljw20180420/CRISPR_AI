@@ -9,12 +9,12 @@ import pandas as pd
 from tbparse import SummaryReader
 
 
-def draw_benchmark(
+def get_benchmark(
     preprocess_model_cls_pairs: list[tuple[str, str]],
     data_names: list[str],
     metrics: list[str],
     output_dir: os.PathLike,
-):
+) -> pd.DataFrame:
     test_dict = {
         "preprocess": [],
         "model_cls": [],
@@ -47,43 +47,62 @@ def draw_benchmark(
                 test_dict["value"].append(value)
                 test_dict["best_epoch"].append(best_epoch)
 
-    test_df = pd.DataFrame(test_dict)
+    bench_df = pd.DataFrame(test_dict)
 
     # save
     os.makedirs("paper/benchmark", exist_ok=True)
-    test_df.to_csv("paper/benchmark/default.csv", index=False)
-    test_df.query("metric == 'GreatestCommonCrossEntropy'").drop(
-        columns=["metric", "best_epoch"]
-    ).assign(
-        data_name=lambda df: df["data_name"]
-        .str.removeprefix("SX_")
-        .str.replace("spcas9", "spycas9")
-    ).rename(
-        columns={
-            "model_cls": "model",
-            "data_name": "cas protein",
-            "value": "cross entropy",
-        }
-    ).to_latex(
-        "paper/benchmark/default.tex", index=False, escape=True
-    )
+    bench_df.to_csv("paper/benchmark/default.csv", index=False)
 
+    return bench_df
+
+
+def save_latex(
+    bench_df: pd.DataFrame,
+    metrics: list[str],
+    models: list[str],
+    data_names: list[str],
+    filename: str,
+) -> None:
+    for metric in metrics:
+        bench_df.query(
+            "metric == @metric and model_cls in @models and data_name in @data_names"
+        ).drop(columns=["preprocess", "metric", "best_epoch"]).assign(
+            data_name=lambda df: df["data_name"]
+            .str.removeprefix("SX_")
+            .str.replace("spcas9", "spycas9")
+        ).rename(
+            columns={
+                "model_cls": "model",
+                "data_name": "cas protein",
+                "value": metric,
+            }
+        ).to_latex(
+            f"paper/benchmark/{metric}.{filename}", index=False, escape=True
+        )
+
+
+def draw_benchmark(
+    bench_df: pd.DataFrame,
+    metrics: list[str],
+    models: list[str],
+    data_names: list[str],
+    filename: str,
+) -> None:
     for data_name in data_names:
         for metric in metrics:
             ax = (
-                test_df.query("data_name == @data_name and metric == @metric")
+                bench_df.query("data_name == @data_name and metric == @metric")
                 .sort_values("value")
+                .rename(columns={"value": metric})
                 .set_index(
                     keys=[
-                        "preprocess",
                         "model_cls",
-                        "data_name",
                     ]
                 )
-                .plot.bar(y="value", figsize=(20, 10))
+                .plot.bar(y=metric, figsize=(20, 10))
             )
             ax.set_xticklabels(ax.get_xticklabels(), rotation=10, ha="right")
-            ax.get_figure().savefig(f"paper/benchmark/default_{data_name}_{metric}.pdf")
+            ax.get_figure().savefig(f"paper/benchmark/{data_name}_{metric}_{filename}")
 
 
 # Swith to non-gui backend (https://stackoverflow.com/questions/52839758/matplotlib-and-runtimeerror-main-thread-is-not-in-main-loop).
@@ -93,26 +112,85 @@ mpl.rcParams["pdf.fonttype"] = 42
 mpl.rcParams["ps.fonttype"] = 42
 
 
-preprocess_model_cls_pairs = [
-    # ("CRIformer", "CRIformer"),
-    ("CRIfuser", "CRIfuser"),
-    # ("DeepHF", "DeepHF"),
-    # ("DeepHF", "MLP"),
-    # ("DeepHF", "CNN"),
-    # ("DeepHF", "XGBoost"),
-    # ("DeepHF", "SGDClassifier"),
-    ("FOREcasT", "FOREcasT"),
-    ("inDelphi", "inDelphi"),
-    ("Lindel", "Lindel"),
-]
-data_names = ["SX_spcas9", "SX_spymac", "SX_ispymac"]
-metrics = [
-    "CrossEntropy",
-    "GreatestCommonCrossEntropy",
-    "NonWildTypeCrossEntropy",
-    "NonZeroCrossEntropy",
-    "NonZeroNonWildTypeCrossEntropy",
-]
-output_dir = pathlib.Path("/home/ljw/sdc1/CRISPR_results/formal/default/logs")
+bench_df = get_benchmark(
+    preprocess_model_cls_pairs=[
+        ("CRIformer", "CRIformer"),
+        ("CRIfuser", "CRIfuser"),
+        ("DeepHF", "DeepHF"),
+        ("DeepHF", "MLP"),
+        ("DeepHF", "CNN"),
+        ("DeepHF", "XGBoost"),
+        ("DeepHF", "SGDClassifier"),
+        ("FOREcasT", "FOREcasT"),
+        ("inDelphi", "inDelphi"),
+        ("Lindel", "Lindel"),
+    ],
+    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
+    metrics=[
+        "CrossEntropy",
+        "GreatestCommonCrossEntropy",
+        "NonWildTypeCrossEntropy",
+        "NonZeroCrossEntropy",
+        "NonZeroNonWildTypeCrossEntropy",
+    ],
+    output_dir=pathlib.Path("/home/ljw/sdc1/CRISPR_results/formal/default/logs"),
+)
 
-draw_benchmark(preprocess_model_cls_pairs, data_names, metrics, output_dir)
+save_latex(
+    bench_df,
+    metrics=["GreatestCommonCrossEntropy"],
+    models=[
+        "CRIformer",
+        "CRIfuser",
+        "DeepHF",
+        "MLP",
+        "CNN",
+        "XGBoost",
+        "SGDClassifier",
+    ],
+    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
+    filename="select.tex",
+)
+
+save_latex(
+    bench_df,
+    metrics=["GreatestCommonCrossEntropy"],
+    models=[
+        "CRIfuser",
+        "FOREcasT",
+        "inDelphi",
+        "Lindel",
+    ],
+    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
+    filename="bench.tex",
+)
+
+
+draw_benchmark(
+    bench_df,
+    metrics=["GreatestCommonCrossEntropy"],
+    models=[
+        "CRIformer",
+        "CRIfuser",
+        "DeepHF",
+        "MLP",
+        "CNN",
+        "XGBoost",
+        "SGDClassifier",
+    ],
+    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
+    filename="select.pdf",
+)
+
+draw_benchmark(
+    bench_df,
+    metrics=["GreatestCommonCrossEntropy"],
+    models=[
+        "CRIfuser",
+        "FOREcasT",
+        "inDelphi",
+        "Lindel",
+    ],
+    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
+    filename="bench.pdf",
+)
