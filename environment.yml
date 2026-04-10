@@ -5,7 +5,7 @@ channels:
   - defaults
 dependencies:
   - bioconda::viennarna
-  - python=3.11.11
+  - python
   - pip
   - pip:
     - plotnine
