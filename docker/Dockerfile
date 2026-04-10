@@ -16,7 +16,7 @@ ENV HF_HOME="/AI_env/hf_cache" \
     PYTHONPATH="/AI_env/common_ai" \
     OUTPUT_DIR="/AI_env/CRISPR_result" \
     GENOME="/AI_env/CRISPR_AI/docker/genome/hg19.2bit" \
-    BOWTIE2_INDEX="/AI_env/docker/genome/hg19" \
+    BOWTIE2_INDEX="/AI_env/CRISPR_AI/docker/genome/hg19" \
     device="cpu" \
     GRADIO_SERVER_NAME="0.0.0.0"
 WORKDIR /AI_env/CRISPR_AI
