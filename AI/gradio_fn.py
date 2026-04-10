@@ -36,7 +36,7 @@ class MyGradioFn(MyGradioFnAbstract):
         ref = self.retrieve_ref(spacer)
         cas9 = re.search(r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id).group(1)
         pam = "GG" if cas9 == "spcas9" else "AA"
-        if ref[cut + 4 : cut + 6] == pam:
+        if ref[cut + 4 : cut + 6] != pam:
             gr.Warning(
                 f"pam should be N{pam} for {cas9}, but the detected pam is {ref[cut+3:cut+6]}"
             )
