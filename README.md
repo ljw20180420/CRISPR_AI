@@ -59,7 +59,15 @@ Summarize benchmarks results by
 
 # TODO
 
-- 同步CRISPR_AI的dataset子模块(可能已经同步了rearr)
+- Add bowtie2 and bowtie2 index to docker. Set BOWTIE2_INDEX environment variable.
+
+- SGDClassifier SX_spcas9 explain
+- resummary shap
+- test all
+- reoutput bench
+- sync local to hf (upload)
+- download from hf
+
 - 重新训练模型
 - 更新文章中的例子
 - 把王永明模型改版和CRIformer放在补充文档中，作为额外尝试
