@@ -5,6 +5,7 @@ channels:
   - defaults
 dependencies:
   - bioconda::viennarna
+  - bioconda::bowtie2
   - python
   - pip
   - pip:
