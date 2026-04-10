@@ -1,7 +1,6 @@
 /.git
 /.conda
-/docker/*
-!/docker/genome
+/docker
 /paper
 /.vscode
 /scripts/*
