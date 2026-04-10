@@ -1,0 +1,12 @@
+/.git
+/.conda
+/docker/*
+!/docker/genome
+/paper
+/.vscode
+/scripts/*
+!/script/formal
+/scripts/formal/*
+!/scripts/formal/app.sh
+/AI/dataset/*
+!/AI/dataset/dataset.yaml
