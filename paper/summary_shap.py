@@ -16,6 +16,7 @@ from plotnine import (
     scale_color_manual,
     scale_fill_gradient,
     scale_fill_manual,
+    scale_x_continuous,
     scale_y_continuous,
     theme,
 )
@@ -62,8 +63,23 @@ def collect_shap(
 
 
 def shap_heatmap(
-    shap_df: pd.DataFrame, data_names: list[str], shap_targets: list[str], cut: int
+    shap_df: pd.DataFrame,
+    preprocess_model_cls_pairs: list[tuple[str, str]],
+    data_names: list[str],
+    shap_targets: list[str],
+    cut: int,
+    pos_range: tuple[int, int],
+    output_name: str,
 ) -> None:
+    preprocess_model_cls_pairs = [
+        f"{preprocess}_{model_cls}"
+        for preprocess, model_cls in preprocess_model_cls_pairs
+    ]
+    mask = (shap_df["preprocess"] + "_" + shap_df["model_cls"]).map(
+        lambda v: v in preprocess_model_cls_pairs
+    )
+    shap_df = shap_df.loc[mask, :].reset_index(drop=True)
+
     abs_mean_df = (
         shap_df.groupby(["preprocess", "model_cls", "data_name", "shap_target"])
         .apply(abs)
@@ -92,18 +108,22 @@ def shap_heatmap(
                 var_name="pos",
                 value_name="value",
             ).assign(pos=lambda df: df["pos"].str.replace("pos", "").astype(int) - cut)
+            data = data.query("pos >= @pos_range[0] and pos <= @pos_range[1]")
 
             (
                 ggplot(data=data, mapping=aes(x="pos", y="y", fill="value"))
                 + geom_raster()
+                + scale_x_continuous(name="position")
                 + scale_y_continuous(
+                    name="model",
                     breaks=breaks,
                     labels=labels,
                 )
                 + scale_fill_gradient(low="#FFFFFF", high="#FF0000")
                 + theme(axis_text_x=element_text(angle=90, vjust=0.5, hjust=1))
             ).save(
-                pathlib.Path("paper/summary_shap") / f"{data_name}_{shap_target}.pdf"
+                pathlib.Path("paper/summary_shap")
+                / f"{data_name}_{shap_target}_{output_name}.pdf"
             )
 
 
@@ -181,30 +201,67 @@ def shap_reducer(
             )
 
 
-# Swith to non-gui backend (https://stackoverflow.com/questions/52839758/matplotlib-and-runtimeerror-main-thread-is-not-in-main-loop).
-plt.switch_backend("agg")
-# Editable axis in illustrator (https://stackoverflow.com/questions/54101529/how-can-i-export-a-matplotlib-figure-as-a-vector-graphic-with-editable-text-fiel)
-mpl.rcParams["pdf.fonttype"] = 42
-mpl.rcParams["ps.fonttype"] = 42
+if __name__ == "__main__":
+    # Swith to non-gui backend (https://stackoverflow.com/questions/52839758/matplotlib-and-runtimeerror-main-thread-is-not-in-main-loop).
+    plt.switch_backend("agg")
+    # Editable axis in illustrator (https://stackoverflow.com/questions/54101529/how-can-i-export-a-matplotlib-figure-as-a-vector-graphic-with-editable-text-fiel)
+    mpl.rcParams["pdf.fonttype"] = 42
+    mpl.rcParams["ps.fonttype"] = 42
 
-preprocess_model_cls_pairs = [
-    # ("CRIformer", "CRIformer"),
-    ("CRIfuser", "CRIfuser"),
-    # ("DeepHF", "DeepHF"),
-    # ("DeepHF", "MLP"),
-    # ("DeepHF", "CNN"),
-    # ("DeepHF", "XGBoost"),
-    # ("DeepHF", "SGDClassifier"),
-    ("FOREcasT", "FOREcasT"),
-    ("inDelphi", "inDelphi"),
-    ("Lindel", "Lindel"),
-]
-data_names = ["SX_spcas9", "SX_spymac", "SX_ispymac"]
-shap_targets = ["large_indel", "mmej", "small_indel", "unilateral"]
-cut = 47
+    data_names = ["SX_spcas9", "SX_spymac", "SX_ispymac"]
+    shap_targets = ["large_indel", "mmej", "small_indel", "unilateral"]
+    cut = 47
+    shap_df = collect_shap(
+        preprocess_model_cls_pairs=[
+            ("CRIfuser", "CRIfuser"),
+            ("CRIformer", "CRIformer"),
+            ("DeepHF", "DeepHF"),
+            ("DeepHF", "MLP"),
+            ("DeepHF", "CNN"),
+            ("DeepHF", "XGBoost"),
+            ("DeepHF", "SGDClassifier"),
+            ("FOREcasT", "FOREcasT"),
+            ("inDelphi", "inDelphi"),
+            ("Lindel", "Lindel"),
+        ],
+        data_names=data_names,
+        shap_targets=shap_targets,
+    )
 
-shap_df = collect_shap(preprocess_model_cls_pairs, data_names, shap_targets)
-shap_heatmap(shap_df, data_names, shap_targets, cut)
-# shap_reducer(shap_df, data_names, shap_targets, method="pca")
-# shap_reducer(shap_df, data_names, shap_targets, method="tsne")
-# shap_reducer(shap_df, data_names, shap_targets, method="umap")
+    # Architecture seletion
+    shap_heatmap(
+        shap_df,
+        preprocess_model_cls_pairs=[
+            ("CRIfuser", "CRIfuser"),
+            ("CRIformer", "CRIformer"),
+            ("DeepHF", "DeepHF"),
+            ("DeepHF", "MLP"),
+            ("DeepHF", "CNN"),
+            ("DeepHF", "XGBoost"),
+            ("DeepHF", "SGDClassifier"),
+        ],
+        data_names=data_names,
+        shap_targets=shap_targets,
+        cut=cut,
+        pos_range=(-25, 24),
+        output_name="seletion",
+    )
+
+    # Benchmark
+    shap_heatmap(
+        shap_df,
+        preprocess_model_cls_pairs=[
+            ("FOREcasT", "FOREcasT"),
+            ("inDelphi", "inDelphi"),
+            ("Lindel", "Lindel"),
+        ],
+        data_names=data_names,
+        shap_targets=shap_targets,
+        cut=cut,
+        pos_range=(-25, 24),
+        output_name="benchmark",
+    )
+
+    # shap_reducer(shap_df, data_names, shap_targets, method="pca")
+    # shap_reducer(shap_df, data_names, shap_targets, method="tsne")
+    # shap_reducer(shap_df, data_names, shap_targets, method="umap")

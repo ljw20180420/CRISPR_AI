@@ -61,8 +61,6 @@ Summarize benchmarks results by
 
 - 更新文档
 
-- SGDClassifier SX_spcas9 explain
-- resummary shap
 - test all
 - reoutput bench
 - sync local to hf (upload)
