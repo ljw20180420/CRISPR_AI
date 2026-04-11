@@ -59,7 +59,7 @@ Summarize benchmarks results by
 
 # TODO
 
-- Add bowtie2 and bowtie2 index to docker. Set BOWTIE2_INDEX environment variable.
+- 更新文档
 
 - SGDClassifier SX_spcas9 explain
 - resummary shap
