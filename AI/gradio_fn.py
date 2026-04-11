@@ -31,14 +31,15 @@ class MyGradioFn(MyGradioFnAbstract):
         cut = 25
 
         if len(spacer) < 20:
-            gr.Warning(f"it recommends to provide >=20bp protospacer")
+            gr.Warning(f"it recommends to provide >=20bp protospacer", duration=None)
         self.reload_inference(repo_id=repo_id)
         ref = self.retrieve_ref(spacer)
         cas9 = re.search(r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id).group(1)
         pam = "GG" if cas9 == "spcas9" else "AA"
         if ref[cut + 4 : cut + 6] != pam:
             gr.Warning(
-                f"pam should be N{pam} for {cas9}, but the detected pam is {ref[cut+3:cut+6]}"
+                f"pam should be N{pam} for {cas9}, but the detected pam is {ref[cut+3:cut+6]}",
+                duration=None,
             )
 
         infer_df = pd.DataFrame(
@@ -116,7 +117,7 @@ class MyGradioFn(MyGradioFnAbstract):
             for align in sam.fetch():
                 break
             if not align.is_mapped:
-                raise gr.Error("protospacer cannot be mapped")
+                raise gr.Error("protospacer cannot be mapped", duration=None)
             if align.is_forward:
                 start = align.reference_end - 3 - ext_up
                 end = align.reference_end - 3 + ext_down
