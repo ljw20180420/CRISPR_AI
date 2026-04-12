@@ -27,12 +27,18 @@ class MyGradioFn(MyGradioFnAbstract):
         super().__init__(app_cfg, train_parser)
 
     @torch.no_grad()
-    def __call__(self, repo_id: str, spacer: str) -> tuple[pd.DataFrame, str]:
+    def __call__(
+        self, repo_id: str, spacer: str, eval_output_step: int
+    ) -> tuple[pd.DataFrame, str]:
         cut = 25
 
         if len(spacer) < 20:
             gr.Warning(f"it recommends to provide >=20bp protospacer", duration=None)
         self.reload_inference(repo_id=repo_id)
+        if hasattr(self.my_inference, "model"):
+            self.my_inference.model.eval_output_step = eval_output_step
+        self.test_cfg.eval_output_step = eval_output_step
+
         ref = self.retrieve_ref(spacer)
         cas9 = re.search(r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id).group(1)
         pam = "GG" if cas9 == "spcas9" else "AA"
@@ -88,8 +94,15 @@ class MyGradioFn(MyGradioFnAbstract):
                     placeholder="CTGGCTTACCTGAATCGTCC",
                     label=">=20bp targeting sequence (protospacer)",
                 ),
+                gr.Number(
+                    value=4,
+                    minimum=1,
+                    label="sampling step",
+                    info="Increase this value to sample less outcomes to calculate the editing profile. This increases speed but decreases accuracy.",
+                ),
             ],
             outputs=[gr.Dataframe(label="result"), gr.File(label="download result")],
+            description="# Welcome. This app predicts the editing outcomes of G-rich (spycas9) and A-rich (spymac, ispymac) cas9.",
         ).launch()
 
     def retrieve_ref(self, protospacer: str) -> str:
