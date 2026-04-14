@@ -24,7 +24,6 @@ class MyGradioFn(MyGradioFnAbstract):
         for i in range(len(app_cfg.inference)):
             app_cfg.inference[i].init_args.max_del_size = 0
 
-        breakpoint()
         self.inference_instance_dict = {}
         super().__init__(app_cfg, train_parser)
 
