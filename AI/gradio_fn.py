@@ -118,6 +118,8 @@ class MyGradioFn(MyGradioFnAbstract):
                     headers=["outcome", "type", "percent"],
                     datatype=["str", "str", "str"],
                     label="result",
+                    buttons=["copy", "fullscreen"],
+                    show_search="filter",
                 )
             ],
             description="# Welcome. This app predicts the editing outcomes of G-rich (spycas9) and A-rich (spymac, ispymac) cas9.",

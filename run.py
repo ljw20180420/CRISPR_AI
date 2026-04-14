@@ -17,7 +17,7 @@ from AI.inference import MyInference
 from AI.shap import MyShap
 
 # change directory to the current script
-os.chdir(pathlib.Path(__file__).parent)
+os.chdir(pathlib.Path(__file__).resolve().parent)
 
 # improve reproducibility
 # reproduce()

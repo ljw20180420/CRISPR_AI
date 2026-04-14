@@ -184,6 +184,7 @@ class DeepHF(MyModelAbstract, nn.Module):
         loss_num = einsum(observation, "b r2 r1 ->")
         return loss, loss_num
 
+    @torch.no_grad()
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
@@ -371,6 +372,7 @@ class MLP(MyModelAbstract, nn.Module):
         loss_num = einsum(observation, "b r2 r1 ->")
         return loss, loss_num
 
+    @torch.no_grad()
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
@@ -587,6 +589,7 @@ class CNN(MyModelAbstract, nn.Module):
         loss_num = einsum(observation, "b r2 r1 ->")
         return loss, loss_num
 
+    @torch.no_grad()
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:

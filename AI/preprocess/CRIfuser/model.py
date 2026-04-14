@@ -1,3 +1,4 @@
+import time
 from typing import Literal, Optional
 
 import jsonargparse
@@ -236,6 +237,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
             kernel_size=1,
         )
 
+    @torch.compile
     def single_pass(
         self,
         condition: torch.Tensor,
@@ -442,6 +444,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
 
         return proba
 
+    @torch.no_grad()
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
@@ -490,14 +493,19 @@ class CRIfuser(MyModelAbstract, nn.Module):
                 )
 
                 for step in range(self.noise_timesteps - 1, 0, -1):
+                    start = time.time()
                     p_theta_0_on_t_logit = self.single_pass(
                         condition=condition,
                         x1t=x1t,
                         x2t=x2t,
                         t=torch.full(
-                            (proba.shape[0] * proba.shape[1] * proba.shape[2],), step
+                            (proba.shape[0] * proba.shape[1] * proba.shape[2],),
+                            step,
                         ),
                     )
+                    print(time.time() - start)
+
+                    start = time.time()
                     p_theta_0_on_t = rearrange(
                         F.softmax(
                             rearrange(
@@ -554,6 +562,9 @@ class CRIfuser(MyModelAbstract, nn.Module):
                         ),
                         stationary_sampler=self.stationary_sampler2,
                     )
+                    print(time.time() - start)
+
+                    start = time.time()
                     proba = einsum(
                         proba,
                         p_theta_0_on_t,
@@ -569,6 +580,8 @@ class CRIfuser(MyModelAbstract, nn.Module):
                         ),
                         "a r2t r1t, a r2t r1t r20 r10, r1t r10 r1tm1, r2t r20 r2tm1 -> a r2tm1 r1tm1",
                     )
+                    print(time.time() - start)
+
                     if step > 1:
                         proba = self._merge_proba_axis(
                             proba, ref_dim=ref2_dim, ref_idx=2

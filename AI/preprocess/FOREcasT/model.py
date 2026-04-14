@@ -209,6 +209,7 @@ class FOREcasT(MyModelAbstract, nn.Module):
         loss_num = batch_size
         return loss, loss_num
 
+    @torch.no_grad()
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
