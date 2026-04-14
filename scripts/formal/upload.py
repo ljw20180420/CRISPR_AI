@@ -28,29 +28,36 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
         ("CRIfuser", "CRIfuser"),
         ("FOREcasT", "FOREcasT"),
     ]:
-        # upload checkpoints
-        upload_folder(
-            repo_id=f"{username}/{preprocess}_{model_cls}_{data_name}",
-            folder_path=output_dir
-            / "checkpoints"
-            / preprocess
-            / model_cls
-            / data_name
-            / "default",
-            path_in_repo="checkpoints",
-            delete_patterns="*",
-        )
+        success = False
+        while not success:
+            try:
+                # upload checkpoints
+                upload_folder(
+                    repo_id=f"{username}/{preprocess}_{model_cls}_{data_name}",
+                    folder_path=output_dir
+                    / "checkpoints"
+                    / preprocess
+                    / model_cls
+                    / data_name
+                    / "default",
+                    path_in_repo="checkpoints",
+                    delete_patterns="*",
+                )
 
-        # upload logs
-        upload_folder(
-            repo_id=f"{username}/{preprocess}_{model_cls}_{data_name}",
-            folder_path=output_dir
-            / "logs"
-            / preprocess
-            / model_cls
-            / data_name
-            / "default",
-            path_in_repo="logs",
-            ignore_patterns="*.pdf",
-            delete_patterns="*",
-        )
+                # upload logs
+                upload_folder(
+                    repo_id=f"{username}/{preprocess}_{model_cls}_{data_name}",
+                    folder_path=output_dir
+                    / "logs"
+                    / preprocess
+                    / model_cls
+                    / data_name
+                    / "default",
+                    path_in_repo="logs",
+                    ignore_patterns="*.pdf",
+                    delete_patterns="*",
+                )
+
+                success = True
+            except Exception as e:
+                print(e)

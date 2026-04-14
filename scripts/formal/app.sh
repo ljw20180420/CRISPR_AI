@@ -14,7 +14,7 @@ app_config=AI/app.yaml
 target="GreatestCommonCrossEntropy"
 maximize_target="false"
 device=${device:-"cuda"}
-autocast=true
+autocast=${autocast:-"false"}
 owner="ljw20180420"
 
 printf "inference:\n" > ${app_config}

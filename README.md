@@ -59,7 +59,6 @@ Summarize benchmarks results by
 
 # TODO
 
-- use autocast for CRIfuser
 - use inference engine for CRIfuser
 
 - README

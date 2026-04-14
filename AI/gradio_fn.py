@@ -28,15 +28,12 @@ class MyGradioFn(MyGradioFnAbstract):
         super().__init__(app_cfg, train_parser)
 
     @torch.no_grad()
-    def __call__(
-        self, repo_id: str, spacer: str, eval_output_step: int
-    ) -> pd.DataFrame:
+    def __call__(self, repo_id: str, spacer: str) -> pd.DataFrame:
         cut = 25
         my_inference = self.inference_instance_dict[repo_id]
         spacer = re.sub(r"[\d\s]", "", spacer)
         if len(spacer) < 20:
             gr.Warning(f"it recommends to provide >=20bp protospacer", duration=None)
-        my_inference.model.eval_output_step = eval_output_step
 
         ref = self.retrieve_ref(spacer)
         cas9 = re.search(r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id).group(1)
@@ -105,7 +102,6 @@ class MyGradioFn(MyGradioFnAbstract):
         self(
             repo_id=cas9_dropdown[0][1],
             spacer="CTGGCTTACCTGAATCGTCC",
-            eval_output_step=4,
         )
 
         gr.Interface(
@@ -115,12 +111,6 @@ class MyGradioFn(MyGradioFnAbstract):
                 gr.Textbox(
                     placeholder="CTGGCTTACCTGAATCGTCC",
                     label=">=20bp targeting sequence (protospacer)",
-                ),
-                gr.Number(
-                    value=4,
-                    minimum=1,
-                    label="sampling step",
-                    info="Increase this value to sample less outcomes to calculate the editing profile. This increases speed but decreases accuracy.",
                 ),
             ],
             outputs=[

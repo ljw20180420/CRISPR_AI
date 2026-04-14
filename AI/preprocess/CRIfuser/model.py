@@ -579,7 +579,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
 
                 probas.append(proba)
 
-        probas = torch.cat(probas).cpu().numpy()
+        probas = torch.cat(probas).float().cpu().numpy()
         df = pd.DataFrame(
             {
                 "sample_idx": repeat(
