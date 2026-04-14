@@ -1,4 +1,4 @@
-FROM quay.io/condaforge/miniforge3:latest 
+FROM quay.io/condaforge/miniforge3:latest
 
 WORKDIR /AI_env/genome
 RUN wget https://genome-idx.s3.amazonaws.com/bt/hg19.1.bt2

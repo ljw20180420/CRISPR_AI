@@ -59,6 +59,14 @@ Summarize benchmarks results by
 
 # TODO
 
+- use autocast for CRIfuser
+- use inference engine for CRIfuser
+
+- README
+- 切点位置画虚线
+- 例子
+- 柱状图
+
 - 更新文档
 
 - test all
@@ -78,6 +86,13 @@ Summarize benchmarks results by
 - 跑shap
 - 更新文章method
 
+- improve CRIfuser inference
+  - define an importance weight according to step and distance from the cleavage site
+  - distribute the sampled outcomes according to the importance weights
+  - redo shap for CRIfuser (long term)
+    - either for sample step 1
+    - or use new inference method
+    - in either case, modify the inference method for shap in paper
 - Use hf pipeline.
 - add space time compare of models
 - Add benchmark for accuracy of CRIfuser with different downsampling

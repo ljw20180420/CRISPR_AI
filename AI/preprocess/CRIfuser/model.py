@@ -49,6 +49,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
         uniform_scale: float,
         eval_output_step: int,
         eval_output_batch_size: int,
+        autocast: bool,
     ) -> None:
         """CRIfuser arguments.
 
@@ -68,6 +69,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
             uniform_scale: scale parameter for uniform scheduler.
             eval_output_step: sample step along 2D diffusion space for evaluation editing profile.
             eval_output_batch_size: batch size for evaluation profile.
+            autocast: use torch autocast to improve performance.
         """
         super().__init__()
         self.ext1_up = ext1_up
@@ -84,6 +86,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
         self.uniform_scale = uniform_scale
         self.eval_output_step = eval_output_step
         self.eval_output_batch_size = eval_output_batch_size
+        self.autocast = autocast
 
         self.data_collator = DataCollator(
             ext1_up=ext1_up,
@@ -442,134 +445,139 @@ class CRIfuser(MyModelAbstract, nn.Module):
     def eval_output(
         self, examples: list[dict], batch: dict, my_generator: MyGenerator
     ) -> pd.DataFrame:
-        batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape
-        probas = []
-        x2t1D = torch.arange(
-            ((ref2_dim - 1) % self.eval_output_step) // 2,
-            ref2_dim,
-            self.eval_output_step,
-            device=self.device,
-        )
-        x1t1D = torch.arange(
-            ((ref1_dim - 1) % self.eval_output_step) // 2,
-            ref1_dim,
-            self.eval_output_step,
-            device=self.device,
-        )
-        for i in range(0, batch_size, self.eval_output_batch_size):
-            proba = torch.ones(
-                min(batch_size - i, self.eval_output_batch_size),
+        with torch.amp.autocast(device_type=self.device, enabled=self.autocast):
+            batch_size, _, ref2_dim, ref1_dim = batch["input"]["condition"].shape
+            probas = []
+            x2t1D = torch.arange(
+                ((ref2_dim - 1) % self.eval_output_step) // 2,
                 ref2_dim,
-                ref1_dim,
+                self.eval_output_step,
                 device=self.device,
-            ) / (ref2_dim * ref1_dim)
-            proba = self._merge_proba_axis(proba, ref_dim=ref2_dim, ref_idx=2)
-            proba = self._merge_proba_axis(proba, ref_dim=ref1_dim, ref_idx=1)
+            )
+            x1t1D = torch.arange(
+                ((ref1_dim - 1) % self.eval_output_step) // 2,
+                ref1_dim,
+                self.eval_output_step,
+                device=self.device,
+            )
+            for i in range(0, batch_size, self.eval_output_batch_size):
+                proba = torch.ones(
+                    min(batch_size - i, self.eval_output_batch_size),
+                    ref2_dim,
+                    ref1_dim,
+                    device=self.device,
+                ) / (ref2_dim * ref1_dim)
+                proba = self._merge_proba_axis(proba, ref_dim=ref2_dim, ref_idx=2)
+                proba = self._merge_proba_axis(proba, ref_dim=ref1_dim, ref_idx=1)
 
-            condition = repeat(
-                batch["input"]["condition"][i : i + proba.shape[0]],
-                "a c r2 r1 -> (a r2t r1t) c r2 r1",
-                r2t=proba.shape[1],
-                r1t=proba.shape[2],
-            )
-            x1t = repeat(
-                x1t1D,
-                "r1t -> (a r2t r1t)",
-                a=proba.shape[0],
-                r2t=proba.shape[1],
-            )
-            x2t = repeat(
-                x2t1D,
-                "r2t -> (a r2t r1t)",
-                a=proba.shape[0],
-                r1t=proba.shape[2],
-            )
-
-            for step in range(self.noise_timesteps - 1, 0, -1):
-                p_theta_0_on_t_logit = self.single_pass(
-                    condition=condition,
-                    x1t=x1t,
-                    x2t=x2t,
-                    t=torch.full(
-                        (proba.shape[0] * proba.shape[1] * proba.shape[2],), step
-                    ),
-                )
-                p_theta_0_on_t = rearrange(
-                    F.softmax(
-                        rearrange(
-                            p_theta_0_on_t_logit,
-                            "(a r2t r1t) r2 r1 -> (a r2t r1t) (r2 r1)",
-                            a=proba.shape[0],
-                            r2t=proba.shape[1],
-                            r1t=proba.shape[2],
-                        ),
-                        dim=1,
-                    ),
-                    "(a r2t r1t) (r2 r1) -> a r2t r1t r2 r1",
-                    a=proba.shape[0],
+                condition = repeat(
+                    batch["input"]["condition"][i : i + proba.shape[0]],
+                    "a c r2 r1 -> (a r2t r1t) c r2 r1",
                     r2t=proba.shape[1],
                     r1t=proba.shape[2],
-                    r2=ref2_dim,
-                    r1=ref1_dim,
                 )
-                q_tm1_on_0_t_1 = self._q_s_on_0_t(
-                    t=torch.full(
-                        (proba.shape[2] * ref1_dim,), step, device=self.device
-                    ),
-                    s=torch.full(
-                        (proba.shape[2] * ref1_dim,), step - 1, device=self.device
-                    ),
-                    x0=repeat(
-                        torch.arange(ref1_dim, device=self.device),
-                        "r10 -> (r1t r10)",
-                        r1t=proba.shape[2],
-                    ),
-                    xt=repeat(
-                        x1t1D,
-                        "r1t -> (r1t r10)",
-                        r10=ref1_dim,
-                    ),
-                    stationary_sampler=self.stationary_sampler1,
+                x1t = repeat(
+                    x1t1D,
+                    "r1t -> (a r2t r1t)",
+                    a=proba.shape[0],
+                    r2t=proba.shape[1],
                 )
-                q_tm1_on_0_t_2 = self._q_s_on_0_t(
-                    t=torch.full(
-                        (proba.shape[1] * ref2_dim,), step, device=self.device
-                    ),
-                    s=torch.full(
-                        (proba.shape[1] * ref2_dim,), step - 1, device=self.device
-                    ),
-                    x0=repeat(
-                        torch.arange(ref2_dim, device=self.device),
-                        "r20 -> (r2t r20)",
-                        r2t=proba.shape[1],
-                    ),
-                    xt=repeat(
-                        x2t1D,
-                        "r2t -> (r2t r20)",
-                        r20=ref2_dim,
-                    ),
-                    stationary_sampler=self.stationary_sampler2,
+                x2t = repeat(
+                    x2t1D,
+                    "r2t -> (a r2t r1t)",
+                    a=proba.shape[0],
+                    r1t=proba.shape[2],
                 )
-                proba = einsum(
-                    proba,
-                    p_theta_0_on_t,
-                    rearrange(
-                        q_tm1_on_0_t_1,
-                        "(r1t r10) r1tm1 -> r1t r10 r1tm1",
-                        r1t=proba.shape[2],
-                    ),
-                    rearrange(
-                        q_tm1_on_0_t_2,
-                        "(r2t r20) r2tm1 -> r2t r20 r2tm1",
-                        r2t=proba.shape[1],
-                    ),
-                    "a r2t r1t, a r2t r1t r20 r10, r1t r10 r1tm1, r2t r20 r2tm1 -> a r2tm1 r1tm1",
-                )
-                if step > 1:
-                    proba = self._merge_proba_axis(proba, ref_dim=ref2_dim, ref_idx=2)
-                    proba = self._merge_proba_axis(proba, ref_dim=ref1_dim, ref_idx=1)
 
-            probas.append(proba)
+                for step in range(self.noise_timesteps - 1, 0, -1):
+                    p_theta_0_on_t_logit = self.single_pass(
+                        condition=condition,
+                        x1t=x1t,
+                        x2t=x2t,
+                        t=torch.full(
+                            (proba.shape[0] * proba.shape[1] * proba.shape[2],), step
+                        ),
+                    )
+                    p_theta_0_on_t = rearrange(
+                        F.softmax(
+                            rearrange(
+                                p_theta_0_on_t_logit,
+                                "(a r2t r1t) r2 r1 -> (a r2t r1t) (r2 r1)",
+                                a=proba.shape[0],
+                                r2t=proba.shape[1],
+                                r1t=proba.shape[2],
+                            ),
+                            dim=1,
+                        ),
+                        "(a r2t r1t) (r2 r1) -> a r2t r1t r2 r1",
+                        a=proba.shape[0],
+                        r2t=proba.shape[1],
+                        r1t=proba.shape[2],
+                        r2=ref2_dim,
+                        r1=ref1_dim,
+                    )
+                    q_tm1_on_0_t_1 = self._q_s_on_0_t(
+                        t=torch.full(
+                            (proba.shape[2] * ref1_dim,), step, device=self.device
+                        ),
+                        s=torch.full(
+                            (proba.shape[2] * ref1_dim,), step - 1, device=self.device
+                        ),
+                        x0=repeat(
+                            torch.arange(ref1_dim, device=self.device),
+                            "r10 -> (r1t r10)",
+                            r1t=proba.shape[2],
+                        ),
+                        xt=repeat(
+                            x1t1D,
+                            "r1t -> (r1t r10)",
+                            r10=ref1_dim,
+                        ),
+                        stationary_sampler=self.stationary_sampler1,
+                    )
+                    q_tm1_on_0_t_2 = self._q_s_on_0_t(
+                        t=torch.full(
+                            (proba.shape[1] * ref2_dim,), step, device=self.device
+                        ),
+                        s=torch.full(
+                            (proba.shape[1] * ref2_dim,), step - 1, device=self.device
+                        ),
+                        x0=repeat(
+                            torch.arange(ref2_dim, device=self.device),
+                            "r20 -> (r2t r20)",
+                            r2t=proba.shape[1],
+                        ),
+                        xt=repeat(
+                            x2t1D,
+                            "r2t -> (r2t r20)",
+                            r20=ref2_dim,
+                        ),
+                        stationary_sampler=self.stationary_sampler2,
+                    )
+                    proba = einsum(
+                        proba,
+                        p_theta_0_on_t,
+                        rearrange(
+                            q_tm1_on_0_t_1,
+                            "(r1t r10) r1tm1 -> r1t r10 r1tm1",
+                            r1t=proba.shape[2],
+                        ),
+                        rearrange(
+                            q_tm1_on_0_t_2,
+                            "(r2t r20) r2tm1 -> r2t r20 r2tm1",
+                            r2t=proba.shape[1],
+                        ),
+                        "a r2t r1t, a r2t r1t r20 r10, r1t r10 r1tm1, r2t r20 r2tm1 -> a r2tm1 r1tm1",
+                    )
+                    if step > 1:
+                        proba = self._merge_proba_axis(
+                            proba, ref_dim=ref2_dim, ref_idx=2
+                        )
+                        proba = self._merge_proba_axis(
+                            proba, ref_dim=ref1_dim, ref_idx=1
+                        )
+
+                probas.append(proba)
 
         probas = torch.cat(probas).cpu().numpy()
         df = pd.DataFrame(

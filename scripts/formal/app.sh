@@ -14,6 +14,7 @@ app_config=AI/app.yaml
 target="GreatestCommonCrossEntropy"
 maximize_target="false"
 device=${device:-"cuda"}
+autocast=true
 owner="ljw20180420"
 
 printf "inference:\n" > ${app_config}
@@ -37,8 +38,8 @@ do
     printf "    maximize_target: %s\n" \
         ${maximize_target} \
         >> ${app_config}
-    printf "    overwrite:\n      train.device: %s\n" \
-        ${device} \
+    printf "    overwrite:\n      train.device: %s\n      model.init_args.autocast: %s\n" \
+        ${device} ${autocast} \
         >> ${app_config}
 done
 

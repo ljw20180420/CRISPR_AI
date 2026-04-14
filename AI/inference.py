@@ -34,7 +34,7 @@ class MyInference(MyInferenceAbstract):
             "spymac": "GTTTCAGAGCTATGCTGGAAACAGCATAGCAAGTTGAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTTTTG",
         }
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def __call__(
         self,
         infer_df: pd.DataFrame,

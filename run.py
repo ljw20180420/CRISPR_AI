@@ -73,6 +73,3 @@ elif cfg.subcommand == "hta":
 
 elif cfg.subcommand == "hpo":
     MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
-elif cfg.subcommand == "hpo":
-    MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
-    MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)

@@ -44,7 +44,7 @@ do
         do
             case ${model_cls} in
                 CRIfuser)
-                    ./run.py explain --config ${explain_config} --shap.load_only ${load_only} --shap.shap_target ${shap_target} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.overwrite.model.init_args.eval_output_step 4 --test.overwrite.model.init_args.eval_output_batch_size 16 --dataset.name ${data_name}
+                    ./run.py explain --config ${explain_config} --shap.load_only ${load_only} --shap.shap_target ${shap_target} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.overwrite.model.init_args.eval_output_step 4 --test.overwrite.model.init_args.eval_output_batch_size 16 --test.overwrite.model.init_args.autocast true --dataset.name ${data_name}
                 ;;
                 *)
                     ./run.py explain --config ${explain_config} --shap.load_only ${load_only} --shap.shap_target ${shap_target} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.name ${data_name}

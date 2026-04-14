@@ -1,8 +1,7 @@
-import hashlib
+import importlib
 import os
 import re
 import subprocess
-import tempfile
 
 import gradio as gr
 import jsonargparse
@@ -12,6 +11,7 @@ import pysam
 import torch
 from Bio import Seq
 from common_ai.gradio_fn import MyGradioFnAbstract
+from common_ai.test import MyTest
 
 
 class MyGradioFn(MyGradioFnAbstract):
@@ -24,20 +24,20 @@ class MyGradioFn(MyGradioFnAbstract):
         for i in range(len(app_cfg.inference)):
             app_cfg.inference[i].init_args.max_del_size = 0
 
+        breakpoint()
+        self.inference_instance_dict = {}
         super().__init__(app_cfg, train_parser)
 
     @torch.no_grad()
     def __call__(
         self, repo_id: str, spacer: str, eval_output_step: int
-    ) -> tuple[pd.DataFrame, str]:
+    ) -> pd.DataFrame:
         cut = 25
-
+        my_inference = self.inference_instance_dict[repo_id]
+        spacer = re.sub(r"[\d\s]", "", spacer)
         if len(spacer) < 20:
             gr.Warning(f"it recommends to provide >=20bp protospacer", duration=None)
-        self.reload_inference(repo_id=repo_id)
-        if hasattr(self.my_inference, "model"):
-            self.my_inference.model.eval_output_step = eval_output_step
-        self.test_cfg.eval_output_step = eval_output_step
+        my_inference.model.eval_output_step = eval_output_step
 
         ref = self.retrieve_ref(spacer)
         cas9 = re.search(r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id).group(1)
@@ -55,28 +55,43 @@ class MyGradioFn(MyGradioFnAbstract):
                 "scaffold": ["spcas9"],  # dummy, not used by CRIfuser
             }
         )
-        infer_out = self.my_inference(infer_df, self.test_cfg, self.train_parser)
+        infer_out = my_inference(infer_df, test_cfg=None, train_parser=None)
         infer_out = (
             infer_out.sort_values(by="proba", ascending=False)
             .reset_index(drop=True)
             .head(10)
         )
-        aligns = []
-        for rpos1, rpos2 in zip(infer_out["rpos1"], infer_out["rpos2"]):
+        aligns, indel_types, percents = [], [], []
+        for rpos1, rpos2, proba in zip(
+            infer_out["rpos1"], infer_out["rpos2"], infer_out["proba"]
+        ):
             align_up = ref[: cut + rpos1]
             align_down = ref[cut + rpos2 :]
             mid = "-" * max(0, rpos2 - rpos1)
             aligns.append(align_up + mid + align_down)
 
-        result_df = pd.DataFrame({ref: aligns, "proba": infer_out["proba"]})
+            if rpos1 == 0 and rpos2 == 0:
+                indel_type = "wild type"
+            elif rpos1 <= 0 and rpos2 >= 0:
+                indel_type = "deletion"
+            elif rpos1 >= 0 and rpos2 <= 0:
+                indel_type = "templated insertion"
+            else:
+                indel_type = "indel"
+            indel_types.append(indel_type)
 
-        result_df_hash = hashlib.md5(result_df.to_string().encode()).hexdigest()
-        temp_dir = self.DEFAULT_TEMP_DIR / result_df_hash
-        temp_dir.mkdir(exist_ok=True, parents=True)
-        result_df_file = tempfile.NamedTemporaryFile(delete=False, dir=temp_dir).name
-        result_df.to_csv(result_df_file, index=False)
+            percent = f"{(proba * 100):.2f}%"
+            percents.append(percent)
 
-        return result_df, result_df_file
+        result_df = pd.DataFrame(
+            {
+                ref: aligns,
+                "type": indel_types,
+                "percent": percents,
+            }
+        )
+
+        return result_df
 
     def launch(self):
         cas9_dropdown = []
@@ -85,6 +100,14 @@ class MyGradioFn(MyGradioFnAbstract):
                 r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id
             ).group(1)
             cas9_dropdown.append((cas9, repo_id))
+            self.load_inference(repo_id)
+
+        # warm up
+        self(
+            repo_id=cas9_dropdown[0][1],
+            spacer="CTGGCTTACCTGAATCGTCC",
+            eval_output_step=4,
+        )
 
         gr.Interface(
             fn=self,
@@ -101,9 +124,32 @@ class MyGradioFn(MyGradioFnAbstract):
                     info="Increase this value to sample less outcomes to calculate the editing profile. This increases speed but decreases accuracy.",
                 ),
             ],
-            outputs=[gr.Dataframe(label="result"), gr.File(label="download result")],
+            outputs=[
+                gr.Dataframe(
+                    headers=["outcome", "type", "percent"],
+                    datatype=["str", "str", "str"],
+                    label="result",
+                )
+            ],
             description="# Welcome. This app predicts the editing outcomes of G-rich (spycas9) and A-rich (spymac, ispymac) cas9.",
+            flagging_mode="never",
         ).launch()
+
+    def load_inference(self, repo_id: str) -> None:
+        assert repo_id in self.inference_dict, f"repo id {repo_id} is not found"
+        inference_cfg, test_cfg = self.inference_dict[repo_id]
+        inference_module, inference_cls = inference_cfg.class_path.rsplit(".", 1)
+        self.inference_instance_dict[repo_id] = getattr(
+            importlib.import_module(inference_module), inference_cls
+        )(**inference_cfg.init_args.as_dict())
+        (
+            _,
+            train_cfg,
+            self.inference_instance_dict[repo_id].logger,
+            self.inference_instance_dict[repo_id].model,
+            self.inference_instance_dict[repo_id].my_generator,
+        ) = MyTest(**test_cfg.as_dict()).load_model(self.train_parser)
+        self.inference_instance_dict[repo_id].batch_size = train_cfg.train.batch_size
 
     def retrieve_ref(self, protospacer: str) -> str:
         ext_up = 25
