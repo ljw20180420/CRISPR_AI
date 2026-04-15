@@ -49,7 +49,7 @@ do
         ./run.py hta --config ${hta_config} --trace_dir ${logs_path}/profile
 
         title Test
-        for target in GreatestCommonCrossEntropy # CrossEntropy, NonZeroCrossEntropy, NonWildTypeCrossEntropy, NonZeroNonWildTypeCrossEntropy
+        for target in GreatestCommonCrossEntropy # CrossEntropy, NonZeroCrossEntropy, NonWildTypeCrossEntropy, NonZeroNonWildTypeCrossEntropy, Likelihood, Pearson, MSE, SymKL
         do
             ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target}
         done
