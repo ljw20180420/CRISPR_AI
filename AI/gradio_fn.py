@@ -64,6 +64,8 @@ class MyGradioFn(MyGradioFnAbstract):
             align_up = ref[: cut + rpos1]
             align_down = ref[cut + rpos2 :]
             mid = "-" * max(0, rpos2 - rpos1)
+            align = align_up + mid + align_down
+            align = align[:cut] + "|" + align[cut:]
             aligns.append(align_up + mid + align_down)
 
             if rpos1 == 0 and rpos2 == 0:
@@ -81,7 +83,7 @@ class MyGradioFn(MyGradioFnAbstract):
 
         result_df = pd.DataFrame(
             {
-                ref: aligns,
+                ref[:cut] + "|" + ref[cut:]: aligns,
                 "type": indel_types,
                 "percent": percents,
             }
@@ -90,27 +92,25 @@ class MyGradioFn(MyGradioFnAbstract):
         return result_df
 
     def launch(self):
-        cas9_dropdown = []
         for repo_id in self.inference_dict.keys():
-            cas9 = re.search(
-                r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id
-            ).group(1)
-            cas9_dropdown.append((cas9, repo_id))
             self.load_inference(repo_id)
-
-        # warm up
-        self(
-            repo_id=cas9_dropdown[0][1],
-            spacer="CTGGCTTACCTGAATCGTCC",
-        )
 
         gr.Interface(
             fn=self,
             inputs=[
-                gr.Dropdown(choices=cas9_dropdown, label="select cas9 editors"),
+                gr.Dropdown(
+                    choices=[
+                        ("spycas9", "CRIfuser_CRIfuser_SX_spcas9"),
+                        ("spymac", "CRIfuser_CRIfuser_SX_spymac"),
+                        ("ispymac", "CRIfuser_CRIfuser_SX_ispymac"),
+                    ],
+                    label="select cas9 editors",
+                    info="Spycas9 for NGG PAM. (i)spymac for NAA PAM.",
+                ),
                 gr.Textbox(
                     placeholder="CTGGCTTACCTGAATCGTCC",
                     label=">=20bp targeting sequence (protospacer)",
+                    info="The protospacer is search on human hg19 genome to determine the complete targeting site. No matter how long the provided protospacer is, PAM always follows the 3' base of the protospacer.",
                 ),
             ],
             outputs=[
@@ -122,7 +122,18 @@ class MyGradioFn(MyGradioFnAbstract):
                     show_search="filter",
                 )
             ],
-            description="# Welcome. This app predicts the editing outcomes of G-rich (spycas9) and A-rich (spymac, ispymac) cas9.",
+            examples=[
+                ["CRIfuser_CRIfuser_SX_spcas9", "GAAACAAACAAGAAGAAGCG"],
+                ["CRIfuser_CRIfuser_SX_spymac", "ATTCCTGAATCTAGACTCCT"],
+                ["CRIfuser_CRIfuser_SX_ispymac", "ATTGAATGTAGATATCCTAT"],
+            ],
+            cache_examples=True,
+            cache_mode="eager",
+            description="""
+# Welcome. This app predicts the editing outcomes of G-rich (spycas9) and A-rich (spymac, ispymac) cas9.
+
+We search the protospacer in human hg19 genome. If the protospacer is not mapped successfully, an error occurs. If the protospacer is mapped, but PAM next to the protospacer in the human genome does not match the selected cas9 editor (NGG for spycas9, NAA for spymac/ispymac), then only a warning occurs, and the app will predict a result anyway. You can try examples.
+            """,
             flagging_mode="never",
         ).launch()
 
