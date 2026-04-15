@@ -59,13 +59,6 @@ Summarize benchmarks results by
 
 # TODO
 
-- use inference engine for CRIfuser
-
-- README
-- 切点位置画虚线
-- 例子
-- 柱状图
-
 - 更新文档
 
 - test all

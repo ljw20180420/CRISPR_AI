@@ -237,7 +237,6 @@ class CRIfuser(MyModelAbstract, nn.Module):
             kernel_size=1,
         )
 
-    @torch.compile
     def single_pass(
         self,
         condition: torch.Tensor,
@@ -463,6 +462,9 @@ class CRIfuser(MyModelAbstract, nn.Module):
                 self.eval_output_step,
                 device=self.device,
             )
+            opt_single_pass = torch.compile(
+                self.single_pass, disable=self.device != "cpu"
+            )
             for i in range(0, batch_size, self.eval_output_batch_size):
                 proba = torch.ones(
                     min(batch_size - i, self.eval_output_batch_size),
@@ -493,8 +495,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
                 )
 
                 for step in range(self.noise_timesteps - 1, 0, -1):
-                    start = time.time()
-                    p_theta_0_on_t_logit = self.single_pass(
+                    p_theta_0_on_t_logit = opt_single_pass(
                         condition=condition,
                         x1t=x1t,
                         x2t=x2t,
@@ -503,9 +504,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
                             step,
                         ),
                     )
-                    print(time.time() - start)
 
-                    start = time.time()
                     p_theta_0_on_t = rearrange(
                         F.softmax(
                             rearrange(
@@ -562,9 +561,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
                         ),
                         stationary_sampler=self.stationary_sampler2,
                     )
-                    print(time.time() - start)
 
-                    start = time.time()
                     proba = einsum(
                         proba,
                         p_theta_0_on_t,
@@ -580,7 +577,6 @@ class CRIfuser(MyModelAbstract, nn.Module):
                         ),
                         "a r2t r1t, a r2t r1t r20 r10, r1t r10 r1tm1, r2t r20 r2tm1 -> a r2tm1 r1tm1",
                     )
-                    print(time.time() - start)
 
                     if step > 1:
                         proba = self._merge_proba_axis(

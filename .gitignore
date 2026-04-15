@@ -1,5 +1,6 @@
 **/__pycache__
 /.vscode/settings.json
+/.gradio
 /AI/preprocess/DeepHF/reference/
 /AI/preprocess/FOREcasT/reference/
 /AI/preprocess/Lindel/reference/
