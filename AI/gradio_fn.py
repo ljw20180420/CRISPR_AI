@@ -33,24 +33,22 @@ class MyGradioFn(MyGradioFnAbstract):
         my_inference = self.inference_instance_dict[repo_id]
         spacer = re.sub(r"[\d\s]", "", spacer)
         if len(spacer) < 20:
-            gr.Warning(f"it recommends to provide >=20bp protospacer", duration=None)
+            gr.Warning("it recommends to provide >=20bp protospacer", duration=None)
 
         ref = self.retrieve_ref(spacer)
         cas9 = re.search(r"^CRIfuser_.+_SX_(spcas9|spymac|ispymac)$", repo_id).group(1)
         pam = "GG" if cas9 == "spcas9" else "AA"
         if ref[cut + 4 : cut + 6] != pam:
             gr.Warning(
-                f"pam should be N{pam} for {cas9}, but the detected pam is {ref[cut+3:cut+6]}",
+                f"pam should be N{pam} for {cas9}, but the detected pam is {ref[cut + 3 : cut + 6]}",
                 duration=None,
             )
 
-        infer_df = pd.DataFrame(
-            {
-                "ref": [ref],
-                "cut": [cut],
-                "scaffold": ["spcas9"],  # dummy, not used by CRIfuser
-            }
-        )
+        infer_df = pd.DataFrame({
+            "ref": [ref],
+            "cut": [cut],
+            "scaffold": ["spcas9"],  # dummy, not used by CRIfuser
+        })
         infer_out = my_inference(infer_df, test_cfg=None, train_parser=None)
         infer_out = (
             infer_out.sort_values(by="proba", ascending=False)
@@ -81,13 +79,11 @@ class MyGradioFn(MyGradioFnAbstract):
             percent = f"{(proba * 100):.2f}%"
             percents.append(percent)
 
-        result_df = pd.DataFrame(
-            {
-                ref[:cut] + "|" + ref[cut:]: aligns,
-                "type": indel_types,
-                "percent": percents,
-            }
-        )
+        result_df = pd.DataFrame({
+            ref[:cut] + "|" + ref[cut:]: aligns,
+            "type": indel_types,
+            "percent": percents,
+        })
 
         return result_df
 
@@ -98,7 +94,7 @@ class MyGradioFn(MyGradioFnAbstract):
         gr.Interface(
             fn=self,
             inputs=[
-                gr.Dropdown(
+                gr.Radio(
                     choices=[
                         ("spycas9", "CRIfuser_CRIfuser_SX_spcas9"),
                         ("spymac", "CRIfuser_CRIfuser_SX_spymac"),
@@ -172,9 +168,10 @@ We search the protospacer in human hg19 genome. If the protospacer is not mapped
             ],
         )
 
-        with pysam.AlignmentFile(samfile, "rb") as sam, py2bit.open(
-            os.environ["GENOME"]
-        ) as tb:
+        with (
+            pysam.AlignmentFile(samfile, "rb") as sam,
+            py2bit.open(os.environ["GENOME"]) as tb,
+        ):
             for align in sam.fetch():
                 break
             if not align.is_mapped:
