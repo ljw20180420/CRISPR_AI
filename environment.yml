@@ -4,6 +4,7 @@ channels:
   - bioconda
   - defaults
 dependencies:
+  - conda-forge::cxx-compiler
   - bioconda::viennarna
   - bioconda::bowtie2
   - python
