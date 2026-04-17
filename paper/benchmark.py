@@ -76,9 +76,7 @@ def save_latex(
                 "data_name": "cas protein",
                 "value": metric,
             }
-        ).to_latex(
-            f"paper/benchmark/{metric}.{filename}", index=False, escape=True
-        )
+        ).to_latex(f"paper/benchmark/{metric}.{filename}", index=False, escape=True)
 
 
 def draw_benchmark(
@@ -91,7 +89,9 @@ def draw_benchmark(
     for data_name in data_names:
         for metric in metrics:
             ax = (
-                bench_df.query("data_name == @data_name and metric == @metric")
+                bench_df.query(
+                    "metric == @metric and model_cls in @models and data_name == @data_name"
+                )
                 .sort_values("value")
                 .rename(columns={"value": metric})
                 .set_index(
@@ -102,6 +102,7 @@ def draw_benchmark(
                 .plot.bar(y=metric, figsize=(20, 10))
             )
             ax.set_xticklabels(ax.get_xticklabels(), rotation=10, ha="right")
+            ax.set_ylabel(ylabel=metric)
             ax.get_figure().savefig(f"paper/benchmark/{data_name}_{metric}_{filename}")
 
 
@@ -132,13 +133,17 @@ bench_df = get_benchmark(
         "NonWildTypeCrossEntropy",
         "NonZeroCrossEntropy",
         "NonZeroNonWildTypeCrossEntropy",
+        "Likelihood",
+        "Pearson",
+        "MSE",
+        "SymKL",
     ],
     output_dir=pathlib.Path("/home/ljw/sdc1/CRISPR_results/formal/default/logs"),
 )
 
 save_latex(
     bench_df,
-    metrics=["GreatestCommonCrossEntropy"],
+    metrics=["Likelihood", "Pearson", "MSE"],
     models=[
         "CRIformer",
         "CRIfuser",
@@ -154,7 +159,7 @@ save_latex(
 
 save_latex(
     bench_df,
-    metrics=["GreatestCommonCrossEntropy"],
+    metrics=["Likelihood", "Pearson", "MSE"],
     models=[
         "CRIfuser",
         "FOREcasT",
@@ -168,7 +173,7 @@ save_latex(
 
 draw_benchmark(
     bench_df,
-    metrics=["GreatestCommonCrossEntropy"],
+    metrics=["Likelihood", "Pearson", "MSE"],
     models=[
         "CRIformer",
         "CRIfuser",
@@ -184,7 +189,7 @@ draw_benchmark(
 
 draw_benchmark(
     bench_df,
-    metrics=["GreatestCommonCrossEntropy"],
+    metrics=["Likelihood", "Pearson", "MSE"],
     models=[
         "CRIfuser",
         "FOREcasT",
