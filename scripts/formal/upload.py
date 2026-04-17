@@ -3,7 +3,7 @@
 import os
 import pathlib
 
-from huggingface_hub import upload_folder, whoami
+from huggingface_hub import create_repo, upload_folder, whoami
 
 # change to the dir to the project
 os.chdir(pathlib.Path(__file__).resolve().parent.parent.parent)
@@ -31,9 +31,13 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
         success = False
         while not success:
             try:
+                repo_id = f"{username}/{preprocess}_{model_cls}_{data_name}"
+                # create repo
+                create_repo(repo_id=repo_id, exist_ok=True, repo_type="model")
+
                 # upload checkpoints
                 upload_folder(
-                    repo_id=f"{username}/{preprocess}_{model_cls}_{data_name}",
+                    repo_id=repo_id,
                     folder_path=output_dir
                     / "checkpoints"
                     / preprocess
@@ -46,7 +50,7 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
 
                 # upload logs
                 upload_folder(
-                    repo_id=f"{username}/{preprocess}_{model_cls}_{data_name}",
+                    repo_id=repo_id,
                     folder_path=output_dir
                     / "logs"
                     / preprocess
