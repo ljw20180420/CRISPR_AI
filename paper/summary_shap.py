@@ -13,6 +13,8 @@ from plotnine import (
     geom_point,
     geom_raster,
     ggplot,
+    guide_legend,
+    guides,
     scale_color_manual,
     scale_fill_gradient,
     scale_fill_manual,
@@ -149,12 +151,10 @@ def shap_reducer(
             data = shap_df_sub[[f"pos{i}" for i in range(94)]].to_numpy()
             scaled_data = StandardScaler().fit_transform(data)
             embeddings = reducer.fit_transform(scaled_data)
-            shap_df_sub = shap_df_sub.assign(
-                **{
-                    f"{method}_x": embeddings[:, 0],
-                    f"{method}_y": embeddings[:, 1],
-                }
-            )
+            shap_df_sub = shap_df_sub.assign(**{
+                f"{method}_x": embeddings[:, 0],
+                f"{method}_y": embeddings[:, 1],
+            })
 
             (
                 ggplot(
@@ -170,31 +170,32 @@ def shap_reducer(
                 + scale_color_manual(
                     values={
                         "CRIfuser": "#FF0000",
-                        "CRIformer": "#FF0000",
+                        "CRIformer": "#0000FF",
                         "DeepHF": "#00FF00",
-                        "CNN": "#00FF00",
-                        "MLP": "#00FF00",
-                        "inDelphi": "#00FF00",
-                        "FOREcasT": "#00FF00",
-                        "Lindel": "#00FF00",
-                        "XGBoost": "#00FF00",
-                        "SGDClassifier": "#00FF00",
+                        "CNN": "#FFFF00",
+                        "MLP": "#00FFFF",
+                        "inDelphi": "#800080",
+                        "FOREcasT": "#808000",
+                        "Lindel": "#008080",
+                        "XGBoost": "#808080",
+                        "SGDClassifier": "#000000",
                     }
                 )
                 + scale_fill_manual(
                     values={
                         "CRIfuser": "#FF0000",
-                        "CRIformer": "#FF0000",
+                        "CRIformer": "#0000FF",
                         "DeepHF": "#00FF00",
-                        "CNN": "#00FF00",
-                        "MLP": "#00FF00",
-                        "inDelphi": "#00FF00",
-                        "FOREcasT": "#00FF00",
-                        "Lindel": "#00FF00",
-                        "XGBoost": "#00FF00",
-                        "SGDClassifier": "#00FF00",
+                        "CNN": "#FFFF00",
+                        "MLP": "#00FFFF",
+                        "inDelphi": "#800080",
+                        "FOREcasT": "#808000",
+                        "Lindel": "#008080",
+                        "XGBoost": "#808080",
+                        "SGDClassifier": "#000000",
                     }
                 )
+                + guides(color=guide_legend(override_aes={"size": 5, "alpha": 1.0}))
             ).save(
                 pathlib.Path(f"paper/summary_shap/{method}")
                 / f"{data_name}_{shap_target}_{method}.pdf"
@@ -262,6 +263,6 @@ if __name__ == "__main__":
         output_name="benchmark",
     )
 
-    # shap_reducer(shap_df, data_names, shap_targets, method="pca")
-    # shap_reducer(shap_df, data_names, shap_targets, method="tsne")
-    # shap_reducer(shap_df, data_names, shap_targets, method="umap")
+    shap_reducer(shap_df, data_names, shap_targets, method="pca")
+    shap_reducer(shap_df, data_names, shap_targets, method="tsne")
+    shap_reducer(shap_df, data_names, shap_targets, method="umap")
