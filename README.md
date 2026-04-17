@@ -59,10 +59,11 @@ Summarize benchmarks results by
 
 # TODO
 
+- wait for the resolve of the conflicts between `gr.Dataframe` and `gr.Radio`/`gr.Dropdown`
+- diffusion dynamics
+
 - 更新文档
 
-- test all
-- reoutput bench
 - sync local to hf (upload)
 - download from hf
 

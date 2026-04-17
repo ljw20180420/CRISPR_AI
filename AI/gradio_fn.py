@@ -64,7 +64,7 @@ class MyGradioFn(MyGradioFnAbstract):
             mid = "-" * max(0, rpos2 - rpos1)
             align = align_up + mid + align_down
             align = align[:cut] + "|" + align[cut:]
-            aligns.append(align_up + mid + align_down)
+            aligns.append(align)
 
             if rpos1 == 0 and rpos2 == 0:
                 indel_type = "wild type"
@@ -85,7 +85,8 @@ class MyGradioFn(MyGradioFnAbstract):
             "percent": percents,
         })
 
-        return result_df
+        # return result_df
+        return result_df.to_string()
 
     def launch(self):
         for repo_id in self.inference_dict.keys():
@@ -110,13 +111,17 @@ class MyGradioFn(MyGradioFnAbstract):
                 ),
             ],
             outputs=[
-                gr.Dataframe(
-                    headers=["outcome", "type", "percent"],
-                    datatype=["str", "str", "str"],
+                # gr.Dataframe(
+                #     headers=["outcome", "type", "percent"],
+                #     datatype=["str", "str", "str"],
+                #     label="result",
+                #     buttons=["copy", "fullscreen"],
+                #     show_search="filter",
+                # ),
+                gr.Textbox(
                     label="result",
-                    buttons=["copy", "fullscreen"],
-                    show_search="filter",
-                )
+                    buttons=["copy"],
+                ),
             ],
             examples=[
                 ["CRIfuser_CRIfuser_SX_spcas9", "GAAACAAACAAGAAGAAGCG"],
