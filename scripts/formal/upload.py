@@ -18,9 +18,12 @@ from huggingface_hub import (
 os.chdir(pathlib.Path(__file__).resolve().parent.parent.parent)
 
 
-def upload_first_time(username: str, preprocess: str, model_cls: str, data_name: str):
+def upload_large(
+    username: str, preprocess: str, model_cls: str, data_name: str, delete: bool
+):
     repo_id = f"{username}/{preprocess}_{model_cls}_{data_name}"
-    delete_repo(repo_id=repo_id, repo_type="model", missing_ok=True)
+    if delete:
+        delete_repo(repo_id=repo_id, repo_type="model", missing_ok=True)
     create_repo(repo_id=repo_id, exist_ok=True, repo_type="model")
 
     with tempfile.TemporaryDirectory() as td:
@@ -79,7 +82,13 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
         while not success:
             try:
                 if "first" in sys.argv[1:]:
-                    upload_first_time(username, preprocess, model_cls, data_name)
+                    upload_large(
+                        username,
+                        preprocess,
+                        model_cls,
+                        data_name,
+                        delete=("delete" in sys.argv[1:]),
+                    )
                 else:
                     upload()
 
