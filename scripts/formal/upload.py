@@ -8,7 +8,6 @@ import tempfile
 import time
 
 from huggingface_hub import (
-    create_repo,
     delete_repo,
     upload_folder,
     upload_large_folder,
@@ -25,7 +24,6 @@ def upload_large(
     repo_id = f"{username}/{preprocess}_{model_cls}_{data_name}"
     if delete:
         delete_repo(repo_id=repo_id, repo_type="model", missing_ok=True)
-    create_repo(repo_id=repo_id, exist_ok=True, repo_type="model")
 
     with tempfile.TemporaryDirectory() as td:
         tmpdir = pathlib.Path(td)
