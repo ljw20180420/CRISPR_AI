@@ -5,6 +5,7 @@ import pathlib
 import shutil
 import sys
 import tempfile
+import time
 
 from huggingface_hub import (
     create_repo,
@@ -95,3 +96,4 @@ for data_name in ["SX_spcas9", "SX_spymac", "SX_ispymac"]:
                 success = True
             except Exception as e:
                 print(e)
+                time.sleep(1)
