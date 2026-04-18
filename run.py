@@ -10,6 +10,7 @@ from common_ai.hpo import MyHpo
 from common_ai.hta import MyHta
 from common_ai.test import MyTest
 from common_ai.train import MyTrain
+from common_ai.upload import MyUpload
 from common_ai.utils import reproduce
 
 from AI.gradio_fn import MyGradioFn
@@ -32,6 +33,7 @@ os.chdir(pathlib.Path(__file__).resolve().parent)
     app_parser,
     hta_parser,
     hpo_parser,
+    upload_parser,
 ) = get_config()
 cfg = parser.parse_args()
 
@@ -73,3 +75,6 @@ elif cfg.subcommand == "hta":
 
 elif cfg.subcommand == "hpo":
     MyHpo(**cfg.hpo.hpo.as_dict())(hpo_parser, get_train_parser)
+
+elif cfg.subcommand == "upload":
+    MyUpload(**cfg.upload.as_dict())()
