@@ -12,7 +12,7 @@ function title() {
 
 train_config=AI/train.yaml
 output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
-run_type="unit_test"
+run_type="unittest"
 run_name="CRIfuser"
 test_config=AI/test.yaml
 loss_weight=1.0

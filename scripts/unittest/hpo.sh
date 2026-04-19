@@ -12,7 +12,7 @@ function title() {
 
 hpo_config="AI/hpo.yaml"
 output_dir=${OUTPUT_DIR:-${HOME}"/CRISPR_results"}
-run_type="unit_test"
+run_type="unittest"
 run_name="hpo"
 trial_name="trial"
 

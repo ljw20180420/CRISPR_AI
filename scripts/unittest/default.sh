@@ -13,7 +13,7 @@ function title() {
 train_config=AI/train.yaml
 hta_config=AI/hta.yaml
 output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
-run_type="unit_test"
+run_type="unittest"
 run_name="default"
 test_config=AI/test.yaml
 infer_config=AI/infer.yaml
