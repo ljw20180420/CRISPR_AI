@@ -11,7 +11,9 @@ function title() {
 }
 
 explain_config=AI/explain.yaml
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/default
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
+run_type="formal"
+run_name="default"
 load_only=${load_only:-"true"}
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
@@ -32,8 +34,8 @@ do
         title ${pre_model}
 
         IFS=":" read preprocess model_cls <<<${pre_model}
-        checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
-        logs_path=${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/default
+        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
+        logs_path=${output_dir}/${run_type}/${run_name}/logs/${preprocess}/${model_cls}/${data_name}/default
 
         title explain
         for shap_target in \
@@ -44,10 +46,24 @@ do
         do
             case ${model_cls} in
                 CRIfuser)
-                    ./run.py explain --config ${explain_config} --shap.load_only ${load_only} --shap.shap_target ${shap_target} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.overwrite.model.init_args.eval_output_step 4 --test.overwrite.model.init_args.eval_output_batch_size 16 --dataset.name ${data_name}
+                    ./run.py explain \
+                        --config ${explain_config} \
+                        --shap.load_only ${load_only} \
+                        --shap.shap_target ${shap_target} \
+                        --test.checkpoints_path ${checkpoints_path} \
+                        --test.logs_path ${logs_path} \
+                        --test.overwrite.model.init_args.eval_output_step 4 \
+                        --test.overwrite.model.init_args.eval_output_batch_size 16 \
+                        --dataset.name ${data_name}
                 ;;
                 *)
-                    ./run.py explain --config ${explain_config} --shap.load_only ${load_only} --shap.shap_target ${shap_target} --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.name ${data_name}
+                    ./run.py explain \
+                        --config ${explain_config} \
+                        --shap.load_only ${load_only} \
+                        --shap.shap_target ${shap_target} \
+                        --test.checkpoints_path ${checkpoints_path} \
+                        --test.logs_path ${logs_path} \
+                        --dataset.name ${data_name}
                 ;;
             esac
         done

@@ -10,7 +10,7 @@ function title() {
     printf "\n%s\n%s\n%s\n" ${sharps} $1 ${sharps}
 }
 
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/download
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
 owner="ljw20180420"
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
@@ -35,6 +35,6 @@ do
         title "download"
         hf download \
             ${owner}/${preprocess}_${model_cls}_${data_name} \
-            --local-dir ${output_dir}/${owner}/${preprocess}_${model_cls}_${data_name}
+            --local-dir ${output_dir}/download/${owner}/${preprocess}_${model_cls}_${data_name}
     done
 done

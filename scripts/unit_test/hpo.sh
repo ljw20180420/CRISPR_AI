@@ -11,7 +11,9 @@ function title() {
 }
 
 hpo_config="AI/hpo.yaml"
-output_dir=${OUTPUT_DIR:-${HOME}"/CRISPR_results"}/unit_test/hpo
+output_dir=${OUTPUT_DIR:-${HOME}"/CRISPR_results"}
+run_type="unit_test"
+run_name="hpo"
 trial_name="trial"
 
 for data_name in SX_spcas9
@@ -40,7 +42,7 @@ do
             --hpo.target GreatestCommonCrossEntropy \
             --hpo.study_name study \
             --hpo.n_trials 2 \
-            --train.train.output_dir ${output_dir} \
+            --train.train.output_dir ${output_dir}/${run_type}/${run_name} \
             --train.train.trial_name ${trial_name} \
             --train.train.num_epochs 2 \
             --train.dataset.data_file AI/dataset/test.json.gz \

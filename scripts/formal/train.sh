@@ -11,7 +11,9 @@ function title() {
 }
 
 train_config=AI/train.yaml
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/default
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
+run_type="formal"
+run_name="default"
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
@@ -36,10 +38,23 @@ do
         title Train
         case ${model_cls} in
             XGBoost)
-                ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.device cpu --train.evaluation_only false --dataset.name ${data_name} --model ${model_config}
+                ./run.py train \
+                    --config ${train_config} \
+                    --train.output_dir ${output_dir}/${run_type}/${run_name} \
+                    --train.trial_name default \
+                    --train.device cpu \
+                    --train.evaluation_only false \
+                    --dataset.name ${data_name} \
+                    --model ${model_config}
             ;;
             *)
-                ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.evaluation_only false --dataset.name ${data_name} --model ${model_config}
+                ./run.py train \
+                    --config ${train_config} \
+                    --train.output_dir ${output_dir}/${run_type}/${run_name} \
+                    --train.trial_name default \
+                    --train.evaluation_only false \
+                    --dataset.name ${data_name} \
+                    --model ${model_config}
             ;;
         esac
     done

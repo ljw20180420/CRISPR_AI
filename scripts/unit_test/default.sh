@@ -12,7 +12,9 @@ function title() {
 
 train_config=AI/train.yaml
 hta_config=AI/hta.yaml
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/unit_test/default
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
+run_type="unit_test"
+run_name="default"
 test_config=AI/test.yaml
 infer_config=AI/infer.yaml
 explain_config=AI/explain.yaml
@@ -36,40 +38,85 @@ do
 
         IFS=":" read preprocess model_cls <<<${pre_model}
         model_config=AI/preprocess/${preprocess}/${model_cls}.yaml
-        checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
-        logs_path=${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/default
+        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
+        logs_path=${output_dir}/${run_type}/${run_name}/logs/${preprocess}/${model_cls}/${data_name}/default
 
         title Train
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --profiler.repeat 1 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
+        ./run.py train \
+            --config ${train_config} \
+            --train.output_dir ${output_dir}/${run_type}/${run_name} \
+            --train.trial_name default \
+            --train.num_epochs 1 \
+            --profiler.repeat 1 \
+            --dataset.data_file AI/dataset/test.json.gz \
+            --dataset.name ${data_name} \
+            --model ${model_config}
 
         title Eval
-        ./run.py train --config ${train_config} --train.output_dir ${output_dir} --train.trial_name default --train.num_epochs 1 --train.evaluation_only true --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name} --model ${model_config}
+        ./run.py train \
+            --config ${train_config} \
+            --train.output_dir ${output_dir}/${run_type}/${run_name} \
+            --train.trial_name default \
+            --train.num_epochs 1 \
+            --train.evaluation_only true \
+            --dataset.data_file AI/dataset/test.json.gz \
+            --dataset.name ${data_name} \
+            --model ${model_config}
 
         title Hta
-        ./run.py hta --config ${hta_config} --trace_dir ${logs_path}/profile
+        ./run.py hta \
+            --config ${hta_config} \
+            --trace_dir ${logs_path}/profile
 
         title Test
         for target in GreatestCommonCrossEntropy # CrossEntropy, NonZeroCrossEntropy, NonWildTypeCrossEntropy, NonZeroNonWildTypeCrossEntropy, Likelihood, Pearson, MSE, SymKL
         do
-            ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target}
+            ./run.py test \
+                --config ${test_config} \
+                --checkpoints_path ${checkpoints_path} \
+                --logs_path ${logs_path} \
+                --target ${target}
         done
 
         title infer
-        ./run.py infer --config ${infer_config} --output ${logs_path}/inference_output.csv --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path}
+        ./run.py infer \
+            --config ${infer_config} \
+            --output ${logs_path}/inference_output.csv \
+            --test.checkpoints_path ${checkpoints_path} \
+            --test.logs_path ${logs_path}
 
         title explain
         for shap_target in mmej # small_indel, unilateral, large_indel
         do
-            case ${model_cls} in
-                CRIfuser)
-                    ./run.py explain --config ${explain_config} --shap.load_only false --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.overwrite.model.init_args.eval_output_step 4 --test.overwrite.model.init_args.eval_output_batch_size 16 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
-                    ./run.py explain --config ${explain_config} --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --test.overwrite.model.init_args.eval_output_step 4 --test.overwrite.model.init_args.eval_output_batch_size 16 --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
-                ;;
-                *)
-                    ./run.py explain --config ${explain_config} --shap.load_only false --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
-                    ./run.py explain --config ${explain_config} --shap.shap_target ${shap_target} --shap.nsamples_per_feature 3 --test.checkpoints_path ${checkpoints_path} --test.logs_path ${logs_path} --dataset.data_file AI/dataset/test.json.gz --dataset.name ${data_name}
-                ;;
-            esac
+            for load_only in false true
+            do
+                case ${model_cls} in
+                    CRIfuser)
+                        ./run.py explain \
+                            --config ${explain_config} \
+                            --shap.load_only ${load_only} \
+                            --shap.shap_target ${shap_target} \
+                            --shap.nsamples_per_feature 3 \
+                            --test.checkpoints_path ${checkpoints_path} \
+                            --test.logs_path ${logs_path} \
+                            --test.overwrite.model.init_args.eval_output_step 4 \
+                            --test.overwrite.model.init_args.eval_output_batch_size 16 \
+                            --dataset.data_file AI/dataset/test.json.gz \
+                            --dataset.name ${data_name}
+                    ;;
+                    *)
+                        ./run.py explain \
+                            --config ${explain_config} \
+                            --shap.load_only ${load_only} \
+                            --shap.shap_target ${shap_target} \
+                            --shap.nsamples_per_feature 3 \
+                            --test.checkpoints_path ${checkpoints_path} \
+                            --test.logs_path ${logs_path} \
+                            --dataset.data_file AI/dataset/test.json.gz \
+                            --dataset.name ${data_name}
+                    ;;
+                esac
+            done
         done
     done
 done

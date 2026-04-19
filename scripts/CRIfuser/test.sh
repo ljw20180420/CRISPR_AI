@@ -11,7 +11,9 @@ function title() {
 }
 
 test_config=AI/test.yaml
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/CRIfuser
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
+run_type="formal"
+run_name="CRIfuser"
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
@@ -26,8 +28,8 @@ do
     do
         title ${loss_function}
 
-        checkpoints_path=${output_dir}/checkpoints/CRIfuser/CRIfuser/${data_name}/${loss_function}
-        logs_path=${output_dir}/logs/CRIfuser/CRIfuser/${data_name}/${loss_function}
+        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/CRIfuser/CRIfuser/${data_name}/${loss_function}
+        logs_path=${output_dir}/${run_type}/${run_name}/logs/CRIfuser/CRIfuser/${data_name}/${loss_function}
 
         title Test
         for target in \
@@ -47,7 +49,12 @@ do
             else
                 maximize_target=false
             fi
-            ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path}  --target ${target} --maximize_target ${maximize_target}
+            ./run.py test \
+                --config ${test_config} \
+                --checkpoints_path ${checkpoints_path} \
+                --logs_path ${logs_path} \
+                --target ${target} \
+                --maximize_target ${maximize_target}
         done
     done
 done

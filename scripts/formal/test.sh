@@ -11,7 +11,9 @@ function title() {
 }
 
 test_config=AI/test.yaml
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/default
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
+run_type="formal"
+run_name="default"
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
 do
@@ -31,8 +33,8 @@ do
         title ${pre_model}
 
         IFS=":" read preprocess model_cls <<<${pre_model}
-        checkpoints_path=${output_dir}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
-        logs_path=${output_dir}/logs/${preprocess}/${model_cls}/${data_name}/default
+        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
+        logs_path=${output_dir}/${run_type}/${run_name}/logs/${preprocess}/${model_cls}/${data_name}/default
 
         title Test
         for target in \
@@ -52,7 +54,12 @@ do
             else
                 maximize_target=false
             fi
-            ./run.py test --config ${test_config} --checkpoints_path ${checkpoints_path} --logs_path ${logs_path} --target ${target} --maximize_target ${maximize_target}
+            ./run.py test \
+                --config ${test_config} \
+                --checkpoints_path ${checkpoints_path} \
+                --logs_path ${logs_path} \
+                --target ${target} \
+                --maximize_target ${maximize_target}
         done
     done
 done
