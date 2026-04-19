@@ -1,6 +1,7 @@
 /.git
 /.conda
 /docker
+!/docker/common_ai/common_ai
 /paper
 /.vscode
 /scripts/*

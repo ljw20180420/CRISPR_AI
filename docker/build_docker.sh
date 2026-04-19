@@ -6,6 +6,9 @@ cd $( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 cd ..
 
 cat .gitignore docker/dockerignoretail > .dockerignore
+rm -r docker/common_ai
+mkdir -p docker/common_ai/common_ai
+rsync -av --exclude='__pycache__' --exclude="*.yaml" ${PYTHONPATH}/common_ai/ docker/common_ai/common_ai/
 
 docker build . \
     -f docker/Dockerfile \

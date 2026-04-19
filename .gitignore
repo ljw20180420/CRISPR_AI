@@ -15,3 +15,4 @@
 /AI/app.yaml
 /.dockerignore
 /scripts/formal/Dockerfile
+/docker/common_ai
