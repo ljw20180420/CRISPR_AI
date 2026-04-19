@@ -15,6 +15,7 @@ hta_config=AI/hta.yaml
 output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
 run_type="unittest"
 run_name="default"
+trial_name="default"
 test_config=AI/test.yaml
 infer_config=AI/infer.yaml
 explain_config=AI/explain.yaml
@@ -45,7 +46,7 @@ do
         ./run.py train \
             --config ${train_config} \
             --train.output_dir ${output_dir}/${run_type}/${run_name} \
-            --train.trial_name default \
+            --train.trial_name ${trial_name} \
             --train.num_epochs 1 \
             --profiler.repeat 1 \
             --dataset.data_file AI/dataset/test.json.gz \
@@ -56,7 +57,7 @@ do
         ./run.py train \
             --config ${train_config} \
             --train.output_dir ${output_dir}/${run_type}/${run_name} \
-            --train.trial_name default \
+            --train.trial_name ${trial_name} \
             --train.num_epochs 1 \
             --train.evaluation_only true \
             --dataset.data_file AI/dataset/test.json.gz \
