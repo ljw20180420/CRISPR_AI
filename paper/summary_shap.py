@@ -229,7 +229,7 @@ if __name__ == "__main__":
         shap_targets=shap_targets,
     )
 
-    # Architecture seletion
+    # Architecture selection
     shap_heatmap(
         shap_df,
         preprocess_model_cls_pairs=[
@@ -245,7 +245,7 @@ if __name__ == "__main__":
         shap_targets=shap_targets,
         cut=cut,
         pos_range=(-25, 24),
-        output_name="seletion",
+        output_name="selection",
     )
 
     # Benchmark
