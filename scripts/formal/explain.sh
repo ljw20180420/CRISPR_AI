@@ -14,6 +14,7 @@ explain_config=AI/explain.yaml
 output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
 run_type="formal"
 run_name="default"
+trial_name="default"
 load_only=${load_only:-"true"}
 
 for data_name in SX_spcas9 SX_spymac SX_ispymac
@@ -34,8 +35,8 @@ do
         title ${pre_model}
 
         IFS=":" read preprocess model_cls <<<${pre_model}
-        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
-        logs_path=${output_dir}/${run_type}/${run_name}/logs/${preprocess}/${model_cls}/${data_name}/default
+        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/${preprocess}/${model_cls}/${data_name}/${trial_name}
+        logs_path=${output_dir}/${run_type}/${run_name}/logs/${preprocess}/${model_cls}/${data_name}/${trial_name}
 
         title explain
         for shap_target in \

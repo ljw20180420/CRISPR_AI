@@ -39,8 +39,8 @@ do
 
         IFS=":" read preprocess model_cls <<<${pre_model}
         model_config=AI/preprocess/${preprocess}/${model_cls}.yaml
-        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/${preprocess}/${model_cls}/${data_name}/default
-        logs_path=${output_dir}/${run_type}/${run_name}/logs/${preprocess}/${model_cls}/${data_name}/default
+        checkpoints_path=${output_dir}/${run_type}/${run_name}/checkpoints/${preprocess}/${model_cls}/${data_name}/${trial_name}
+        logs_path=${output_dir}/${run_type}/${run_name}/logs/${preprocess}/${model_cls}/${data_name}/${trial_name}
 
         title Train
         ./run.py train \

@@ -1,4 +1,3 @@
-import time
 from typing import Literal, Optional
 
 import jsonargparse
@@ -295,17 +294,13 @@ class CRIfuser(MyModelAbstract, nn.Module):
     def forward(self, input: dict, label: dict, my_generator: MyGenerator) -> dict:
         generator = my_generator.get_torch_generator_by_device(self.device)
         batch_size, _, ref2_dim, ref1_dim = input["condition"].shape  # b, c, r2, r1
-        observation = torch.stack(
-            [
-                ob[
-                    c2 - self.ext2_up : c2 + self.ext2_down + 1,
-                    c1 - self.ext1_up : c1 + self.ext1_down + 1,
-                ]
-                for ob, c1, c2 in zip(
-                    label["observation"], label["cut1"], label["cut2"]
-                )
+        observation = torch.stack([
+            ob[
+                c2 - self.ext2_up : c2 + self.ext2_down + 1,
+                c1 - self.ext1_up : c1 + self.ext1_down + 1,
             ]
-        ).to(self.device)
+            for ob, c1, c2 in zip(label["observation"], label["cut1"], label["cut2"])
+        ]).to(self.device)
         t = torch.randint(
             1,
             self.noise_timesteps,
@@ -583,29 +578,27 @@ class CRIfuser(MyModelAbstract, nn.Module):
             probas.append(proba)
 
         probas = torch.cat(probas).cpu().numpy()
-        df = pd.DataFrame(
-            {
-                "sample_idx": repeat(
-                    np.arange(batch_size),
-                    "b -> (b r2 r1)",
-                    r1=ref1_dim,
-                    r2=ref2_dim,
-                ),
-                "proba": probas.flatten(),
-                "rpos1": repeat(
-                    np.arange(-self.ext1_up, self.ext1_down + 1),
-                    "r1 -> (b r2 r1)",
-                    b=batch_size,
-                    r2=ref2_dim,
-                ),
-                "rpos2": repeat(
-                    np.arange(-self.ext2_up, self.ext2_down + 1),
-                    "r2 -> (b r2 r1)",
-                    b=batch_size,
-                    r1=ref1_dim,
-                ),
-            }
-        )
+        df = pd.DataFrame({
+            "sample_idx": repeat(
+                np.arange(batch_size),
+                "b -> (b r2 r1)",
+                r1=ref1_dim,
+                r2=ref2_dim,
+            ),
+            "proba": probas.flatten(),
+            "rpos1": repeat(
+                np.arange(-self.ext1_up, self.ext1_down + 1),
+                "r1 -> (b r2 r1)",
+                b=batch_size,
+                r2=ref2_dim,
+            ),
+            "rpos2": repeat(
+                np.arange(-self.ext2_up, self.ext2_down + 1),
+                "r2 -> (b r2 r1)",
+                b=batch_size,
+                r1=ref1_dim,
+            ),
+        })
         return df
 
     def _q_s_on_0_t(
@@ -722,9 +715,9 @@ class CRIfuser(MyModelAbstract, nn.Module):
                     - self.exp_base ** (t / self.noise_timesteps)
                 )
             )
-        assert (
-            self.noise_scheduler == "uniform"
-        ), "supported noise schedulers are linear, cosine, exp, uniform"
+        assert self.noise_scheduler == "uniform", (
+            "supported noise schedulers are linear, cosine, exp, uniform"
+        )
         return torch.exp(self.uniform_scale * (s - t))
 
     def _beta(self, t: torch.Tensor) -> torch.Tensor:
@@ -749,9 +742,9 @@ class CRIfuser(MyModelAbstract, nn.Module):
                 * self.exp_base ** (t / self.noise_timesteps)
                 * torch.log(torch.tensor(self.exp_base))
             )
-        assert (
-            self.noise_scheduler == "uniform"
-        ), "supported noise schedulers are linear, cosine, exp, uniform"
+        assert self.noise_scheduler == "uniform", (
+            "supported noise schedulers are linear, cosine, exp, uniform"
+        )
         return torch.full(t.shape, self.uniform_scale, device=self.device)
 
     def _q_rkm_d(
@@ -994,9 +987,7 @@ class CRIfuser(MyModelAbstract, nn.Module):
             + self.stationary_sampler2.probs.to(self.device)[y2t]
             * (y2t != x2t)
             * g_theta_2_t[torch.arange(batch_size), x2t]
-        ).log().clamp_min(
-            -1000
-        )
+        ).log().clamp_min(-1000)
 
     def _importance_sample_negative_ELBO(
         self,
@@ -1053,9 +1044,12 @@ class CRIfuser(MyModelAbstract, nn.Module):
                 "r2 r1 -> b r2 r1",
                 b=sample_num,
             )
-        x1t = self.stationary_sampler1.sample(sample_num)
-        x2t = self.stationary_sampler2.sample(sample_num)
-        t = torch.full((sample_num,), self.noise_timesteps - 1)
+        condition = condition.to(self.device)
+        if perfect_ob is not None:
+            perfect_ob = perfect_ob.to(self.device)
+        x1t = self.stationary_sampler1.sample((sample_num,)).to(self.device)
+        x2t = self.stationary_sampler2.sample((sample_num,)).to(self.device)
+        t = torch.full((sample_num,), self.noise_timesteps - 1).to(self.device)
         path = [(x1t.cpu().numpy(), x2t.cpu().numpy())]
         for step in range(self.noise_timesteps - 1, 0, -1):
             if perfect_ob is None:
@@ -1081,6 +1075,8 @@ class CRIfuser(MyModelAbstract, nn.Module):
             )
             path = [(x1t.cpu().numpy(), x2t.cpu().numpy())] + path
 
+        return path
+
     @torch.no_grad()
     def draw_reverse_diffusion(
         self,
@@ -1105,12 +1101,16 @@ class CRIfuser(MyModelAbstract, nn.Module):
         )
 
         def update(frame):
-            idx = min(len(path) + pad - frame, len(path) - 1)
-            scat.set_offsets(np.stack(path[idx], axis=1))
+            idx = len(path) + pad - frame
+            idx = min(idx, len(path) - 1)
+            idx = max(idx, 0)
+            x1t = path[idx][0] - self.ext1_up
+            x2t = path[idx][1] - self.ext2_up
+            scat.set_offsets(np.stack([x1t, x2t], axis=1))
             return scat
 
         ani = animation.FuncAnimation(
-            fig=fig, func=update, frames=len(path) + pad, interval=interval
+            fig=fig, func=update, frames=len(path) + 2 * pad, interval=interval
         )
         ani.save(filename=f"{filestem}.gif", writer="pillow")
         fig.savefig(f"{filestem}.png")

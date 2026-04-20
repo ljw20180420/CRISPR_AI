@@ -60,7 +60,6 @@ Summarize benchmarks results by
 # TODO
 
 - wait for the resolve of the conflicts between `gr.Dataframe` and `gr.Radio`/`gr.Dropdown`
-- diffusion dynamics
 
 - 更新文档
 

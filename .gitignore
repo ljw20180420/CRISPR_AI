@@ -12,6 +12,7 @@
 /paper/summary_shap
 /paper/hyperparameters.yaml
 /paper/count_kmer
+/paper/reverse_diffusion
 /AI/app.yaml
 /.dockerignore
 /scripts/formal/Dockerfile
