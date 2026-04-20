@@ -64,7 +64,6 @@ Summarize benchmarks results by
 - 更新文档
 
 - sync local to hf (upload)
-- download from hf
 
 - 重新训练模型
 - 更新文章中的例子
