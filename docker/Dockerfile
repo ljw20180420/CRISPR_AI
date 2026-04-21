@@ -17,7 +17,6 @@ RUN pip install torch --index-url https://download.pytorch.org/whl/cpu && \
     pip cache purge
 COPY ./ CRISPR_AI
 ENV HF_HOME="/AI_env/hf_cache" \
-    PYTHONPATH="/AI_env/CRISPR_AI/docker/common_ai" \
     GENOME="/AI_env/genome/hg19.2bit" \
     BOWTIE2_INDEX="/AI_env/genome/hg19" \
     device="cpu" \

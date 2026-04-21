@@ -4,24 +4,27 @@ This repository includes several models to predict the CRISPR editing products f
 
 # Install
 
+This repo use conda to manage packages.
 ```shell
 $ git clone https://github.com/ljw20180420/CRISPR_AI.git
 $ cd CRISPR_AI
-$ conda install --file requirements_conda.txt
-$ pip install -r requirements.txt
+$ conda create -p ./.conda
+$ conda env update -p ./.conda --file environment.yml
 ```
-For old pascal gpu,
-```console
-$ git clone https://github.com/ljw20180420/CRISPR_AI.git
-$ cd CRISPR_AI
-$ conda install --file requirements_conda.txt
-$ pip install -r requirements_torch_pascal.txt
-$ pip install -r requirements.txt
+For old pascal gpu, after the above steps,
+```shell
+$ pip install -U -r requirements_torch_pascal.txt
 ```
-If you have problem with gradio, upgrade it.
-```console
-$ pip install --upgrade gradio
+
+
+# Usage
+
+To list all supported subcommands,
+```shell
+./run.py --help
 ```
+
+
 
 # Train and test
 

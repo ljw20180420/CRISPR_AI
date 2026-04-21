@@ -33,3 +33,4 @@ dependencies:
     - gradio
     - pysam
     - py2bit
+    - common_ai
