@@ -16,14 +16,42 @@ For old pascal gpu, after the above steps,
 $ pip install -U -r requirements_torch_pascal.txt
 ```
 
-
 # Usage
 
-To list all supported subcommands,
+To list all subcommands,
 ```shell
-./run.py --help
+$ ./run.py --help
 ```
 
+## Inference
+
+```shell
+$ ./run.py infer --help
+```
+Example,
+```shell
+$ ./run.py infer \
+  --input AI/dataset/inference.csv.gz \
+  --output inference_output.csv \
+  --inference AI.inference.MyInference \
+  --inference.ext1_up 25 \
+  --inference.ext1_down 6 \
+  --inference.ext2_up 6 \
+  --inference.ext2_down 25 \
+  --inference.max_del_size 0 \
+  --test.checkpoints_path ljw20180420/CRIfuser_CRIfuser_SX_ispymac \
+  --test.logs_path ljw20180420/CRIfuser_CRIfuser_SX_ispymac \
+  --test.target GreatestCommonCrossEntropy \
+  --test.maximize_target false \
+  --test.overwrite {}
+```
+Set both `--test.checkpoints_path` and `--test.logs_path` to the huggingface repository. Set `--inference.max_del_size 44` for `inDelphi`, `FOREcasT`, `Lindel`. Set `--inference.max_del_size 0` for other models.
+
+The gradio app is available for `CRIfuser` trained on `spycas9`, `spymac`, `ispymac`.
+```
+$ scripts/formal/app.sh
+```
+The graido app is also available on the huggingface space at https://huggingface.co/spaces/ljw20180420/CRISPR_AI
 
 
 # Train and test
@@ -36,48 +64,17 @@ For helps, execute
 ```
 The example training config is `AI/preprocess/train.yaml`. The example testing config is `AI/preprocess/test.yaml`. The example model configs is `AI/preprocess/[preprocess]/[model_type].yaml`. `defaults.sh` containes example runs.
 
-# Hyperparameter search
-
-The hyperparameter-searching is based on [Optuna](https://optuna.readthedocs.io). For helps. execute
-```console
-./hyperparameters.py -h
-```
-
-# Benchmark
-
-Train and test models with default parameters by
-```
-./defaults.sh
-```
-Compare loss functions for `CRIfuser` by
-```
-./CRIfuser_loss_functions.sh
-```
-Summarize benchmarks results by
-```bash
-./benchmark.py
-```
-
 # TODO
 
 - wait for the resolve of py2bit Segmentation fault (core dumped)
 - wait for the resolve of the conflicts between `gr.Dataframe` and `gr.Radio`/`gr.Dropdown`
 
-- 更新文档
-
-- sync local to hf (upload)
-
-- 重新训练模型
-- 更新文章中的例子
-- 把王永明模型改版和CRIformer放在补充文档中，作为额外尝试
 - 训练一个额外的xgboost作为随机插入模型，和CRIfuser独立
 
 - CRIfuser损失函数bench
 - 用__all__来去除不必要的.preprocess和.model
 - 把AI重命名成CRISPR_AI，把run.py移动到CRISPR_AI下的__main__.py
 - shap.py现在支持读取pandas（pull requests），因此不需要再转化为numpy了
-- 跑shap
-- 更新文章method
 
 - improve CRIfuser inference
   - define an importance weight according to step and distance from the cleavage site

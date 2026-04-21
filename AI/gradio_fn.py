@@ -27,7 +27,6 @@ class MyGradioFn(MyGradioFnAbstract):
 
     @torch.no_grad()
     def __call__(self, repo_id: str, spacer: str) -> pd.DataFrame:
-        breakpoint()
         cut = 25
         my_inference = self.inference_instance_dict[repo_id]
         spacer = re.sub(r"[\d\s]", "", spacer)
