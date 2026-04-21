@@ -27,6 +27,7 @@ class MyGradioFn(MyGradioFnAbstract):
 
     @torch.no_grad()
     def __call__(self, repo_id: str, spacer: str) -> pd.DataFrame:
+        breakpoint()
         cut = 25
         my_inference = self.inference_instance_dict[repo_id]
         spacer = re.sub(r"[\d\s]", "", spacer)
@@ -83,8 +84,7 @@ class MyGradioFn(MyGradioFnAbstract):
             "percent": percents,
         })
 
-        # return result_df
-        return result_df.to_string()
+        return result_df
 
     def launch(self):
         for repo_id in self.inference_dict.keys():
@@ -109,16 +109,12 @@ class MyGradioFn(MyGradioFnAbstract):
                 ),
             ],
             outputs=[
-                # gr.Dataframe(
-                #     headers=["outcome", "type", "percent"],
-                #     datatype=["str", "str", "str"],
-                #     label="result",
-                #     buttons=["copy", "fullscreen"],
-                #     show_search="filter",
-                # ),
-                gr.Textbox(
+                gr.Dataframe(
+                    headers=["outcome", "type", "percent"],
+                    datatype=["str", "str", "str"],
                     label="result",
-                    buttons=["copy"],
+                    buttons=["copy", "fullscreen"],
+                    show_search="filter",
                 ),
             ],
             examples=[

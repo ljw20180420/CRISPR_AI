@@ -60,6 +60,7 @@ Summarize benchmarks results by
 
 # TODO
 
+- wait for the resolve of py2bit Segmentation fault (core dumped)
 - wait for the resolve of the conflicts between `gr.Dataframe` and `gr.Radio`/`gr.Dropdown`
 
 - 更新文档
