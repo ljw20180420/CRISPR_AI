@@ -90,7 +90,7 @@ class MyGradioFn(MyGradioFnAbstract):
 
     def launch(self):
         for repo_id in self.inference_dict.keys():
-            self.load_inference(repo_id)
+            self.inference_instance_dict[repo_id] = self.load_inference(repo_id)
 
         gr.Interface(
             fn=self,
@@ -137,22 +137,6 @@ We search the protospacer in human hg19 genome. If the protospacer is not mapped
             """,
             flagging_mode="never",
         ).launch()
-
-    def load_inference(self, repo_id: str) -> None:
-        assert repo_id in self.inference_dict, f"repo id {repo_id} is not found"
-        inference_cfg, test_cfg = self.inference_dict[repo_id]
-        inference_module, inference_cls = inference_cfg.class_path.rsplit(".", 1)
-        self.inference_instance_dict[repo_id] = getattr(
-            importlib.import_module(inference_module), inference_cls
-        )(**inference_cfg.init_args.as_dict())
-        (
-            _,
-            train_cfg,
-            self.inference_instance_dict[repo_id].logger,
-            self.inference_instance_dict[repo_id].model,
-            self.inference_instance_dict[repo_id].my_generator,
-        ) = MyTest(**test_cfg.as_dict()).load_model(self.train_parser)
-        self.inference_instance_dict[repo_id].batch_size = train_cfg.train.batch_size
 
     def retrieve_ref(self, protospacer: str) -> str:
         ext_up = 25
