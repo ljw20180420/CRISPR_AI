@@ -7,7 +7,6 @@ from common_ai.test import MyTest
 
 
 class MyInference(MyInferenceAbstract):
-
     def __init__(
         self,
         ext1_up: int,
@@ -42,27 +41,19 @@ class MyInference(MyInferenceAbstract):
         train_parser: jsonargparse.ArgumentParser,
     ) -> pd.DataFrame:
         # load model for the first call
-        if (
-            not hasattr(self, "logger")
-            or not hasattr(self, "model")
-            or not hasattr(self, "my_generator")
-            or not hasattr(self, "batch_size")
-        ):
-            _, train_cfg, self.logger, self.model, self.my_generator = MyTest(
-                **test_cfg.as_dict()
-            ).load_model(train_parser)
-            self.batch_size = train_cfg.train.batch_size
+        if not hasattr(self, "model"):
+            self.load_model(test_cfg, train_parser)
 
         self.logger.info("validate and prepare dataset")
         infer_df = infer_df.copy()
         infer_df["scaffold"] = infer_df["scaffold"].map(self.scaffolds)
         for ref, cut in zip(infer_df["ref"], infer_df["cut"]):
-            assert (
-                cut >= self.ext_up
-            ), f"sequence upstream to cut should be at least {self.ext_up} bps"
-            assert (
-                len(ref) - cut >= self.ext_down
-            ), f"sequence downstream to cut should be at least {self.ext_down} bps"
+            assert cut >= self.ext_up, (
+                f"sequence upstream to cut should be at least {self.ext_up} bps"
+            )
+            assert len(ref) - cut >= self.ext_down, (
+                f"sequence downstream to cut should be at least {self.ext_down} bps"
+            )
         infer_df = infer_df.rename(columns={"ref": "ref1", "cut": "cut1"})
         infer_df["ref2"] = infer_df["ref1"]
         infer_df["cut2"] = infer_df["cut1"]

@@ -1,12 +1,10 @@
 # Introduction
 
-This repository includes several models to predict the CRISPR editing products from the sgRNA sequences. The dataset is held on anthor repository [here](https://github.com/ljw20180420/CRISPRdata).
-
-
+This repository includes several models to predict the CRISPR editing products from the sgRNA sequences.
 
 # Install
 
-```console
+```shell
 $ git clone https://github.com/ljw20180420/CRISPR_AI.git
 $ cd CRISPR_AI
 $ conda install --file requirements_conda.txt
