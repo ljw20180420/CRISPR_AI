@@ -1,4 +1,3 @@
-import importlib
 import os
 import re
 import subprocess
@@ -11,7 +10,6 @@ import pysam
 import torch
 from Bio import Seq
 from common_ai.gradio_fn import MyGradioFnAbstract
-from common_ai.test import MyTest
 
 
 class MyGradioFn(MyGradioFnAbstract):
