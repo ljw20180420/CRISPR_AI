@@ -32,5 +32,5 @@ dependencies:
     - datasets
     - gradio
     - pysam
-    - py2bit==0.3.3
+    - py2bit
     - common_ai

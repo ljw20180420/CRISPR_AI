@@ -66,7 +66,6 @@ The example training config is `AI/preprocess/train.yaml`. The example testing c
 
 # TODO
 
-- wait for the resolve of py2bit Segmentation fault (core dumped)
 - wait for the resolve of the conflicts between `gr.Dataframe` and `gr.Radio`/`gr.Dropdown`
 
 - 训练一个额外的xgboost作为随机插入模型，和CRIfuser独立
