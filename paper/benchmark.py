@@ -86,6 +86,7 @@ def draw_benchmark(
     data_names: list[str],
     filename: str,
 ) -> None:
+    fontsize = 30
     for data_name in data_names:
         for metric in metrics:
             ax = (
@@ -102,8 +103,13 @@ def draw_benchmark(
                 .plot.bar(y=metric, figsize=(20, 10))
             )
             ax.set_xticklabels(ax.get_xticklabels(), rotation=10, ha="right")
-            ax.set_ylabel(ylabel=metric)
+            ax.set_xlabel(xlabel="model", fontsize=fontsize)
+            ax.set_ylabel(ylabel=metric, fontsize=fontsize)
+            ax.tick_params(axis="both", labelsize=fontsize)
+            ax.get_legend().set_visible(False)
+            ax.get_figure().tight_layout()
             ax.get_figure().savefig(f"paper/benchmark/{data_name}_{metric}_{filename}")
+            plt.close("all")
 
 
 # Swith to non-gui backend (https://stackoverflow.com/questions/52839758/matplotlib-and-runtimeerror-main-thread-is-not-in-main-loop).
@@ -141,61 +147,39 @@ bench_df = get_benchmark(
     output_dir=pathlib.Path("/home/ljw/sdc1/CRISPR_results/formal/default/logs"),
 )
 
-save_latex(
-    bench_df,
-    metrics=["Likelihood", "Pearson", "MSE"],
-    models=[
-        "CRIformer",
-        "CRIfuser",
-        "DeepHF",
-        "MLP",
-        "CNN",
-        "XGBoost",
-        "SGDClassifier",
-    ],
-    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
-    filename="select.tex",
-)
 
-save_latex(
-    bench_df,
-    metrics=["Likelihood", "Pearson", "MSE"],
-    models=[
-        "CRIfuser",
-        "FOREcasT",
-        "inDelphi",
-        "Lindel",
+for models, filestem in zip(
+    [
+        [
+            "CRIformer",
+            "CRIfuser",
+            "DeepHF",
+            "MLP",
+            "CNN",
+            "XGBoost",
+            "SGDClassifier",
+        ],
+        [
+            "CRIfuser",
+            "FOREcasT",
+            "inDelphi",
+            "Lindel",
+        ],
     ],
-    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
-    filename="bench.tex",
-)
+    ["select", "bench"],
+):
+    save_latex(
+        bench_df,
+        metrics=["GreatestCommonCrossEntropy", "Likelihood", "Pearson", "MSE"],
+        models=models,
+        data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
+        filename=f"{filestem}.tex",
+    )
 
-
-draw_benchmark(
-    bench_df,
-    metrics=["Likelihood", "Pearson", "MSE"],
-    models=[
-        "CRIformer",
-        "CRIfuser",
-        "DeepHF",
-        "MLP",
-        "CNN",
-        "XGBoost",
-        "SGDClassifier",
-    ],
-    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
-    filename="select.pdf",
-)
-
-draw_benchmark(
-    bench_df,
-    metrics=["Likelihood", "Pearson", "MSE"],
-    models=[
-        "CRIfuser",
-        "FOREcasT",
-        "inDelphi",
-        "Lindel",
-    ],
-    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
-    filename="bench.pdf",
-)
+    draw_benchmark(
+        bench_df,
+        metrics=["GreatestCommonCrossEntropy", "Likelihood", "Pearson", "MSE"],
+        models=models,
+        data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
+        filename=f"{filestem}.pdf",
+    )
