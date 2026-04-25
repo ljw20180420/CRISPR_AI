@@ -10,7 +10,7 @@
 /paper/benchmark
 /paper/figure
 /paper/summary_shap
-/paper/hyperparameters.yaml
+/paper/hyperparameters.xlsx
 /paper/count_kmer
 /paper/reverse_diffusion
 /AI/app.yaml

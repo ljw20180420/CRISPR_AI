@@ -11,7 +11,7 @@ dependencies:
   - pip
   - pip:
     - plotnine
-    - pandas[hdf5]
+    - pandas[hdf5,excel]
     - scikit-learn
     - umap-learn
     - xgboost
