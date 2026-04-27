@@ -94,7 +94,6 @@ def draw_reverse_diffusion(
     )
 
 
-os.makedirs("paper/reverse_diffusion", exist_ok=True)
 sample_num = 1000
 for data_idx, data_name in zip([1, 6, 6], ["SX_spcas9", "SX_spymac", "SX_ispymac"]):
     draw_reverse_diffusion(

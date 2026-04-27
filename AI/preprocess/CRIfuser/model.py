@@ -1,3 +1,4 @@
+import os
 from typing import Literal, Optional
 
 import jsonargparse
@@ -1107,13 +1108,19 @@ class CRIfuser(MyModelAbstract, nn.Module):
             x1t = path[idx][0] - self.ext1_up
             x2t = path[idx][1] - self.ext2_up
             scat.set_offsets(np.stack([x1t, x2t], axis=1))
+            fig.savefig(f"{filestem}/frame-{frame}.png")
             return scat
 
+        os.makedirs(filestem, exist_ok=True)
         ani = animation.FuncAnimation(
-            fig=fig, func=update, frames=len(path) + 2 * pad, interval=interval
+            fig=fig,
+            func=update,
+            frames=len(path) + 2 * pad,
+            interval=interval,
+            repeat=True,
         )
+
         ani.save(filename=f"{filestem}.gif", writer="pillow")
-        fig.savefig(f"{filestem}.png")
         plt.close()
 
     @classmethod
