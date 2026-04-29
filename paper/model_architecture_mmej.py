@@ -3,6 +3,7 @@
 import os
 import pathlib
 import sys
+import tempfile
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -11,6 +12,12 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 
 sys.path.insert(0, pathlib.Path(__file__).parent.parent.as_posix())
+import subprocess
+
+import gradio as gr
+import py2bit
+import pysam
+from Bio import Seq
 from datasets import concatenate_datasets
 
 from AI.dataset import MyDataset
@@ -34,12 +41,10 @@ def correct_micro_homology(row: pd.Series) -> pd.Series:
         ref1_end -= 1
         ref2_start -= 1
 
-    return pd.Series(
-        {
-            "ref1_end": ref1_end,
-            "ref2_start": ref2_start,
-        }
-    )
+    return pd.Series({
+        "ref1_end": ref1_end,
+        "ref2_start": ref2_start,
+    })
 
 
 def search_stagger_examples(
@@ -170,6 +175,48 @@ def draw_model_archtecture_mmej(
     )
 
 
+def retrieve_ref(protospacer: str) -> str:
+    ext_up = 25
+    ext_down = 25
+    with tempfile.NamedTemporaryFile() as ntf:
+        ntf.close()
+
+        subprocess.run(
+            args=[
+                "bowtie2",
+                "--quiet",
+                "-c",
+                "-x",
+                os.environ["BOWTIE2_INDEX"],
+                "-U",
+                protospacer,
+                "-S",
+                ntf.name,
+            ],
+        )
+
+        with (
+            pysam.AlignmentFile(ntf.name, "rb") as sam,
+            py2bit.open(os.environ["GENOME"]) as tb,
+        ):
+            for align in sam.fetch():
+                break
+            if not align.is_mapped:
+                raise gr.Error("protospacer cannot be mapped", duration=None)
+            if align.is_forward:
+                start = align.reference_end - 3 - ext_up
+                end = align.reference_end - 3 + ext_down
+            else:
+                start = align.reference_start + 3 - ext_down
+                end = align.reference_start + 3 + ext_up
+
+            ref = tb.sequence(align.reference_name, start, end)
+            if not align.is_forward:
+                ref = str(Seq.Seq(ref).reverse_complement())
+
+    return ref
+
+
 # Swith to non-gui backend (https://stackoverflow.com/questions/52839758/matplotlib-and-runtimeerror-main-thread-is-not-in-main-loop).
 plt.switch_backend("agg")
 # Editable axis in illustrator (https://stackoverflow.com/questions/54101529/how-can-i-export-a-matplotlib-figure-as-a-vector-graphic-with-editable-text-fiel)
@@ -182,5 +229,6 @@ mpl.rcParams["ps.fonttype"] = 42
 #     )
 #     draw_model_archtecture_mmej(total, ref, count, stagger, data_name)
 
-sx_ref = "CCTGAAAGATACACCTTGTAGTCCTCCGTAAGGTAGAGCAGGCCCAGGTA"
+sx_ref = retrieve_ref(protospacer="TAGGAGCTTGAAATCGTCAT")
+sx_ref = sx_ref[:29] + "AA" + sx_ref[31:]
 draw_model_archtecture_mmej(0, sx_ref, 0, 0, "unknown")
