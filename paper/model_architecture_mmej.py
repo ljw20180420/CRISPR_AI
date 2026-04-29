@@ -128,6 +128,9 @@ def draw_model_archtecture_mmej(
     min_mh = 2
     mh_matrix[mh_matrix < min_mh] = 0
 
+    # binary color
+    mh_matrix = mh_matrix > 0
+
     fig, ax = plt.subplots()
     ax.imshow(
         mh_matrix,
