@@ -11,7 +11,7 @@ function title() {
 }
 
 train_config=AI/train.yaml
-output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}/formal/CRIfuser
+output_dir=${OUTPUT_DIR:-$HOME"/CRISPR_results"}
 run_type="formal"
 run_name="CRIfuser"
 loss_weight=1.0
