@@ -34,14 +34,12 @@ def count_kmer(k: int) -> None:
             df = (
                 df.value_counts()
                 .reset_index()
-                .assign(
-                    **{
-                        "chrom": chrom,
-                        f"{k}mer": lambda df, k=k: sum(
-                            [df[f"pos{i}"] for i in range(1, k)], start=df[f"pos0"]
-                        ),
-                    }
-                )
+                .assign(**{
+                    "chrom": chrom,
+                    f"{k}mer": lambda df, k=k: sum(
+                        [df[f"pos{i}"] for i in range(1, k)], start=df["pos0"]
+                    ),
+                })
                 .drop(columns=[f"pos{i}" for i in range(k)])
             )
             dfs.append(df)
