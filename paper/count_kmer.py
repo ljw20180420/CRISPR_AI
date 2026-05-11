@@ -44,9 +44,7 @@ def count_kmer(k: int) -> None:
             )
             dfs.append(df)
 
-        pd.concat(dfs).groupby(["chrom", f"{k}mer"]).agg(
-            count=pd.NamedAgg(column="count", aggfunc="sum")
-        ).reset_index().to_csv(f"paper/count_kmer/{k}mer.csv", index=False)
+        pd.concat(dfs).to_csv(f"paper/count_kmer/{k}mer.csv", index=False)
 
 
 if __name__ == "__main__":
