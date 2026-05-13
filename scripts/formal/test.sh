@@ -7,7 +7,7 @@ cd ../..
 
 function title() {
     sharps="#################################"
-    printf "\n%s\n%s\n%s\n" ${sharps} $1 ${sharps}
+    printf "\n%s\n%s\n%s\n" ${sharps} "$1" ${sharps}
 }
 
 test_config=AI/test.yaml
