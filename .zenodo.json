@@ -3,8 +3,7 @@
         {
             "name": "Li, Jingwei",
             "orcid": "0000-0001-5401-8570",
-            "affiliation": "Shanghai Jiao Tong University",
-            "type": "ProjectMember"
+            "affiliation": "Shanghai Jiao Tong University"
         }
     ],
     "contributors": [
@@ -32,13 +31,6 @@
     "title": "CRISPR AI models to predict editing outcomes",
     "version": "0.0.6",
     "access_right": "open",
-    "related_identifiers": [
-        {
-            "identifier": "NA",
-            "relation": "isSupplementTo",
-            "resource_type": "publication-article"
-        }
-    ],
     "keywords": [
         "CRISPR/Cas9",
         "AI"
