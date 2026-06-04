@@ -66,6 +66,7 @@ The example training config is `AI/preprocess/train.yaml`. The example testing c
 
 # TODO
 
+- model card
 - rename Likelihood to LogLikelihood
 
 - wait for the resolve of the conflicts between `gr.Dataframe` and `gr.Radio`/`gr.Dropdown`
