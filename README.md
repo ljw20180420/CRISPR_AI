@@ -77,6 +77,7 @@ The example training config is `AI/preprocess/train.yaml`. The example testing c
 - 用__all__来去除不必要的.preprocess和.model
 - 把AI重命名成CRISPR_AI，把run.py移动到CRISPR_AI下的__main__.py
 - shap.py现在支持读取pandas（pull requests），因此不需要再转化为numpy了
+- 去掉对shap的bug的暂时性修复
 
 - improve CRIfuser inference
   - define an importance weight according to step and distance from the cleavage site
