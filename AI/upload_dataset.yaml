@@ -1,4 +1,4 @@
-repo_id: CRISPR_AI
+repo_id: ljw20180420/CRISPR_AI
 # config_name:
 readme: AI/dataset/README.md
-dataset: AI/dataset/dataset.yaml
+dataset: dataset/dataset.yaml

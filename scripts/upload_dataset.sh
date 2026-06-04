@@ -16,8 +16,11 @@ for name in \
     SX_spcas9 \
     SX_spymac \
     SX_ispymac
-
+do
     title "Upload dataset ${name}"
+
     ./run.py upload_dataset \
         --config ${upload_dataset_config} \
-        --dataset.config_name ${name}
+        --config_name ${name} \
+        --dataset.name ${name}
+done
