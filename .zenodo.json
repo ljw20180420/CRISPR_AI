@@ -1,0 +1,49 @@
+{
+    "creators": [
+        {
+            "name": "Li, Jingwei",
+            "orcid": "0000-0001-5401-8570",
+            "affiliation": "Shanghai Jiao Tong University",
+            "type": "ProjectMember"
+        }
+    ],
+    "contributors": [
+        {
+            "name": "Shi, Xin",
+            "affiliation": "Shanghai Jiao Tong University",
+            "type": "Researcher"
+        },
+        {
+            "name": "Li, Chenyu",
+            "affiliation": "Shanghai Jiao Tong University",
+            "type": "Researcher"
+        },
+        {
+            "name": "Li, Jingwei",
+            "affiliation": "Shanghai Jiao Tong University",
+            "type": "Researcher"
+        },
+        {
+            "name": "Wu, Qiang",
+            "affiliation": "Shanghai Jiao Tong University",
+            "type": "ProjectLeader"
+        }
+    ],
+    "title": "CRISPR AI models to predict editing outcomes",
+    "version": "0.0.6",
+    "access_right": "open",
+    "related_identifiers": [
+        {
+            "identifier": "NA",
+            "relation": "isSupplementTo",
+            "resource_type": "publication-article"
+        }
+    ],
+    "keywords": [
+        "CRISPR/Cas9",
+        "AI"
+    ],
+    "license": "mit",
+    "upload_type": "software",
+    "language": "eng"
+}
