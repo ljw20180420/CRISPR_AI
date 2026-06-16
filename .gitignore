@@ -13,8 +13,6 @@
 /paper/hyperparameters.xlsx
 /paper/count_kmer
 /paper/reverse_diffusion
-/paper/data_for_figs
-/paper/data_for_figs.zip
 /AI/app.yaml
 /.dockerignore
 /scripts/formal/Dockerfile

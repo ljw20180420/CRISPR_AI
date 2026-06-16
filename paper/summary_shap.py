@@ -228,6 +228,7 @@ if __name__ == "__main__":
         data_names=data_names,
         shap_targets=shap_targets,
     )
+    shap_df.to_csv("paper/summary_shap/shap.csv", index=False)
 
     # Architecture selection
     shap_heatmap(
