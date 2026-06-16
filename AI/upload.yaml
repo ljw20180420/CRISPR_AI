@@ -9,3 +9,5 @@ ignore_patterns:
   - "*.png"
   - "*.pdf"
   - "*.html"
+readme: "AI/preprocess/README.md"
+num_workers: 1
