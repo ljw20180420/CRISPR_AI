@@ -7,7 +7,7 @@ RUN wget https://genome-idx.s3.amazonaws.com/bt/hg19.3.bt2
 RUN wget https://genome-idx.s3.amazonaws.com/bt/hg19.4.bt2
 RUN wget https://genome-idx.s3.amazonaws.com/bt/hg19.rev.1.bt2
 RUN wget https://genome-idx.s3.amazonaws.com/bt/hg19.rev.2.bt2
-RUN wget https://hgdownload.cse.ucsc.edu/goldenpath/hg19/bigZips/hg19.2bit
+RUN wget https://hgdownload.gi.ucsc.edu/goldenPath/hg19/bigZips/hg19.2bit
 WORKDIR /AI_env
 COPY environment.yml ./
 RUN conda env update -n base --file environment.yml && \
