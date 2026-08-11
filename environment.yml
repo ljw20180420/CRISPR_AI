@@ -31,4 +31,7 @@ dependencies:
   - gradio
   - pysam
   - py2bit
-  - common-ai
+  - python=3.11
+  - pip
+  - pip:
+    - common-ai
