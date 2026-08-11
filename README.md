@@ -68,8 +68,6 @@ The example training config is `AI/preprocess/train.yaml`. The example testing c
 
 - rename Likelihood to LogLikelihood
 
-- wait for the resolve of the conflicts between `gr.Dataframe` and `gr.Radio`/`gr.Dropdown`
-
 - 训练一个额外的xgboost作为随机插入模型，和CRIfuser独立
 
 - CRIfuser损失函数bench

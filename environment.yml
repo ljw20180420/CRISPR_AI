@@ -3,34 +3,32 @@ channels:
   - conda-forge
   - bioconda
   - defaults
+  - conda-pypi
 dependencies:
   - conda-forge::cxx-compiler
   - bioconda::viennarna
   - bioconda::bowtie2
-  - python
-  - pip
-  - pip:
-    - plotnine
-    - pandas[hdf5,excel]
-    - scikit-learn
-    - umap-learn
-    - xgboost
-    - shap
-    - deeplift
-    - jsonargparse
-    - docstring-inheritance
-    - more-itertools
-    - biopython
-    - opt_einsum
-    - einops
-    - optuna
-    - tensorboard
-    - tbparse
-    - HolisticTraceAnalysis
-    - transformers
-    - diffusers
-    - datasets
-    - gradio
-    - pysam
-    - py2bit
-    - common_ai
+  - plotnine
+  - pandas[hdf5,excel]
+  - scikit-learn
+  - umap-learn
+  - xgboost
+  - shap
+  - deeplift
+  - jsonargparse
+  - docstring-inheritance
+  - more-itertools
+  - biopython
+  - opt_einsum
+  - einops
+  - optuna
+  - tensorboard
+  - tbparse
+  - HolisticTraceAnalysis
+  - transformers
+  - diffusers
+  - datasets
+  - gradio
+  - pysam
+  - py2bit
+  - common_ai
