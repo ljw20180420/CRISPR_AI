@@ -256,6 +256,7 @@ if __name__ == "__main__":
             ("FOREcasT", "FOREcasT"),
             ("inDelphi", "inDelphi"),
             ("Lindel", "Lindel"),
+            ("CRIfuser", "CRIfuser"),
         ],
         data_names=data_names,
         shap_targets=shap_targets,

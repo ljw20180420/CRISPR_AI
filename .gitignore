@@ -10,6 +10,7 @@
 /paper/benchmark
 /paper/figure
 /paper/summary_shap
+/paper/compare_loss_fun
 /paper/hyperparameters.xlsx
 /paper/count_kmer
 /paper/reverse_diffusion
