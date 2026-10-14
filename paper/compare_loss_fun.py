@@ -59,7 +59,6 @@ def draw_loss_fun_result(
     metrics: list[str],
     loss_funs: list[str],
     data_names: list[str],
-    filename: str,
 ) -> None:
     fontsize = 30
     for data_name in data_names:
@@ -94,7 +93,7 @@ mpl.rcParams["pdf.fonttype"] = 42
 mpl.rcParams["ps.fonttype"] = 42
 
 loss_df = get_loss_fun_result(
-    data_names=["SX_spymac", "SX_ispymac"],
+    data_names=["SX_spcas9", "SX_spymac", "SX_ispymac"],
     loss_funs=[
         "double_sample_negative_ELBO",
         "forward_negative_ELBO",
