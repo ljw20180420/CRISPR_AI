@@ -64,10 +64,6 @@ For helps, execute
 ```
 The example training config is `AI/preprocess/train.yaml`. The example testing config is `AI/preprocess/test.yaml`. The example model configs is `AI/preprocess/[preprocess]/[model_type].yaml`. `defaults.sh` containes example runs.
 
-# Theory
-
-For the architecture used for this repository, see [here](/paper/tex/supplementary_information.tex).
-
 # TODO
 
 - rename Likelihood to LogLikelihood
