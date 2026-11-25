@@ -96,6 +96,7 @@ def download_SRR(cfg: dict):
         sh.fasterq_dump(
             SRR,
             O=cfg["output_dir"],
+            t=cfg["output_dir"],
             p=True,
             _out=sys.stdout,
             _err=sys.stderr,

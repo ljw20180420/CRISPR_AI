@@ -5,6 +5,7 @@ channels:
   - defaults
   - conda-pypi
 dependencies:
+  - bioconda::rearr
   - conda-forge::sh
   - conda-forge::ncurses
   - conda-forge::cxx-compiler
