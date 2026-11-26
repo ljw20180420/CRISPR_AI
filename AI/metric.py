@@ -13,19 +13,16 @@ from torch.backends import opt_einsum
 def get_observation(
     examples, batch: dict, ext1_up: int, ext1_down: int, ext2_up: int, ext2_down: int
 ) -> np.ndarray:
-
     observation = batch["label"]["observation"].cpu().numpy()
     cut1 = np.array([example["cut1"] for example in examples])
     cut2 = np.array([example["cut2"] for example in examples])
-    observation = np.stack(
-        [
-            ob[
-                c2 - ext2_up : c2 + ext2_down + 1,
-                c1 - ext1_up : c1 + ext1_down + 1,
-            ]
-            for ob, c1, c2 in zip(observation, cut1, cut2)
+    observation = np.stack([
+        ob[
+            c2 - ext2_up : c2 + ext2_down + 1,
+            c1 - ext1_up : c1 + ext1_down + 1,
         ]
-    )
+        for ob, c1, c2 in zip(observation, cut1, cut2)
+    ])
 
     return observation
 
@@ -39,10 +36,14 @@ def get_proba(
     batch_size: int,
 ) -> np.ndarray:
     # filter out of range data
-    df = df.query(
-        "rpos1 <= @ext1_down & rpos1 >= -@ext1_up & rpos2 <= @ext2_down & rpos2 >= -@ext2_up"
+    df = (
+        df.query(
+            "rpos1 <= @ext1_down & rpos1 >= -@ext1_up & rpos2 <= @ext2_down & rpos2 >= -@ext2_up"
+        )
+        .groupby(["sample_idx", "rpos2", "rpos1"], as_index=False)["proba"]
+        .sum()
     )
-    # assume df contains no duplicates
+
     probas = np.zeros((batch_size, ext2_up + ext2_down + 1, ext1_up + ext1_down + 1))
     probas[
         df["sample_idx"],

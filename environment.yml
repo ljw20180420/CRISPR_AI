@@ -13,7 +13,7 @@ dependencies:
   - bioconda::bowtie2
   - plotnine
   - pandas[hdf5,excel]
-  - scikit-learn
+  - scikit-learn=="1.7.2"
   - umap-learn
   - xgboost
   - shap

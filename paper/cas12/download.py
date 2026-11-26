@@ -20,7 +20,7 @@ def download_metadata(cfg: dict):
         "-element",
         "RUN@accession",
         "EXPERIMENT@accession",
-        "`SAMPLE@accession",
+        "SAMPLE@accession",
         "-block",
         "SAMPLE_ATTRIBUTE",
         "-element",
@@ -91,12 +91,13 @@ def load_meta(cfg: dict):
 
 
 def download_SRR(cfg: dict):
+    (cfg["output_dir"] / "fastqs").mkdir(exist_ok=True, parents=True)
     df_meta = load_meta(cfg)
     for SRR in df_meta["run"]:
         sh.fasterq_dump(
             SRR,
-            O=cfg["output_dir"],
-            t=cfg["output_dir"],
+            O=cfg["output_dir"] / "fastqs",
+            t=cfg["output_dir"] / "fastqs",
             p=True,
             _out=sys.stdout,
             _err=sys.stderr,
