@@ -65,6 +65,20 @@ For helps, execute
 The example training config is `AI/preprocess/train.yaml`. The example testing config is `AI/preprocess/test.yaml`. The example model configs is `AI/preprocess/[preprocess]/[model_type].yaml`. `defaults.sh` containes example runs.
 
 # TODO
+- CRISPR_AI
+  - revise
+    - cas12
+      - 可视化找问题
+      - 调整metric
+      - 筛选reads
+      - 实在不行才微调
+    - split
+      - 用ref，无泄漏
+  - 简化预测使用（利用cli），优化文档
+  - Entrez
+  - tikZ
+  -  dot
+  - mermaid
 
 - rename Likelihood to LogLikelihood
 
