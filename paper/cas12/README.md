@@ -1,5 +1,4 @@
 # TODO
 
-- move files to fit code filesystem
-- Get site reference
-- Filter site by primer
+- try to include more sites for training
+- construct dataset

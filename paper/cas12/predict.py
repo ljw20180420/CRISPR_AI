@@ -69,7 +69,7 @@ def get_metrics(cfg: dict):
             ).values.reshape(-1, 3),
             columns=["header", "refline", "queryline"],
         )
-        df_alg = (
+        df_expand = (
             df_alg["header"]
             .str.split("\t", expand=True)
             .rename(
@@ -97,11 +97,16 @@ def get_metrics(cfg: dict):
             .assign(rstart2=lambda df: df["ref1+rstart2"] - ref_len)[
                 ["ref_id", "rend1", "rstart2", "count"]
             ]
+            .assign(
+                refline=df_alg["refline"],
+                queryline=df_alg["queryline"],
+            )
         )
+
         observations = []
         for ref_id in range(len(df_ref)):
             ob = torch.from_numpy(
-                df_alg.query("ref_id == @ref_id")
+                df_expand.query("ref_id == @ref_id")
                 .pivot_table(
                     values="count", index="rstart2", columns="rend1", fill_value=0
                 )
@@ -124,12 +129,14 @@ def get_metrics(cfg: dict):
                 cfg["output_dir"] / "predicts" / f"{model}_{data_name}.csv", header=0
             )
 
+            print(cas, model, "nll")
             nll.step(df_predict, examples, batch)
             cass.append(cas)
             models.append(model)
             metrics.append("nll")
             values.append(nll.epoch())
 
+            print(cas, model, "mse")
             mse.step(df_predict, examples, batch)
             cass.append(cas)
             models.append(model)
